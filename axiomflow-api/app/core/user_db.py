@@ -87,9 +87,13 @@ def create_user(
     with get_db_session() as session:
         try:
             session.add(user)
-            session.flush()  # 获取 ID
+            session.commit()  # 提交以确保对象持久化
+            session.refresh(user)  # 刷新对象以确保所有属性都加载
+            # 将对象从会话中分离，但保留属性值（这样对象仍然可以访问属性）
+            session.expunge(user)
             return user
         except IntegrityError:
+            session.rollback()
             raise ValueError("该邮箱已被注册")
 
 
@@ -104,7 +108,11 @@ def get_user_by_email(email: str) -> Optional[User]:
         User 对象，如果不存在则返回 None
     """
     with get_db_session() as session:
-        return session.query(User).filter(User.email == email.lower()).first()
+        user = session.query(User).filter(User.email == email.lower()).first()
+        if user:
+            # 将对象从会话中分离，但保留属性值
+            session.expunge(user)
+        return user
 
 
 def get_user_by_id(user_id: str) -> Optional[User]:
@@ -118,7 +126,11 @@ def get_user_by_id(user_id: str) -> Optional[User]:
         User 对象，如果不存在则返回 None
     """
     with get_db_session() as session:
-        return session.query(User).filter(User.id == user_id).first()
+        user = session.query(User).filter(User.id == user_id).first()
+        if user:
+            # 将对象从会话中分离，但保留属性值
+            session.expunge(user)
+        return user
 
 
 def update_user_password(email: str, new_password_hash: str) -> bool:
@@ -139,6 +151,26 @@ def update_user_password(email: str, new_password_hash: str) -> bool:
         
         user.password_hash = new_password_hash
         user.updated_at = datetime.utcnow().isoformat()
+        session.commit()
+        return True
+
+
+def mark_email_verified(email: str) -> bool:
+    """
+    将用户邮箱标记为已验证
+    """
+    with get_db_session() as session:
+        user = session.query(User).filter(User.email == email.lower()).first()
+        if not user:
+            return False
+
+        # 只有当之前未验证时才更新
+        if not getattr(user, "is_email_verified", False):
+            user.is_email_verified = True
+            # 若模型支持 email_verified_at 字段，则记录时间
+            if hasattr(user, "email_verified_at"):
+                user.email_verified_at = datetime.utcnow().isoformat()
+            user.updated_at = datetime.utcnow().isoformat()
         return True
 
 
@@ -147,16 +179,45 @@ def user_to_dict(user: User) -> Dict[str, Any]:
     将 User 对象转换为字典（排除敏感信息）
     
     Args:
-        user: User 对象
+        user: User 对象（可以是 attached 或 detached）
     
     Returns:
         用户信息字典
     """
-    return {
-        "id": user.id,
-        "email": user.email,
-        "name": user.name,
-        "provider": user.provider,
-        "avatar": user.avatar or "",
-    }
+    # 如果对象是 detached，尝试通过 ID 重新查询
+    try:
+        # 尝试访问属性，如果失败说明是 detached
+        _ = user.id
+        _ = user.email
+        # 如果成功，直接使用
+        return {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "provider": user.provider,
+            "avatar": user.avatar or "",
+            "email_verified": getattr(user, "is_email_verified", False),
+        }
+    except Exception:
+        # 如果是 detached，通过 ID 重新查询
+        if hasattr(user, 'id') and user.id:
+            with get_db_session() as session:
+                fresh_user = session.query(User).filter(User.id == user.id).first()
+                if fresh_user:
+                    return {
+                        "id": fresh_user.id,
+                        "email": fresh_user.email,
+                        "name": fresh_user.name,
+                        "provider": fresh_user.provider,
+                        "avatar": fresh_user.avatar or "",
+                        "email_verified": getattr(fresh_user, "is_email_verified", False),
+                    }
+        # 如果无法获取，返回基本信息
+        return {
+            "id": getattr(user, 'id', ''),
+            "email": getattr(user, 'email', ''),
+            "name": getattr(user, 'name', ''),
+            "provider": getattr(user, 'provider', 'email'),
+            "avatar": getattr(user, 'avatar', '') or "",
+        }
 

@@ -63,6 +63,17 @@ FRONTEND_BASE_URL="http://localhost:5173"
 # Ollama 配置（如果使用本地 AI 翻译）
 OLLAMA_API_BASE="http://127.0.0.1:11434"
 OLLAMA_MODEL="gemma2"
+
+# 邮件服务配置（用于发送验证码、密码重置等，可选）
+# 如果不配置，开发环境会在API响应中返回验证码（仅用于测试）
+# 生产环境建议配置邮件服务
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="587"
+SMTP_USER="your-email@gmail.com"
+SMTP_PASSWORD="your-app-password"
+SMTP_USE_TLS="true"
+SMTP_FROM_EMAIL="your-email@gmail.com"
+SMTP_FROM_NAME="AxiomFlow"
 ```
 
 #### 2.4 启动后端服务
@@ -156,6 +167,95 @@ npm run dev
 3. **查看 API 文档**：
    - Swagger UI：`http://localhost:8000/docs`
    - ReDoc：`http://localhost:8000/redoc`
+
+## 📧 邮件服务配置（可选）
+
+### 为什么需要配置邮件服务？
+
+邮件服务用于发送验证码、密码重置链接等。如果不配置：
+- **开发环境**：系统会在API响应中返回验证码（便于测试）
+- **生产环境**：必须配置邮件服务，否则用户无法收到验证码
+
+### 邮件服务配置步骤
+
+#### Gmail 配置示例
+
+1. **启用两步验证**
+   - 访问 [Google 账户安全设置](https://myaccount.google.com/security)
+   - 启用两步验证
+
+2. **生成应用专用密码**
+   - 访问 [应用专用密码页面](https://myaccount.google.com/apppasswords)
+   - 选择"邮件"和"其他设备"
+   - 生成并复制16位密码
+
+3. **配置环境变量**
+   ```env
+   SMTP_HOST="smtp.gmail.com"
+   SMTP_PORT="587"
+   SMTP_USER="your-email@gmail.com"
+   SMTP_PASSWORD="your-16-digit-app-password"  # 使用应用专用密码
+   SMTP_USE_TLS="true"
+   SMTP_FROM_EMAIL="your-email@gmail.com"
+   SMTP_FROM_NAME="AxiomFlow"
+   ```
+
+#### QQ邮箱配置示例
+
+1. **开启SMTP服务**
+   - 登录QQ邮箱 → 设置 → 账户
+   - 开启"POP3/SMTP服务"或"IMAP/SMTP服务"
+   - 获取授权码
+
+2. **配置环境变量**
+   ```env
+   SMTP_HOST="smtp.qq.com"
+   SMTP_PORT="465"  # QQ邮箱推荐使用465端口（SSL）
+   SMTP_USER="your-email@qq.com"
+   SMTP_PASSWORD="your-authorization-code"  # 使用授权码
+   SMTP_USE_TLS="false"  # QQ邮箱使用SSL，需要设置为false
+   SMTP_FROM_EMAIL="your-email@qq.com"
+   SMTP_FROM_NAME="AxiomFlow"
+   ```
+   
+   **注意**：如果使用465端口和SSL连接失败，可以尝试587端口和TLS：
+   ```env
+   SMTP_PORT="587"
+   SMTP_USE_TLS="true"
+   ```
+   系统会自动尝试两种连接方式。
+
+#### 163邮箱配置示例
+
+1. **开启SMTP服务**
+   - 登录163邮箱 → 设置 → POP3/SMTP/IMAP
+   - 开启"POP3/SMTP服务"或"IMAP/SMTP服务"
+   - 获取授权码
+
+2. **配置环境变量**
+   ```env
+   SMTP_HOST="smtp.163.com"
+   SMTP_PORT="465"
+   SMTP_USER="your-email@163.com"
+   SMTP_PASSWORD="your-authorization-code"  # 使用授权码
+   SMTP_USE_TLS="false"  # 163邮箱使用SSL，需要设置为false
+   SMTP_FROM_EMAIL="your-email@163.com"
+   SMTP_FROM_NAME="AxiomFlow"
+   ```
+
+### 其他邮箱服务商
+
+大多数邮箱服务商都支持SMTP，配置步骤类似：
+1. 在邮箱设置中开启SMTP服务
+2. 获取授权码或应用专用密码
+3. 根据服务商要求设置端口和TLS/SSL选项
+
+**常见邮箱SMTP配置：**
+- **Gmail**: smtp.gmail.com:587 (TLS)
+- **QQ邮箱**: smtp.qq.com:587 (TLS) 或 465 (SSL)
+- **163邮箱**: smtp.163.com:465 (SSL)
+- **Outlook**: smtp-mail.outlook.com:587 (TLS)
+- **企业邮箱**: 请联系管理员获取SMTP配置
 
 ## 🔐 OAuth 配置（可选）
 
@@ -253,6 +353,18 @@ npm run dev
 - 检查 `OLLAMA_API_BASE` 和 `OLLAMA_MODEL` 配置
 - 测试 Ollama 连接：`curl http://127.0.0.1:11434/api/tags`
 
+### 邮件发送失败
+
+**问题**：忘记密码时无法收到验证码邮件
+
+**解决**：
+- 检查邮件服务配置是否正确（SMTP_HOST, SMTP_USER, SMTP_PASSWORD等）
+- 确认使用的是授权码或应用专用密码（不是普通密码）
+- 检查SMTP端口和TLS/SSL设置是否正确
+- 查看后端日志中的错误信息
+- 如果邮件服务未配置，开发环境会在API响应中返回验证码（查看返回的`code`字段）
+- 测试邮件服务：检查后端日志中是否有"邮件发送成功"或"邮件发送失败"的日志
+
 ---
 
 ## 📝 启动检查清单
@@ -278,4 +390,5 @@ npm run dev
 
 **说明**：
 - **Celery Worker**：必需，用于执行异步任务（如 PDF 翻译）
+  - **Windows用户注意**：脚本会自动使用 `--pool=solo` 模式，避免Windows上的已知问题
 - **Celery Beat**：可选，仅在启用健康检查功能时需要（默认启用）

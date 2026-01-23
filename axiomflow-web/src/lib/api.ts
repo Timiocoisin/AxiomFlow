@@ -347,7 +347,7 @@ export async function emailLogin(params: {
   return await res.json();
 }
 
-export async function forgotPassword(params: { email: string }): Promise<{ message: string; reset_url?: string; token?: string }> {
+export async function forgotPassword(params: { email: string }): Promise<{ message: string; session_id: string; code?: string }> {
   const res = await fetch(`${API_BASE}/auth/forgot-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -360,6 +360,24 @@ export async function forgotPassword(params: { email: string }): Promise<{ messa
       throw new Error(errorData.detail || text);
     } catch {
       throw new Error(text || `请求失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+export async function verifyEmailCode(params: { email: string; code: string; session_id: string }): Promise<{ message: string; token: string }> {
+  const res = await fetch(`${API_BASE}/auth/verify-email-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `验证失败 (${res.status})`);
     }
   }
   return await res.json();

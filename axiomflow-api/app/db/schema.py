@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Column, Float, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine
+from sqlalchemy import JSON, Column, Float, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 
@@ -140,7 +140,9 @@ class User(Base):
     name = Column(String(NAME_LEN), nullable=False)
     password_hash = Column(String(255), nullable=False)  # bcrypt hash
     provider = Column(String(32), nullable=False, default="email")  # email, google, github
-    avatar = Column(String(PATH_LEN), default="")  # 头像URL
+    avatar = Column(String(PATH_LEN), default="" )  # 头像URL
+    is_email_verified = Column(Boolean, nullable=False, default=False)  # 邮箱是否已验证
+    email_verified_at = Column(String(TIME_LEN), nullable=True)  # 邮箱验证时间
     created_at = Column(String(TIME_LEN), nullable=False)
     updated_at = Column(String(TIME_LEN), nullable=False)
 
@@ -148,6 +150,75 @@ class User(Base):
     __table_args__ = (
         UniqueConstraint("email", name="uq_user_email"),
     )
+
+
+class CaptchaSession(Base):
+    """图形验证码会话（持久化）"""
+    __tablename__ = "auth_captcha_sessions"
+
+    session_id = Column(String(ID_LEN), primary_key=True)
+    code_hash = Column(String(64), nullable=False)  # sha256 hex
+    ip = Column(String(64), default="")
+    expires_at = Column(Integer, nullable=False)  # epoch seconds
+    created_at = Column(String(TIME_LEN), nullable=False)
+
+
+class EmailCodeSession(Base):
+    """邮箱验证码会话（用于忘记密码验证码）"""
+    __tablename__ = "auth_email_code_sessions"
+
+    session_id = Column(String(ID_LEN), primary_key=True)
+    email = Column(String(NAME_LEN), nullable=False, index=True)
+    code_hash = Column(String(64), nullable=False)  # sha256 hex
+    ip = Column(String(64), default="")
+    expires_at = Column(Integer, nullable=False)  # epoch seconds
+    created_at = Column(String(TIME_LEN), nullable=False)
+
+
+class PasswordResetToken(Base):
+    """密码重置 token（用于 reset-password）"""
+    __tablename__ = "auth_password_reset_tokens"
+
+    token = Column(String(128), primary_key=True)
+    email = Column(String(NAME_LEN), nullable=False, index=True)
+    ip = Column(String(64), default="")
+    expires_at = Column(Integer, nullable=False)  # epoch seconds
+    created_at = Column(String(TIME_LEN), nullable=False)
+
+
+class EmailVerifyToken(Base):
+    """注册后邮箱验证 token"""
+    __tablename__ = "auth_email_verify_tokens"
+
+    token = Column(String(128), primary_key=True)
+    email = Column(String(NAME_LEN), nullable=False, index=True)
+    ip = Column(String(64), default="")
+    expires_at = Column(Integer, nullable=False)  # epoch seconds
+    created_at = Column(String(TIME_LEN), nullable=False)
+
+
+class LoginAuditLog(Base):
+    """登录审计日志"""
+    __tablename__ = "auth_login_audit_logs"
+
+    id = Column(String(ID_LEN), primary_key=True)
+    user_id = Column(String(ID_LEN), nullable=True, index=True)
+    email = Column(String(NAME_LEN), nullable=True, index=True)
+    ip = Column(String(64), default="", index=True)
+    user_agent = Column(String(512), default="")
+    success = Column(Boolean, nullable=False, default=False)
+    reason = Column(String(MSG_LEN), default="")  # 失败原因/备注
+    created_at = Column(String(TIME_LEN), nullable=False)
+
+
+class PasswordHistory(Base):
+    """密码历史（防止复用最近 N 次密码）"""
+    __tablename__ = "auth_password_history"
+
+    id = Column(String(ID_LEN), primary_key=True)
+    user_id = Column(String(ID_LEN), nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)  # bcrypt hash
+    created_at = Column(String(TIME_LEN), nullable=False)
 
 
 def init_db(database_url: str) -> tuple[Any, Any]:

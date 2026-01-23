@@ -27,10 +27,20 @@ if __name__ == "__main__":
     
     if not has_command:
         # 没有提供命令，使用默认参数启动 worker
+        # Windows上使用solo pool避免"not enough values to unpack"错误
+        import platform
+        pool_type = "solo" if platform.system() == "Windows" else "prefork"
         # argv 格式: [命令, ...参数]
-        argv = ["worker", "--loglevel=info"] + args
+        argv = ["worker", "--loglevel=info", f"--pool={pool_type}"] + args
     else:
         # 已经提供了命令，直接使用
+        # 如果是worker命令且没有指定pool，Windows上自动添加solo
+        import platform
+        if platform.system() == "Windows" and args[0] == "worker":
+            # 检查是否已经指定了pool
+            has_pool = any("--pool" in arg or "-P" in arg for arg in args)
+            if not has_pool:
+                args.append("--pool=solo")
         argv = args
     
     # 启动 Celery

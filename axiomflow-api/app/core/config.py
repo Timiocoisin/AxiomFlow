@@ -79,6 +79,15 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60 * 24 * 7  # 7天
 
+    # 邮件服务配置（用于发送验证码、密码重置等）
+    smtp_host: str = Field(default="", validation_alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, validation_alias="SMTP_PORT")
+    smtp_user: str = Field(default="", validation_alias="SMTP_USER")
+    smtp_password: str = Field(default="", validation_alias="SMTP_PASSWORD")
+    smtp_use_tls: bool = Field(default=True, validation_alias="SMTP_USE_TLS")  # True使用TLS(587端口)，False使用SSL(465端口)
+    smtp_from_email: str = Field(default="", validation_alias="SMTP_FROM_EMAIL")  # 发件人邮箱（为空则使用smtp_user）
+    smtp_from_name: str = Field(default="AxiomFlow", validation_alias="SMTP_FROM_NAME")  # 发件人名称
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

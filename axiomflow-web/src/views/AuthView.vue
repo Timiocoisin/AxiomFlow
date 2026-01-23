@@ -76,8 +76,24 @@
             <div v-if="emailError" id="email-error" class="field-error" role="alert">{{ emailError }}</div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">密码</label>
+          <div class="form-group password-group" ref="passwordGroupRef">
+            <label class="form-label password-label-row">
+              <span>密码</span>
+              <button
+                v-if="!isLogin"
+                type="button"
+                class="password-tips-trigger"
+                @click="togglePasswordTips"
+                :aria-expanded="showPasswordTips ? 'true' : 'false'"
+                aria-label="查看密码要求"
+                title="密码要求"
+              >
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M12 17h.01M12 13a3 3 0 1 0-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" stroke-width="2"/>
+                </svg>
+              </button>
+            </label>
             <div class="password-input-wrapper">
               <input
                 v-model="formData.password"
@@ -91,6 +107,8 @@
                 aria-describedby="password-error"
                 @blur="validatePassword"
                 @input="validatePassword"
+                @focus="!isLogin && (showPasswordTips = true)"
+                @keydown.esc.prevent="showPasswordTips = false"
                 @keyup.enter="handleSubmit"
                 required
                 :minlength="isLogin ? 0 : 8"
@@ -111,11 +129,75 @@
               </button>
             </div>
             <div v-if="passwordError" id="password-error" class="field-error" role="alert">{{ passwordError }}</div>
-            <!-- 密码强度指示器 -->
-            <div v-if="!isLogin && formData.password" class="password-strength">
-              <div class="strength-bar" :class="passwordStrengthClass"></div>
-              <span class="strength-text">{{ passwordStrengthText }}</span>
-            </div>
+            <!-- 悬浮密码要求（不占据布局） -->
+            <Transition name="fade-pop">
+              <div
+                v-if="!isLogin && showPasswordTips"
+                ref="passwordPopoverRef"
+                class="password-tips-popover"
+                :class="`place-${passwordPopoverPlacement}`"
+                role="dialog"
+                aria-label="密码要求提示"
+                @mousedown.prevent
+              >
+                <div class="password-tips-head">
+                  <div class="password-tips-title">密码要求</div>
+                  <div v-if="formData.password" class="password-strength-pill" :class="passwordStrengthClass">
+                    强度：{{ passwordStrengthText || "弱" }}
+                  </div>
+                </div>
+                <ul class="password-tips-list">
+                  <li :class="{ met: passwordRuleStatus.len8 }">
+                    <span class="tip-text">至少 <strong>8 个字符</strong></span>
+                    <span class="rule-meter" aria-hidden="true">
+                      <span
+                        class="rule-meter-fill"
+                        :class="passwordStrengthClass"
+                        :style="{ width: `${Math.round(passwordRuleProgress.len8 * 100)}%` }"
+                      ></span>
+                    </span>
+                  </li>
+                  <li :class="{ met: passwordRuleStatus.cases }">
+                    <span class="tip-text">同时包含 <strong>大写</strong> 与 <strong>小写</strong></span>
+                    <span class="rule-meter" aria-hidden="true">
+                      <span
+                        class="rule-meter-fill"
+                        :class="passwordStrengthClass"
+                        :style="{ width: `${Math.round(passwordRuleProgress.cases * 100)}%` }"
+                      ></span>
+                    </span>
+                  </li>
+                  <li :class="{ met: passwordRuleStatus.digit }">
+                    <span class="tip-text">包含 <strong>数字</strong></span>
+                    <span class="rule-meter" aria-hidden="true">
+                      <span
+                        class="rule-meter-fill"
+                        :class="passwordStrengthClass"
+                        :style="{ width: `${Math.round(passwordRuleProgress.digit * 100)}%` }"
+                      ></span>
+                    </span>
+                  </li>
+                  <li class="recommended" :class="{ met: passwordRuleStatus.symbol }">
+                    <span class="tip-text">包含 <strong>符号</strong>（推荐）</span>
+                    <span class="rule-meter" aria-hidden="true">
+                      <span
+                        class="rule-meter-fill"
+                        :class="passwordStrengthClass"
+                        :style="{ width: `${Math.round(passwordRuleProgress.symbol * 100)}%` }"
+                      ></span>
+                    </span>
+                  </li>
+                </ul>
+              </div>
+            </Transition>
+          </div>
+
+          <div
+            v-if="isLogin && loginSecurityMessage"
+            class="login-security-message"
+            role="alert"
+          >
+            {{ loginSecurityMessage }}
           </div>
 
           <div v-if="!isLogin" class="form-group">
@@ -238,7 +320,7 @@
             <button
               type="button"
               class="forgot-password-link"
-              @click="showForgotPasswordModal = true"
+              @click="handleOpenForgotPasswordModal"
               :disabled="loading"
               aria-label="忘记密码"
             >
@@ -303,7 +385,7 @@
         <div
           v-if="showForgotPasswordModal"
           class="modal-overlay"
-          @click.self="showForgotPasswordModal = false"
+          @click.self="handleCloseForgotPasswordModal"
           role="dialog"
           aria-labelledby="forgot-password-title"
           aria-modal="true"
@@ -313,7 +395,7 @@
               <h2 id="forgot-password-title">忘记密码</h2>
               <button
                 class="modal-close"
-                @click="showForgotPasswordModal = false"
+                @click="handleCloseForgotPasswordModal"
                 aria-label="关闭"
               >
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -322,8 +404,9 @@
               </button>
             </div>
             <div class="modal-body">
-              <div v-if="!forgotPasswordSuccess">
-                <p class="modal-description">请输入您的邮箱地址，我们将发送密码重置链接到您的邮箱。</p>
+              <!-- 第一步：输入邮箱 -->
+              <div v-if="forgotPasswordStep === 'email'">
+                <p class="modal-description">请输入您的邮箱地址，我们将发送验证码到您的邮箱。</p>
                 <div class="form-group">
                   <label class="form-label" for="forgot-email">邮箱地址</label>
                   <div class="input-wrapper">
@@ -332,36 +415,104 @@
                       v-model="forgotPasswordEmail"
                       type="email"
                       class="form-input"
+                      :class="{ 'input-error': forgotPasswordEmailError }"
                       placeholder="请输入邮箱地址"
                       autocomplete="email"
                       aria-required="true"
-                      @keyup.enter="handleForgotPassword"
+                      aria-invalid="!!forgotPasswordEmailError"
+                      @keyup.enter="handleSendVerificationCode"
+                      @input="forgotPasswordEmailError = ''"
                     />
+                    <div v-if="forgotPasswordEmailError" class="input-status-icon input-status-error">
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </div>
                   </div>
+                  <div v-if="forgotPasswordEmailError" class="field-error" role="alert">{{ forgotPasswordEmailError }}</div>
                 </div>
                 <button
                   class="auth-button"
-                  @click="handleForgotPassword"
-                  :disabled="forgotPasswordLoading"
+                  @click="handleSendVerificationCode"
+                  :disabled="forgotPasswordLoading || !forgotPasswordEmail.trim()"
                   style="width: 100%; margin-top: 20px;"
                 >
                   <span v-if="forgotPasswordLoading" class="loading-spinner"></span>
-                  <span>{{ forgotPasswordLoading ? "发送中..." : "发送重置链接" }}</span>
+                  <span>{{ forgotPasswordLoading ? "发送中..." : "发送验证码" }}</span>
                 </button>
               </div>
-              <div v-else class="forgot-password-success">
+
+              <!-- 第二步：输入验证码 -->
+              <div v-else-if="forgotPasswordStep === 'verify'">
+                <p class="modal-description">验证码已发送到 <strong>{{ forgotPasswordEmail }}</strong>，请输入6位验证码（字母+数字，不区分大小写）。</p>
+                <div class="form-group">
+                  <label class="form-label" for="verification-code">验证码</label>
+                  <div class="input-wrapper">
+                    <input
+                      id="verification-code"
+                      v-model="emailVerificationCode"
+                      type="text"
+                      class="form-input"
+                      :class="{ 'input-error': emailVerificationCodeError }"
+                      placeholder="请输入6位验证码（字母+数字）"
+                      maxlength="6"
+                      autocomplete="off"
+                      aria-required="true"
+                      aria-invalid="!!emailVerificationCodeError"
+                      @keyup.enter="handleVerifyCode"
+                      @input="emailVerificationCodeError = ''; emailVerificationCode = emailVerificationCode.replace(/[^A-Za-z0-9]/g, '').toUpperCase()"
+                    />
+                    <div v-if="emailVerificationCodeError" class="input-status-icon input-status-error">
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <div v-if="emailVerificationCodeError" class="field-error" role="alert">{{ emailVerificationCodeError }}</div>
+                </div>
+                <div class="form-options" style="justify-content: space-between; margin-top: 16px;">
+                  <button
+                    type="button"
+                    class="forgot-password-link"
+                    @click="forgotPasswordStep = 'email'"
+                    :disabled="verifyCodeLoading"
+                  >
+                    ← 返回修改邮箱
+                  </button>
+                  <button
+                    type="button"
+                    class="forgot-password-link"
+                    @click="handleResendCode"
+                    :disabled="forgotPasswordLoading || verifyCodeLoading"
+                  >
+                    重新发送验证码
+                  </button>
+                </div>
+                <button
+                  class="auth-button"
+                  @click="handleVerifyCode"
+                  :disabled="verifyCodeLoading || emailVerificationCode.length !== 6"
+                  style="width: 100%; margin-top: 20px;"
+                >
+                  <span v-if="verifyCodeLoading" class="loading-spinner"></span>
+                  <span>{{ verifyCodeLoading ? "验证中..." : "验证" }}</span>
+                </button>
+              </div>
+
+              <!-- 第三步：成功提示 -->
+              <div v-else-if="forgotPasswordStep === 'success'" class="forgot-password-success">
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="success-icon">
                   <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
                 </svg>
-                <p>重置链接已发送到您的邮箱，请查收。</p>
-                <p class="success-hint">（开发环境：请查看控制台或Toast提示中的重置链接）</p>
+                <p>验证码验证成功！</p>
+                <p class="success-hint">请设置您的新密码</p>
                 <button
                   class="auth-button"
-                  @click="showForgotPasswordModal = false"
+                  @click="handleOpenResetPasswordModal"
                   style="width: 100%; margin-top: 20px;"
                 >
-                  确定
+                  设置新密码
                 </button>
               </div>
             </div>
@@ -444,10 +595,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useUserStore } from "@/stores/user";
-import { API_BASE, googleLogin, emailRegister, emailLogin, getCaptcha, forgotPassword, resetPassword } from "@/lib/api";
+import { API_BASE, googleLogin, emailRegister, emailLogin, getCaptcha, forgotPassword, verifyEmailCode, resetPassword } from "@/lib/api";
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -458,6 +609,7 @@ const error = ref("");
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 const rememberMe = ref(true); // 默认记住我
+const loginSecurityMessage = ref("");
 
 // 验证码相关
 const captchaImage = ref<string | null>(null);
@@ -468,9 +620,14 @@ const loadingCaptcha = ref(false);
 
 // 忘记密码相关
 const showForgotPasswordModal = ref(false);
+const forgotPasswordStep = ref<"email" | "verify" | "success">("email"); // 步骤：输入邮箱 -> 验证码 -> 成功
 const forgotPasswordEmail = ref("");
+const forgotPasswordEmailError = ref("");
 const forgotPasswordLoading = ref(false);
-const forgotPasswordSuccess = ref(false);
+const emailVerificationSessionId = ref("");
+const emailVerificationCode = ref("");
+const emailVerificationCodeError = ref("");
+const verifyCodeLoading = ref(false);
 const resetPasswordToken = ref("");
 const showResetPasswordModal = ref(false);
 const resetPasswordData = ref({
@@ -551,7 +708,7 @@ const validatePassword = () => {
   }
   if (!isLogin.value) {
     if (password.length < 8) {
-      passwordError.value = "密码长度至少为8位";
+      passwordError.value = "";
       return false;
     }
     if (password.length > 128) {
@@ -562,6 +719,110 @@ const validatePassword = () => {
   passwordError.value = "";
   return true;
 };
+
+// 悬浮提示：密码规则实时达标
+const passwordGroupRef = ref<HTMLElement | null>(null);
+const showPasswordTips = ref(false);
+const togglePasswordTips = () => {
+  showPasswordTips.value = !showPasswordTips.value;
+};
+
+type PasswordPopoverPlacement = "right" | "left" | "bottom";
+const passwordPopoverPlacement = ref<PasswordPopoverPlacement>("right");
+
+const passwordRuleStatus = computed(() => {
+  const p = formData.value.password || "";
+  if (isLogin.value) {
+    return { len8: false, cases: false, digit: false, symbol: false };
+  }
+  return {
+    len8: p.length >= 8,
+    cases: /[a-z]/.test(p) && /[A-Z]/.test(p),
+    digit: /\d/.test(p),
+    symbol: /[^a-zA-Z0-9]/.test(p),
+  };
+});
+
+// 规则“进度”（点阵条）0~1
+const passwordRuleProgress = computed(() => {
+  const p = formData.value.password || "";
+  if (isLogin.value) {
+    return { len8: 0, cases: 0, digit: 0, symbol: 0 };
+  }
+  const hasLower = /[a-z]/.test(p);
+  const hasUpper = /[A-Z]/.test(p);
+  const hasDigit = /\d/.test(p);
+  const hasSymbol = /[^a-zA-Z0-9]/.test(p);
+  return {
+    len8: Math.max(0, Math.min(1, p.length / 8)),
+    cases: (hasLower ? 0.5 : 0) + (hasUpper ? 0.5 : 0),
+    digit: hasDigit ? 1 : 0,
+    symbol: hasSymbol ? 1 : 0,
+  };
+});
+
+const updatePasswordPopoverPlacement = async () => {
+  if (isLogin.value) return;
+  if (!showPasswordTips.value) return;
+
+  await nextTick();
+
+  const groupEl = passwordGroupRef.value;
+  if (!groupEl) return;
+
+  const inputEl = groupEl.querySelector<HTMLInputElement>(".password-input-wrapper input");
+  if (!inputEl) return;
+
+  const inputRect = inputEl.getBoundingClientRect();
+  const viewportW = window.innerWidth;
+  const availableRight = viewportW - inputRect.right;
+  const availableLeft = inputRect.left;
+
+  // Popover 宽度固定 320px，如果左右都不够，则改为 bottom（下方）
+  const POPOVER_WIDTH = 320;
+  const GAP = 24; // 与输入框的水平间距预估
+
+  if (availableRight >= POPOVER_WIDTH + GAP) {
+    passwordPopoverPlacement.value = "right";
+  } else if (availableLeft >= POPOVER_WIDTH + GAP) {
+    passwordPopoverPlacement.value = "left";
+  } else {
+    passwordPopoverPlacement.value = "bottom";
+  }
+};
+
+// 点击输入框外自动关闭（仅注册态）
+const handleGlobalPointerDown = (e: Event) => {
+  if (isLogin.value) return;
+  if (!showPasswordTips.value) return;
+  const root = passwordGroupRef.value;
+  const target = e.target as Node | null;
+  if (!root || !target) return;
+  if (!root.contains(target)) {
+    showPasswordTips.value = false;
+  }
+};
+
+onMounted(() => {
+  document.addEventListener("pointerdown", handleGlobalPointerDown, { capture: true });
+  window.addEventListener("resize", updatePasswordPopoverPlacement, { passive: true });
+  window.addEventListener("scroll", updatePasswordPopoverPlacement, { passive: true, capture: true } as any);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", handleGlobalPointerDown, { capture: true } as any);
+  window.removeEventListener("resize", updatePasswordPopoverPlacement as any);
+  window.removeEventListener("scroll", updatePasswordPopoverPlacement as any, { capture: true } as any);
+});
+
+watch(showPasswordTips, (v) => {
+  if (v) updatePasswordPopoverPlacement();
+});
+watch(
+  () => formData.value.password,
+  () => {
+    if (showPasswordTips.value) updatePasswordPopoverPlacement();
+  }
+);
 
 const validateConfirmPassword = () => {
   if (!isLogin.value) {
@@ -649,32 +910,115 @@ const loadCaptcha = async () => {
   }
 };
 
-// 忘记密码
-const handleForgotPassword = async () => {
+// 发送验证码
+const handleSendVerificationCode = async () => {
+  forgotPasswordEmailError.value = "";
+  
   if (!forgotPasswordEmail.value.trim()) {
-    showToast("error", "请输入邮箱地址");
+    forgotPasswordEmailError.value = "请输入邮箱地址";
     return;
   }
   if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(forgotPasswordEmail.value.trim())) {
-    showToast("error", "请输入有效的邮箱地址");
+    forgotPasswordEmailError.value = "请输入有效的邮箱地址";
     return;
   }
   
   forgotPasswordLoading.value = true;
   try {
     const result = await forgotPassword({ email: forgotPasswordEmail.value.trim() });
-    forgotPasswordSuccess.value = true;
-    // 开发环境显示重置链接
-    if (result.reset_url) {
-      showToast("info", "开发环境提示", `重置链接：${result.reset_url}`);
+    emailVerificationSessionId.value = result.session_id;
+    // 开发环境显示验证码
+    if (result.code) {
+      showToast("info", "开发环境提示", `验证码：${result.code}`);
     } else {
-      showToast("success", "邮件已发送", result.message);
+      showToast("success", "验证码已发送", result.message);
     }
+    // 进入验证码输入步骤
+    forgotPasswordStep.value = "verify";
+    emailVerificationCode.value = "";
   } catch (err: any) {
-    showToast("error", "请求失败", err.message);
+    forgotPasswordEmailError.value = err.message || "发送失败，请稍后重试";
+    showToast("error", "发送失败", err.message);
   } finally {
     forgotPasswordLoading.value = false;
   }
+};
+
+// 重新发送验证码
+const handleResendCode = async () => {
+  await handleSendVerificationCode();
+};
+
+// 验证验证码
+const handleVerifyCode = async () => {
+  emailVerificationCodeError.value = "";
+  
+  if (!emailVerificationCode.value.trim()) {
+    emailVerificationCodeError.value = "请输入验证码";
+    return;
+  }
+  if (emailVerificationCode.value.length !== 6) {
+    emailVerificationCodeError.value = "验证码应为6位（字母+数字）";
+    return;
+  }
+  // 验证格式：必须包含字母和数字
+  if (!/^[A-Z0-9]{6}$/.test(emailVerificationCode.value)) {
+    emailVerificationCodeError.value = "验证码格式不正确，应为6位字母和数字组合";
+    return;
+  }
+  
+  verifyCodeLoading.value = true;
+  try {
+    const result = await verifyEmailCode({
+      email: forgotPasswordEmail.value.trim(),
+      code: emailVerificationCode.value.trim(),
+      session_id: emailVerificationSessionId.value,
+    });
+    resetPasswordToken.value = result.token;
+    // 验证成功，进入成功步骤
+    forgotPasswordStep.value = "success";
+    showToast("success", "验证成功", result.message);
+  } catch (err: any) {
+    emailVerificationCodeError.value = err.message || "验证失败，请稍后重试";
+    showToast("error", "验证失败", err.message);
+  } finally {
+    verifyCodeLoading.value = false;
+  }
+};
+
+// 打开忘记密码弹窗
+const handleOpenForgotPasswordModal = () => {
+  forgotPasswordStep.value = "email";
+  forgotPasswordEmail.value = "";
+  forgotPasswordEmailError.value = "";
+  emailVerificationCode.value = "";
+  emailVerificationCodeError.value = "";
+  emailVerificationSessionId.value = "";
+  forgotPasswordLoading.value = false;
+  verifyCodeLoading.value = false;
+  showForgotPasswordModal.value = true;
+};
+
+// 关闭忘记密码弹窗
+const handleCloseForgotPasswordModal = () => {
+  showForgotPasswordModal.value = false;
+  // 延迟重置状态，避免关闭动画时闪烁
+  setTimeout(() => {
+    forgotPasswordStep.value = "email";
+    forgotPasswordEmail.value = "";
+    forgotPasswordEmailError.value = "";
+    emailVerificationCode.value = "";
+    emailVerificationCodeError.value = "";
+    emailVerificationSessionId.value = "";
+    forgotPasswordLoading.value = false;
+    verifyCodeLoading.value = false;
+  }, 300);
+};
+
+// 打开重置密码弹窗
+const handleOpenResetPasswordModal = () => {
+  showForgotPasswordModal.value = false;
+  showResetPasswordModal.value = true;
 };
 
 // 重置密码
@@ -684,7 +1028,7 @@ const handleResetPassword = async () => {
     return;
   }
   if (resetPasswordData.value.password.length < 8) {
-    showToast("error", "密码长度至少为8位");
+    // 弱密码时仅阻止提交，不再弹出错误 Toast，由右侧规则 Popover 提示用户
     return;
   }
   if (resetPasswordData.value.password !== resetPasswordData.value.confirmPassword) {
@@ -701,6 +1045,12 @@ const handleResetPassword = async () => {
     showToast("success", "密码重置成功", "请使用新密码登录");
     showResetPasswordModal.value = false;
     resetPasswordData.value = { password: "", confirmPassword: "" };
+    resetPasswordToken.value = "";
+    // 重置忘记密码弹窗状态
+    forgotPasswordStep.value = "email";
+    forgotPasswordEmail.value = "";
+    emailVerificationCode.value = "";
+    emailVerificationSessionId.value = "";
     // 切换到登录模式
     isLogin.value = true;
   } catch (err: any) {
@@ -845,6 +1195,7 @@ const toggleMode = () => {
 
 const handleSubmit = async () => {
   error.value = "";
+  loginSecurityMessage.value = "";
   
   // 验证所有字段
   const nameOk = isLogin.value || validateName();
@@ -863,7 +1214,7 @@ const handleSubmit = async () => {
       return;
     }
     if (formData.value.password.length < 8) {
-      error.value = "密码长度至少为8位";
+      error.value = "";
       return;
     }
   }
@@ -880,7 +1231,11 @@ const handleSubmit = async () => {
         captcha_session: captchaSession.value,
       });
       userStore.login(result.user, result.token, rememberMe.value);
-      showToast("success", "登录成功", `欢迎回来，${result.user.name || result.user.email}！`);
+      if (result.user && (result.user as any).email_verified === false) {
+        showToast("info", "邮箱未验证", "已登录，但部分功能可能受限，请前往邮箱完成验证。");
+      } else {
+        showToast("success", "登录成功", `欢迎回来，${result.user.name || result.user.email}！`);
+      }
     } else {
       // 邮箱注册
       const result = await emailRegister({
@@ -891,16 +1246,26 @@ const handleSubmit = async () => {
         captcha_session: captchaSession.value,
       });
       userStore.login(result.user, result.token, true); // 注册时默认记住
-      showToast("success", "注册成功", `账户创建成功，欢迎使用，${result.user.name}！`);
+      showToast(
+        "success",
+        "注册成功",
+        "账户创建成功，我们已向您的邮箱发送验证邮件，请完成邮箱验证后再继续使用。"
+      );
     }
 
     // 跳转到首页或之前的页面
-    const redirect = router.currentRoute.value.query.redirect as string || "/";
+    const redirect = (router.currentRoute.value.query.redirect as string) || "/";
     router.push(redirect);
   } catch (err: any) {
     console.error("Auth error:", err);
-    const errorMessage = err.message || (isLogin.value ? "登录失败，请检查邮箱和密码" : "注册失败，请稍后重试");
+    const errorMessage =
+      err.message || (isLogin.value ? "登录失败，请检查邮箱和密码" : "注册失败，请稍后重试");
     error.value = errorMessage;
+
+    if (isLogin.value && (errorMessage.includes("剩余尝试次数") || errorMessage.includes("暂时锁定"))) {
+      loginSecurityMessage.value = errorMessage;
+    }
+
     showToast("error", isLogin.value ? "登录失败" : "注册失败", errorMessage);
   } finally {
     loading.value = false;
