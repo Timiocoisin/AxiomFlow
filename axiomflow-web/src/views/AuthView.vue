@@ -192,12 +192,17 @@
             </Transition>
           </div>
 
-          <div
-            v-if="isLogin && loginSecurityMessage"
-            class="login-security-message"
-            role="alert"
-          >
-            {{ loginSecurityMessage }}
+          <div v-if="isLogin && loginSecurityMessage" class="login-security-message" role="alert">
+            <span>{{ loginSecurityMessage }}</span>
+            <button
+              v-if="loginSecurityMessage.includes('暂时锁定')"
+              type="button"
+              class="login-unlock-link"
+              @click="handleOpenLoginUnlockModal"
+              :disabled="loading"
+            >
+              通过邮箱验证码解锁
+            </button>
           </div>
 
           <div v-if="!isLogin" class="form-group">
@@ -591,6 +596,110 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- 登录解锁模态框 -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showLoginUnlockModal"
+          class="modal-overlay"
+          @click.self="handleCloseLoginUnlockModal"
+          role="dialog"
+          aria-labelledby="login-unlock-title"
+          aria-modal="true"
+        >
+          <div class="modal-content glass-card">
+            <div class="modal-header">
+              <h2 id="login-unlock-title">解锁登录</h2>
+              <button
+                class="modal-close"
+                @click="handleCloseLoginUnlockModal"
+                aria-label="关闭"
+              >
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <div class="modal-body">
+              <p class="modal-description">
+                由于多次密码错误，当前账户已被临时锁定。您可以通过邮箱验证码快速解锁后再登录。
+              </p>
+              <div class="form-group">
+                <label class="form-label" for="login-unlock-email">邮箱地址</label>
+                <div class="input-wrapper">
+                  <input
+                    id="login-unlock-email"
+                    v-model="loginUnlockEmail"
+                    type="email"
+                    class="form-input"
+                    :class="{ 'input-error': loginUnlockEmailError }"
+                    placeholder="请输入登录使用的邮箱地址"
+                    autocomplete="email"
+                    aria-required="true"
+                    aria-invalid="!!loginUnlockEmailError"
+                    @input="loginUnlockEmailError = ''"
+                  />
+                  <div v-if="loginUnlockEmailError" class="input-status-icon input-status-error">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                </div>
+                <div v-if="loginUnlockEmailError" class="field-error" role="alert">{{ loginUnlockEmailError }}</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="login-unlock-code">验证码</label>
+                <div class="input-wrapper">
+                  <input
+                    id="login-unlock-code"
+                    v-model="loginUnlockCode"
+                    type="text"
+                    class="form-input"
+                    :class="{ 'input-error': loginUnlockCodeError }"
+                    placeholder="请输入6位验证码（字母+数字）"
+                    maxlength="6"
+                    autocomplete="off"
+                    aria-required="true"
+                    aria-invalid="!!loginUnlockCodeError"
+                    @input="onLoginUnlockCodeInput"
+                    @keyup.enter="handleVerifyLoginUnlock"
+                  />
+                  <div v-if="loginUnlockCodeError" class="input-status-icon input-status-error">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                </div>
+                <div v-if="loginUnlockCodeError" class="field-error" role="alert">{{ loginUnlockCodeError }}</div>
+              </div>
+
+              <div class="form-options" style="justify-content: space-between; margin-top: 16px;">
+                <button
+                  type="button"
+                  class="forgot-password-link"
+                  @click="handleSendLoginUnlockCode"
+                  :disabled="loginUnlockSending"
+                >
+                  {{ loginUnlockSending ? "发送中..." : "发送 / 重新发送验证码" }}
+                </button>
+              </div>
+
+              <button
+                class="auth-button"
+                @click="handleVerifyLoginUnlock"
+                :disabled="loginUnlockVerifying || loginUnlockCode.length !== 6"
+                style="width: 100%; margin-top: 20px;"
+              >
+                <span v-if="loginUnlockVerifying" class="loading-spinner"></span>
+                <span>{{ loginUnlockVerifying ? "验证中..." : "验证并解锁" }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -598,7 +707,19 @@
 import { ref, computed, onMounted, onUnmounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useUserStore } from "@/stores/user";
-import { API_BASE, googleLogin, emailRegister, emailLogin, getCaptcha, forgotPassword, verifyEmailCode, resetPassword } from "@/lib/api";
+import {
+  API_BASE,
+  googleLogin,
+  emailRegister,
+  emailLogin,
+  getCaptcha,
+  forgotPassword,
+  verifyEmailCode,
+  resetPassword,
+  sendLoginUnlockCode,
+  verifyLoginUnlockCode,
+  resendVerifyEmail,
+} from "@/lib/api";
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -610,6 +731,16 @@ const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 const rememberMe = ref(true); // 默认记住我
 const loginSecurityMessage = ref("");
+
+// 登录解锁相关
+const showLoginUnlockModal = ref(false);
+const loginUnlockEmail = ref("");
+const loginUnlockEmailError = ref("");
+const loginUnlockSending = ref(false);
+const loginUnlockSessionId = ref("");
+const loginUnlockCode = ref("");
+const loginUnlockCodeError = ref("");
+const loginUnlockVerifying = ref(false);
 
 // 验证码相关
 const captchaImage = ref<string | null>(null);
@@ -1060,6 +1191,111 @@ const handleResetPassword = async () => {
   }
 };
 
+// 打开登录解锁弹窗
+const handleOpenLoginUnlockModal = () => {
+  loginUnlockEmail.value = formData.value.email.trim();
+  loginUnlockEmailError.value = "";
+  loginUnlockCode.value = "";
+  loginUnlockCodeError.value = "";
+  loginUnlockSessionId.value = "";
+  loginUnlockSending.value = false;
+  loginUnlockVerifying.value = false;
+  showLoginUnlockModal.value = true;
+};
+
+// 关闭登录解锁弹窗
+const handleCloseLoginUnlockModal = () => {
+  showLoginUnlockModal.value = false;
+  setTimeout(() => {
+    loginUnlockEmail.value = "";
+    loginUnlockEmailError.value = "";
+    loginUnlockCode.value = "";
+    loginUnlockCodeError.value = "";
+    loginUnlockSessionId.value = "";
+    loginUnlockSending.value = false;
+    loginUnlockVerifying.value = false;
+  }, 300);
+};
+
+// 输入验证码时只保留字母数字并转大写
+const onLoginUnlockCodeInput = () => {
+  loginUnlockCodeError.value = "";
+  loginUnlockCode.value = loginUnlockCode.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+};
+
+// 发送登录解锁验证码
+const handleSendLoginUnlockCode = async () => {
+  loginUnlockEmailError.value = "";
+
+  const email = loginUnlockEmail.value.trim() || formData.value.email.trim();
+  if (!email) {
+    loginUnlockEmailError.value = "请输入邮箱地址";
+    return;
+  }
+  const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailPattern.test(email)) {
+    loginUnlockEmailError.value = "请输入有效的邮箱地址";
+    return;
+  }
+
+  loginUnlockEmail.value = email;
+  loginUnlockSending.value = true;
+  try {
+    const result = await sendLoginUnlockCode({ email });
+    loginUnlockSessionId.value = result.session_id;
+    if (result.code) {
+      showToast("info", "开发环境提示", `解锁验证码：${result.code}`);
+    } else {
+      showToast("success", "验证码已发送", result.message);
+    }
+  } catch (err: any) {
+    loginUnlockEmailError.value = err.message || "发送失败，请稍后重试";
+    showToast("error", "发送失败", err.message);
+  } finally {
+    loginUnlockSending.value = false;
+  }
+};
+
+// 验证登录解锁验证码
+const handleVerifyLoginUnlock = async () => {
+  loginUnlockCodeError.value = "";
+
+  if (!loginUnlockCode.value.trim()) {
+    loginUnlockCodeError.value = "请输入验证码";
+    return;
+  }
+  if (loginUnlockCode.value.length !== 6) {
+    loginUnlockCodeError.value = "验证码应为6位（字母+数字）";
+    return;
+  }
+  if (!/^[A-Z0-9]{6}$/.test(loginUnlockCode.value)) {
+    loginUnlockCodeError.value = "验证码格式不正确，应为6位字母和数字组合";
+    return;
+  }
+  if (!loginUnlockSessionId.value) {
+    loginUnlockCodeError.value = "请先发送验证码";
+    return;
+  }
+
+  loginUnlockVerifying.value = true;
+  try {
+    const email = loginUnlockEmail.value.trim();
+    await verifyLoginUnlockCode({
+      email,
+      code: loginUnlockCode.value.trim(),
+      session_id: loginUnlockSessionId.value,
+    });
+    showToast("success", "解锁成功", "账户已解锁，请重新尝试登录");
+    loginSecurityMessage.value = "";
+    showLoginUnlockModal.value = false;
+  } catch (err: any) {
+    loginUnlockCodeError.value = err.message || "验证失败，请稍后重试";
+    showToast("error", "验证失败", err.message);
+  } finally {
+    loginUnlockVerifying.value = false;
+  }
+};
+
 onMounted(() => {
   // 检查URL中是否有重置密码token
   if (typeof window !== "undefined") {
@@ -1148,6 +1384,7 @@ const handleGoogleCredentialResponse = async (response: { credential: string }) 
     const result = await googleLogin(response.credential);
     userStore.login(result.user, result.token, rememberMe.value);
     const redirect = router.currentRoute.value.query.redirect as string || "/";
+    // Google 登录：如果后端返回 last_login，目前接口未提供此字段，保持与邮箱登录体验一致
     showToast("success", "登录成功", `欢迎回来，${result.user.name || result.user.email}！`);
     router.push(redirect);
   } catch (err: any) {
@@ -1231,10 +1468,18 @@ const handleSubmit = async () => {
         captcha_session: captchaSession.value,
       });
       userStore.login(result.user, result.token, rememberMe.value);
+      // 登录成功提示
       if (result.user && (result.user as any).email_verified === false) {
         showToast("info", "邮箱未验证", "已登录，但部分功能可能受限，请前往邮箱完成验证。");
       } else {
         showToast("success", "登录成功", `欢迎回来，${result.user.name || result.user.email}！`);
+      }
+      // 轻量提示上次登录信息（如果有）
+      if (result.last_login && result.last_login.time) {
+        const time = result.last_login.time;
+        const ip = result.last_login.ip || "";
+        const display = ip ? `${time}，IP：${ip}` : time;
+        showToast("info", "上次登录信息", `上次成功登录时间：${display}`);
       }
     } else {
       // 邮箱注册

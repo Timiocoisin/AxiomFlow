@@ -29,9 +29,11 @@ TIME_LEN = 32
 class Project(Base):
     """项目表"""
     __tablename__ = "projects"
+    __table_args__ = {"comment": "项目表：存储项目的基础信息"}
 
     id = Column(String(ID_LEN), primary_key=True)
     name = Column(String(NAME_LEN), nullable=False)
+    user_id = Column(String(ID_LEN), nullable=True, index=True)  # 关联用户ID
     created_at = Column(String(TIME_LEN), nullable=False)  # ISO 格式时间字符串
 
     # 关系
@@ -43,9 +45,11 @@ class Project(Base):
 class Document(Base):
     """文档表（存储文档元数据和完整 JSON 数据）"""
     __tablename__ = "documents"
+    __table_args__ = {"comment": "文档表：存储文档元数据与完整 JSON 内容"}
 
     id = Column(String(ID_LEN), primary_key=True)
     project_id = Column(String(ID_LEN), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(ID_LEN), nullable=True, index=True)  # 关联用户ID
     title = Column(String(NAME_LEN))
     num_pages = Column(Integer, default=0)
     lang_in = Column(String(LANG_LEN), default="en")
@@ -65,6 +69,7 @@ class Document(Base):
 class Job(Base):
     """翻译任务表"""
     __tablename__ = "jobs"
+    __table_args__ = {"comment": "翻译任务表：记录文档的翻译进度与状态"}
 
     id = Column(String(ID_LEN), primary_key=True)
     document_id = Column(String(ID_LEN), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
@@ -81,6 +86,7 @@ class Job(Base):
 class Batch(Base):
     """批次表"""
     __tablename__ = "batches"
+    __table_args__ = {"comment": "批次表：批量上传/翻译任务的分组信息"}
 
     id = Column(String(ID_LEN), primary_key=True)
     project_id = Column(String(ID_LEN), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
@@ -110,12 +116,14 @@ class GlossaryTerm(Base):
     # 唯一约束：同一项目内，术语不能重复
     __table_args__ = (
         UniqueConstraint("project_id", "term", name="uq_project_term"),
+        {"comment": "术语表：存储项目级术语及其翻译，支持术语一致性"},
     )
 
 
 class TranslationMemory(Base):
     """翻译记忆表（参数化缓存）"""
     __tablename__ = "translation_memory"
+    __table_args__ = {"comment": "翻译记忆表：按引擎与参数缓存原文与译文结果"}
 
     # 注意：SQLAlchemy ORM 映射必须有主键（primary key）。
     # 这里用一个独立的 id 作为主键，同时保留组合唯一约束用于"参数化缓存"去重。
@@ -149,12 +157,14 @@ class User(Base):
     # 唯一约束：邮箱必须唯一
     __table_args__ = (
         UniqueConstraint("email", name="uq_user_email"),
+        {"comment": "用户表：存储用户账号、密码哈希、邮箱验证等基础信息"},
     )
 
 
 class CaptchaSession(Base):
     """图形验证码会话（持久化）"""
     __tablename__ = "auth_captcha_sessions"
+    __table_args__ = {"comment": "图形验证码会话：存储验证码哈希与过期时间，用于表单校验"}
 
     session_id = Column(String(ID_LEN), primary_key=True)
     code_hash = Column(String(64), nullable=False)  # sha256 hex
@@ -166,6 +176,7 @@ class CaptchaSession(Base):
 class EmailCodeSession(Base):
     """邮箱验证码会话（用于忘记密码验证码）"""
     __tablename__ = "auth_email_code_sessions"
+    __table_args__ = {"comment": "邮箱验证码会话：存储邮箱验证码哈希与过期时间（忘记密码/登录解锁等场景）"}
 
     session_id = Column(String(ID_LEN), primary_key=True)
     email = Column(String(NAME_LEN), nullable=False, index=True)
@@ -178,6 +189,7 @@ class EmailCodeSession(Base):
 class PasswordResetToken(Base):
     """密码重置 token（用于 reset-password）"""
     __tablename__ = "auth_password_reset_tokens"
+    __table_args__ = {"comment": "密码重置 Token：用于三步重置密码流程中的最终重置操作"}
 
     token = Column(String(128), primary_key=True)
     email = Column(String(NAME_LEN), nullable=False, index=True)
@@ -189,6 +201,7 @@ class PasswordResetToken(Base):
 class EmailVerifyToken(Base):
     """注册后邮箱验证 token"""
     __tablename__ = "auth_email_verify_tokens"
+    __table_args__ = {"comment": "邮箱验证 Token：用于注册后通过邮件链接激活账号"}
 
     token = Column(String(128), primary_key=True)
     email = Column(String(NAME_LEN), nullable=False, index=True)
@@ -200,6 +213,7 @@ class EmailVerifyToken(Base):
 class LoginAuditLog(Base):
     """登录审计日志"""
     __tablename__ = "auth_login_audit_logs"
+    __table_args__ = {"comment": "登录审计日志：记录登录成功/失败、IP、UA 及原因"}
 
     id = Column(String(ID_LEN), primary_key=True)
     user_id = Column(String(ID_LEN), nullable=True, index=True)
@@ -219,6 +233,43 @@ class PasswordHistory(Base):
     user_id = Column(String(ID_LEN), nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)  # bcrypt hash
     created_at = Column(String(TIME_LEN), nullable=False)
+    __table_args__ = {"comment": "密码历史：记录用户最近使用过的密码哈希，防止密码复用"}
+
+
+class LoginLock(Base):
+    """登录失败锁定状态（用于多进程/多实例共享锁定信息）"""
+    __tablename__ = "auth_login_locks"
+
+    id = Column(String(ID_LEN), primary_key=True)
+    ip = Column(String(64), default="", index=True)
+    email = Column(String(NAME_LEN), default="", index=True)
+    fail_count = Column(Integer, nullable=False, default=0)
+    lock_until = Column(Integer, nullable=False, default=0)  # epoch seconds，0 表示未锁定
+    updated_at = Column(String(TIME_LEN), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("ip", "email", name="uq_login_lock_ip_email"),
+        {"comment": "登录锁定表：按 IP+邮箱 记录失败次数与锁定截止时间"},
+    )
+
+
+class RateLimitBucket(Base):
+    """通用速率限制桶（用于登录/注册/忘记密码等频率控制）"""
+    __tablename__ = "auth_rate_limit_buckets"
+
+    id = Column(String(ID_LEN), primary_key=True)
+    scope = Column(String(64), nullable=False, index=True)  # 例如: login, register, forgot_email, forgot_ip
+    key = Column(String(NAME_LEN), nullable=False, index=True)  # 例如: ip / email
+    window_seconds = Column(Integer, nullable=False)
+    max_count = Column(Integer, nullable=False)
+    counter = Column(Integer, nullable=False, default=0)
+    window_start = Column(Integer, nullable=False)  # epoch seconds
+    updated_at = Column(String(TIME_LEN), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("scope", "key", name="uq_rate_limit_scope_key"),
+        {"comment": "通用速率限制桶：按 scope+key 记录时间窗口与计数，用于接口限流"},
+    )
 
 
 def init_db(database_url: str) -> tuple[Any, Any]:

@@ -72,11 +72,11 @@ class MySQLRepo:
 
     # --- Projects ---
 
-    def create_project(self, name: str) -> str:
+    def create_project(self, name: str, user_id: str | None = None) -> str:
         project_id = new_id("proj")
         now = datetime.utcnow().isoformat()
         with self._get_session() as session:
-            project = ProjectModel(id=project_id, name=name, created_at=now)
+            project = ProjectModel(id=project_id, name=name, user_id=user_id, created_at=now)
             session.add(project)
         return project_id
 
@@ -97,6 +97,7 @@ class MySQLRepo:
         lang_in: str = "en",
         lang_out: str = "zh",
         source_pdf_path: str = "",
+        user_id: str | None = None,
     ) -> None:
         """创建文档记录（在数据库中）"""
         now = datetime.utcnow().isoformat()
@@ -104,6 +105,7 @@ class MySQLRepo:
             doc = DocumentModel(
                 id=document_id,
                 project_id=project_id,
+                user_id=user_id,
                 title=title,
                 num_pages=0,
                 lang_in=lang_in,
@@ -189,16 +191,44 @@ class MySQLRepo:
             # 如果都没有，说明文档还在解析中
             raise FileNotFoundError(f"Document JSON not yet created: {document_id}")
 
-    def get_documents_by_project_id(self, project_id: str) -> list[dict[str, Any]]:
-        """获取项目下的所有文档列表"""
+    def get_documents_by_project_id(self, project_id: str, user_id: str | None = None) -> list[dict[str, Any]]:
+        """获取项目下的所有文档列表（按用户ID过滤）"""
         with self._get_session() as session:
-            docs = session.query(DocumentModel).filter(
+            query = session.query(DocumentModel).filter(
                 DocumentModel.project_id == project_id
-            ).order_by(DocumentModel.created_at.desc()).all()
+            )
+            # 如果提供了user_id，只返回该用户的文档
+            if user_id:
+                query = query.filter(DocumentModel.user_id == user_id)
+            
+            docs = query.order_by(DocumentModel.created_at.desc()).all()
             
             return [
                 {
                     "document_id": doc.id,
+                    "title": doc.title or "",
+                    "num_pages": doc.num_pages or 0,
+                    "lang_in": doc.lang_in or "en",
+                    "lang_out": doc.lang_out or "zh",
+                    "status": doc.status or "parsed",
+                    "created_at": doc.created_at,
+                    "updated_at": doc.updated_at,
+                }
+                for doc in docs
+            ]
+    
+    def get_documents_by_user_id(self, user_id: str) -> list[dict[str, Any]]:
+        """获取用户的所有文档列表（不依赖项目）"""
+        with self._get_session() as session:
+            query = session.query(DocumentModel).filter(
+                DocumentModel.user_id == user_id
+            )
+            docs = query.order_by(DocumentModel.created_at.desc()).all()
+            
+            return [
+                {
+                    "document_id": doc.id,
+                    "project_id": doc.project_id,
                     "title": doc.title or "",
                     "num_pages": doc.num_pages or 0,
                     "lang_in": doc.lang_in or "en",

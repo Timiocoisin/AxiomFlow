@@ -1,5 +1,7 @@
 <template>
   <section class="landing">
+    <Snowflakes />
+    <FloatingParticles />
     <div class="landing-hero glass-card">
       <div class="hero-content">
         <img src="/icons/favicon.svg" alt="AxiomFlow" class="hero-icon" />
@@ -48,6 +50,8 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useUserStore } from "@/stores/user";
 import { createProject, uploadPdf } from "@/lib/api";
+import Snowflakes from "@/components/Snowflakes.vue";
+import FloatingParticles from "@/components/FloatingParticles.vue";
 
 const router = useRouter();
 const userStore = useUserStore();

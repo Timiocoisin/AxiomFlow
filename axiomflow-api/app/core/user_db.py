@@ -171,6 +171,7 @@ def mark_email_verified(email: str) -> bool:
             if hasattr(user, "email_verified_at"):
                 user.email_verified_at = datetime.utcnow().isoformat()
             user.updated_at = datetime.utcnow().isoformat()
+            session.commit()
         return True
 
 

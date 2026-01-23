@@ -68,10 +68,25 @@
               </div>
               <div class="user-menu-info">
                 <div class="user-menu-name">{{ userStore.user?.name || '用户' }}</div>
-                <div class="user-menu-email">{{ userStore.user?.email }}</div>
+                <div class="user-menu-email">
+                  {{ userStore.user?.email }}
+                  <span v-if="userStore.user?.email_verified === false" class="email-verify-badge unverified">未验证</span>
+                  <span v-else-if="userStore.user?.email_verified === true" class="email-verify-badge verified">已验证</span>
+                </div>
               </div>
             </div>
             <div class="user-menu-divider"></div>
+            <button 
+              v-if="userStore.user?.email_verified === false"
+              class="user-menu-item resend-verify-item"
+              @click="handleResendVerifyEmail"
+              :disabled="resendingVerifyEmail"
+            >
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 8L10.89 13.26C11.2187 13.4793 11.6049 13.5963 12 13.5963C12.3951 13.5963 12.7813 13.4793 13.11 13.26L21 8M5 19H19C19.5304 19 20.0391 18.7893 20.4142 18.4142C20.7893 18.0391 21 17.5304 21 17V7C21 6.46957 20.7893 5.96086 20.4142 5.58579C20.0391 5.21071 19.5304 5 19 5H5C4.46957 5 3.96086 5.21071 3.58579 5.58579C3.21071 5.96086 3 6.46957 3 7V17C3 17.5304 3.21071 18.0391 3.58579 18.4142C3.96086 18.7893 4.46957 19 5 19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>{{ resendingVerifyEmail ? '发送中...' : '重新发送验证邮件' }}</span>
+            </button>
             <button class="user-menu-item" @click="handleLogout">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M9 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -96,16 +111,37 @@ import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useUserStore } from "@/stores/user";
 import Toast from "@/components/Toast.vue";
+import { resendVerifyEmail } from "@/lib/api";
+import { showToast } from "@/components/Toast";
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 const isLandingPage = computed(() => route.path === "/");
 const showMenu = ref(false);
+const resendingVerifyEmail = ref(false);
 
 const goToLogin = () => {
   const redirect = route.path === "/" ? "/" : route.fullPath;
   router.push(`/auth?redirect=${encodeURIComponent(redirect)}`);
+};
+
+const handleResendVerifyEmail = async () => {
+  if (!userStore.user?.email || resendingVerifyEmail.value) return;
+  
+  resendingVerifyEmail.value = true;
+  try {
+    const result = await resendVerifyEmail({ email: userStore.user.email });
+    showToast("success", "验证邮件已发送", result.message);
+    showMenu.value = false;
+    if (result.message && result.message.includes("已完成验证")) {
+      userStore.setEmailVerified(true);
+    }
+  } catch (error: any) {
+    showToast("error", "发送失败", error.message || "请稍后重试");
+  } finally {
+    resendingVerifyEmail.value = false;
+  }
 };
 
 const handleLogout = () => {

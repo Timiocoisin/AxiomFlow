@@ -13,6 +13,8 @@ from ..db.schema import (
     EmailVerifyToken,
     LoginAuditLog,
     PasswordHistory,
+    LoginLock,
+    RateLimitBucket,
 )
 
 
@@ -261,5 +263,186 @@ def get_recent_password_hashes(user_id: str, *, limit: int = 5) -> List[str]:
             .all()
         )
         return [r.password_hash for r in rows if r.password_hash]
+
+
+# -------------------------
+# Login lock (fail count + temporary lock)
+# -------------------------
+
+
+def get_login_lock(ip: str, email: str) -> Optional[LoginLock]:
+    """获取当前 IP + 邮箱 的锁定状态"""
+    ip_val = (ip or "").strip()
+    email_val = (email or "").lower().strip()
+    with get_db_session() as session:
+        return (
+            session.query(LoginLock)
+            .filter(LoginLock.ip == ip_val, LoginLock.email == email_val)
+            .first()
+        )
+
+
+def set_login_lock(ip: str, email: str, *, fail_count: int, lock_until: int) -> None:
+    """更新或创建登录锁定记录"""
+    ip_val = (ip or "").strip()
+    email_val = (email or "").lower().strip()
+    now_iso = _now_iso()
+    lock_id = f"lock_{int(datetime.utcnow().timestamp())}_{secrets.token_hex(6)}"
+
+    with get_db_session() as session:
+        obj = (
+            session.query(LoginLock)
+            .filter(LoginLock.ip == ip_val, LoginLock.email == email_val)
+            .first()
+        )
+        if not obj:
+            obj = LoginLock(
+                id=lock_id,
+                ip=ip_val,
+                email=email_val,
+                fail_count=int(fail_count),
+                lock_until=int(lock_until),
+                updated_at=now_iso,
+            )
+            session.add(obj)
+        else:
+            obj.fail_count = int(fail_count)
+            obj.lock_until = int(lock_until)
+            obj.updated_at = now_iso
+        session.commit()
+
+
+def clear_login_lock(ip: str, email: str) -> None:
+    """清除登录失败计数与锁定状态"""
+    ip_val = (ip or "").strip()
+    email_val = (email or "").lower().strip()
+    with get_db_session() as session:
+        obj = (
+            session.query(LoginLock)
+            .filter(LoginLock.ip == ip_val, LoginLock.email == email_val)
+            .first()
+        )
+        if obj:
+            session.delete(obj)
+            session.commit()
+
+
+def increase_login_fail_and_maybe_lock(
+    *,
+    ip: str,
+    email: str,
+    max_failed_attempts: int,
+    lock_seconds: int,
+    now_ts: int,
+) -> Tuple[int, Optional[int]]:
+    """
+    登录失败一次，增加计数，如达到上限则设置锁定。
+
+    Returns:
+        (fail_count, lock_until_ts or None)
+    """
+    ip_val = (ip or "").strip()
+    email_val = (email or "").lower().strip()
+
+    with get_db_session() as session:
+        obj = (
+            session.query(LoginLock)
+            .filter(LoginLock.ip == ip_val, LoginLock.email == email_val)
+            .first()
+        )
+        if not obj:
+            obj = LoginLock(
+                id=f"lock_{int(datetime.utcnow().timestamp())}_{secrets.token_hex(6)}",
+                ip=ip_val,
+                email=email_val,
+                fail_count=0,
+                lock_until=0,
+                updated_at=_now_iso(),
+            )
+            session.add(obj)
+
+        # 清理已过期锁定
+        if obj.lock_until and now_ts > int(obj.lock_until):
+            obj.fail_count = 0
+            obj.lock_until = 0
+
+        obj.fail_count = int(obj.fail_count or 0) + 1
+
+        lock_until_ts: Optional[int] = None
+        if obj.fail_count >= max_failed_attempts:
+            obj.lock_until = int(now_ts + lock_seconds)
+            lock_until_ts = obj.lock_until
+
+        obj.updated_at = _now_iso()
+        session.commit()
+
+        return int(obj.fail_count), lock_until_ts
+
+
+# -------------------------
+# Generic rate limit bucket
+# -------------------------
+
+
+def check_and_increase_rate_limit(
+    *,
+    scope: str,
+    key: str,
+    limit: int,
+    window_seconds: int,
+    now_ts: int,
+) -> bool:
+    """
+    通用滑动窗口/计数桶速率限制，使用数据库持久化。
+
+    如果超限，返回 False；否则增加计数并返回 True。
+    """
+    scope_val = (scope or "").strip()
+    key_val = (key or "").strip()
+    if not scope_val or not key_val:
+        return True
+
+    with get_db_session() as session:
+        obj = (
+            session.query(RateLimitBucket)
+            .filter(RateLimitBucket.scope == scope_val, RateLimitBucket.key == key_val)
+            .first()
+        )
+
+        window_start = now_ts
+        counter = 0
+        if obj:
+            # 检查是否仍在同一窗口
+            elapsed = now_ts - int(obj.window_start)
+            if elapsed < int(obj.window_seconds):
+                window_start = int(obj.window_start)
+                counter = int(obj.counter)
+            else:
+                # 新窗口，重置计数
+                window_start = now_ts
+                counter = 0
+        else:
+            obj = RateLimitBucket(
+                id=f"bucket_{int(datetime.utcnow().timestamp())}_{secrets.token_hex(6)}",
+                scope=scope_val,
+                key=key_val,
+                window_seconds=int(window_seconds),
+                max_count=int(limit),
+                counter=0,
+                window_start=now_ts,
+                updated_at=_now_iso(),
+            )
+            session.add(obj)
+
+        if counter >= int(obj.max_count):
+            return False
+
+        counter += 1
+        obj.counter = counter
+        obj.window_start = window_start
+        obj.updated_at = _now_iso()
+        session.commit()
+
+        return True
 
 

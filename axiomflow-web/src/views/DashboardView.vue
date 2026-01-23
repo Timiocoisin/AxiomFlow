@@ -23,39 +23,56 @@
         :class="{ 'doc-card--parsing': d.status === 'parsing', 'doc-card--ready': d.status === 'ready' }"
         @click="d.status === 'ready' ? openDoc(d.document_id) : undefined"
       >
-        <div class="doc-header">
-          <div class="doc-icon" :class="{ 'doc-icon--parsing': d.status === 'parsing' }">
-            {{ d.status === 'parsing' ? '⏳' : '📄' }}
+        <!-- 缩略图区域（所有状态都显示） -->
+        <div class="doc-thumbnail-container" :class="{ 'doc-thumbnail-container--processing': d.status !== 'ready' }">
+          <img 
+            v-if="d.document_id && !d.document_id.startsWith('temp-') && !d.thumbnailError"
+            :src="getThumbnailUrl(d.document_id)" 
+            :alt="d.title"
+            class="doc-thumbnail"
+            :class="{ 'doc-thumbnail--loading': d.status !== 'ready' }"
+            @error="(e) => handleThumbnailError(e, d.document_id)"
+            @load="handleThumbnailLoad(d.document_id)"
+          />
+          <div v-else class="doc-thumbnail-placeholder">
+            <LoadingIcon :spinning="d.status !== 'ready'" />
           </div>
-          <div class="doc-info">
-            <div class="doc-title" :class="{ 'doc-title--disabled': d.status === 'parsing' }">
-              {{ d.title }}
-            </div>
-            <div class="doc-meta">
-              <span v-if="d.status === 'uploading'">
-                正在上传中...
-              </span>
-              <span v-else-if="d.status === 'parsing'">
-                <span v-if="d.num_pages && d.num_pages > 0">{{ d.num_pages }} 页 · </span>解析中...
-              </span>
-              <span v-else>
-                {{ d.num_pages || '?' }} 页 · {{ d.lang_in }} → {{ d.lang_out }} · 已解析
-              </span>
+          <!-- 解析中的遮罩层 -->
+          <div v-if="d.status !== 'ready'" class="doc-thumbnail-overlay">
+            <div class="doc-processing-badge">
+              <span v-if="d.status === 'uploading'">上传中</span>
+              <span v-else-if="d.status === 'parsing'">解析中</span>
             </div>
           </div>
         </div>
-        <div v-if="d.status === 'uploading' || d.status === 'parsing'" class="doc-progress">
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: `${d.progress || 0}%` }"></div>
-          </div>
-          <div class="progress-text">
-            <span v-if="d.status === 'uploading'">上传中...</span>
-            <span v-else-if="d.status === 'parsing'">解析中... {{ d.progress || 0 }}%</span>
+        
+        <!-- 进度条（解析中/上传中时显示） -->
+        <div v-if="d.status === 'uploading' || d.status === 'parsing'" class="doc-progress-section">
+          <div class="progress-bar-wrapper">
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: `${d.progress || 0}%` }"></div>
+            </div>
+            <div class="progress-text">
+              <span v-if="d.status === 'uploading'">上传中... {{ d.progress || 0 }}%</span>
+              <span v-else-if="d.status === 'parsing'">解析中... {{ d.progress || 0 }}%</span>
+            </div>
           </div>
         </div>
-        <div v-else class="doc-status-badge">
-          <span class="status-dot status-dot--ready"></span>
-          <span>解析完成</span>
+        
+        <!-- 底部信息（所有状态都显示） -->
+        <div class="doc-footer">
+          <div class="doc-title-footer">{{ d.title }}</div>
+          <div class="doc-meta-footer">
+            <span v-if="d.status === 'uploading'">
+              正在上传中...
+            </span>
+            <span v-else-if="d.status === 'parsing'">
+              <span v-if="d.num_pages && d.num_pages > 0">{{ d.num_pages }} 页 · </span>解析中...
+            </span>
+            <span v-else>
+              {{ d.num_pages || '?' }} 页 · {{ d.lang_in }} → {{ d.lang_out }} · 已解析
+            </span>
+          </div>
         </div>
       </AppCard>
     </div>
@@ -83,10 +100,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch, onUnmounted } from "vue";
+import { onMounted, ref, watch, onUnmounted, nextTick } from "vue";
 import AppCard from "@/components/AppCard.vue";
 import AppButton from "@/components/AppButton.vue";
-import { batchUpload, createProject, uploadPdf, getDocument, getProjectDocuments } from "@/lib/api";
+import LoadingIcon from "@/components/LoadingIcon.vue";
+import { batchUpload, createProject, uploadPdf, getDocument, getProjectDocuments, getUserDocuments } from "@/lib/api";
 import { useRouter, useRoute } from "vue-router";
 import { DocumentProgressWebSocket } from "@/lib/websocket";
 
@@ -103,6 +121,7 @@ interface Doc {
   lang_out: string;
   status: DocStatus;
   progress: number;
+  thumbnailError?: boolean; // 缩略图加载失败标志
 }
 
 const docs = ref<Doc[]>([]);
@@ -112,12 +131,12 @@ const projectName = ref("我的项目");
 const currentProjectId = ref<string | null>(null); // 当前项目ID
 const activeWebSockets = new Map<string, DocumentProgressWebSocket>(); // document_id -> WebSocket
 
-// 从 API 加载项目文档列表
-const loadProjectDocuments = async (project_id: string) => {
+// 从 API 加载项目文档列表（合并模式：保留正在处理的临时文档）
+const loadProjectDocuments = async (project_id: string, merge: boolean = false) => {
   try {
     const response = await getProjectDocuments(project_id);
     // 将 API 返回的文档转换为前端格式
-    docs.value = response.documents.map((d) => ({
+    const apiDocs = response.documents.map((d) => ({
       document_id: d.document_id,
       title: d.title,
       num_pages: d.num_pages,
@@ -125,17 +144,113 @@ const loadProjectDocuments = async (project_id: string) => {
       lang_out: d.lang_out,
       status: d.status === "parsed" ? "ready" : (d.status === "parsing" ? "parsing" : "ready") as DocStatus,
       progress: d.status === "parsed" ? 100 : 0,
+      thumbnailError: false, // 默认没有错误
     }));
+    
+    if (merge) {
+      // 合并模式：保留正在处理的临时文档（uploading/parsing状态）
+      const tempDocs = docs.value.filter(d => 
+        d.status === "uploading" || d.status === "parsing" || d.document_id.startsWith("temp-")
+      );
+      // 合并API文档和临时文档，去重（优先保留临时文档）
+      const existingIds = new Set(tempDocs.map(d => d.document_id));
+      const newDocs = apiDocs.filter(d => !existingIds.has(d.document_id));
+      docs.value = [...tempDocs, ...newDocs];
+    } else {
+      // 完全替换模式
+      docs.value = apiDocs;
+    }
     currentProjectId.value = project_id;
   } catch (error) {
     console.error("加载文档列表失败:", error);
-    // 如果项目不存在或加载失败，清空列表
-    docs.value = [];
+    // 如果项目不存在或加载失败，且不是合并模式，才清空列表
+    if (!merge) {
+      docs.value = [];
+    }
+  }
+};
+
+// 加载用户的所有文档（不依赖项目）
+const loadUserDocuments = async (merge: boolean = false) => {
+  try {
+    const response = await getUserDocuments();
+    // 将 API 返回的文档转换为前端格式
+    const apiDocs = response.documents.map((d) => ({
+      document_id: d.document_id,
+      title: d.title,
+      num_pages: d.num_pages,
+      lang_in: d.lang_in,
+      lang_out: d.lang_out,
+      status: d.status === "parsed" ? "ready" : (d.status === "parsing" ? "parsing" : "ready") as DocStatus,
+      progress: d.status === "parsed" ? 100 : 0,
+      thumbnailError: false, // 默认没有错误
+    }));
+    
+    if (merge) {
+      // 合并模式：保留正在处理的临时文档（uploading/parsing状态）
+      const tempDocs = docs.value.filter(d => 
+        d.status === "uploading" || d.status === "parsing" || d.document_id.startsWith("temp-")
+      );
+      // 合并API文档和临时文档，去重（优先保留临时文档）
+      const existingIds = new Set(tempDocs.map(d => d.document_id));
+      const newDocs = apiDocs.filter(d => !existingIds.has(d.document_id));
+      docs.value = [...tempDocs, ...newDocs];
+    } else {
+      // 完全替换模式
+      docs.value = apiDocs;
+    }
+    
+    // 如果文档列表不为空，使用第一个文档的项目ID作为当前项目ID
+    if (apiDocs.length > 0 && response.documents[0].project_id) {
+      currentProjectId.value = response.documents[0].project_id;
+    }
+  } catch (error) {
+    console.error("加载用户文档列表失败:", error);
+    // 如果加载失败，且不是合并模式，才清空列表
+    if (!merge) {
+      docs.value = [];
+    }
   }
 };
 
 const pickFile = () => fileInput.value?.click();
 const pickFiles = () => filesInput.value?.click();
+
+// 获取缩略图URL
+const getThumbnailUrl = (document_id: string) => {
+  const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:8000/v1';
+  // 增加缩略图尺寸，使其更大
+  return `${apiBase}/documents/${document_id}/thumbnail?width=400&height=500`;
+};
+
+// 处理缩略图加载错误
+const handleThumbnailError = (event: Event, document_id: string) => {
+  const img = event.target as HTMLImageElement;
+  // 如果缩略图加载失败，标记错误并隐藏图片
+  if (img) {
+    img.style.display = 'none';
+  }
+  // 更新文档的缩略图错误标志
+  const docIndex = docs.value.findIndex(d => d.document_id === document_id);
+  if (docIndex >= 0) {
+    docs.value.splice(docIndex, 1, {
+      ...docs.value[docIndex],
+      thumbnailError: true,
+    });
+  }
+};
+
+// 处理缩略图加载成功
+const handleThumbnailLoad = (document_id: string) => {
+  // 清除缩略图错误标志
+  const docIndex = docs.value.findIndex(d => d.document_id === document_id);
+  if (docIndex >= 0 && docs.value[docIndex].thumbnailError) {
+    docs.value.splice(docIndex, 1, {
+      ...docs.value[docIndex],
+      thumbnailError: false,
+    });
+  }
+};
 
 const onFileChange = async (e: Event) => {
   const input = e.target as HTMLInputElement;
@@ -150,6 +265,7 @@ const onFileChange = async (e: Event) => {
     lang_out: "zh",
     status: "uploading",
     progress: 0,
+    thumbnailError: false,
   };
   docs.value.unshift(tempDoc);
 
@@ -187,14 +303,26 @@ const onFileChange = async (e: Event) => {
     ws.onMessage(async (data) => {
       const elapsed = Date.now() - startTime;
       
+      // 找到文档在数组中的索引（使用真实的document_id）
+      const docIndex = docs.value.findIndex(d => d.document_id === res.document_id);
+      if (docIndex < 0) {
+        console.warn(`文档 ${res.document_id} 不在列表中`);
+        return;
+      }
+      
+      const currentDoc = docs.value[docIndex];
+      
       // 根据状态更新进度
       if (data.status === "uploading") {
-        tempDoc.status = "uploading";
-        const targetProgress = Math.min(data.parse_progress || tempDoc.progress, 30);
-        tempDoc.progress = smoothProgress(targetProgress, tempDoc.progress);
+        const targetProgress = Math.min(data.parse_progress || currentDoc.progress, 30);
+        // 直接使用目标进度，不使用平滑进度
+        docs.value.splice(docIndex, 1, {
+          ...currentDoc,
+          status: "uploading",
+          progress: targetProgress,
+        });
+        console.log(`[上传中] 进度: ${targetProgress}%`);
       } else if (data.status === "parsing") {
-        tempDoc.status = "parsing";
-        
         // 如果有parse_job，使用真实的进度（done/total）
         let targetProgress = 30;
         if (data.parse_job) {
@@ -202,36 +330,69 @@ const onFileChange = async (e: Event) => {
           if (parseJob.total && parseJob.total > 0) {
             const parseProgress = (parseJob.done || 0) / parseJob.total;
             targetProgress = 30 + parseProgress * 70; // 30-100%
+            console.log(`[解析中] 使用 Job 进度: ${parseJob.done}/${parseJob.total} = ${parseProgress}, 目标进度: ${targetProgress}%`);
           } else {
             targetProgress = 30 + (parseJob.progress || 0) * 70;
+            console.log(`[解析中] 使用 Job progress 字段: ${parseJob.progress}, 目标进度: ${targetProgress}%`);
           }
+        } else if (data.parse_progress !== undefined && data.parse_progress !== null) {
+          // 没有Job信息，使用parse_progress（0-100范围）
+          // parse_progress 是 0-100 的百分比，需要映射到 30-100% 的范围
+          const parseProgressPercent = Math.min(data.parse_progress, 100) / 100; // 转换为 0-1
+          targetProgress = 30 + parseProgressPercent * 70; // 30-100%
+          console.log(`[解析中] 使用 parse_progress: ${data.parse_progress}% -> ${parseProgressPercent}, 目标进度: ${targetProgress}%`);
         } else {
-          targetProgress = Math.min(data.parse_progress || 30, 90);
+          // 没有任何进度信息，保持在 30%
+          targetProgress = 30;
+          console.log(`[解析中] 无进度信息，保持在 30%`);
         }
-        tempDoc.progress = smoothProgress(targetProgress, tempDoc.progress);
+        
+        // 直接使用目标进度，不使用平滑进度
+        const updatedDoc: Doc = {
+          ...currentDoc,
+          status: "parsing",
+          progress: targetProgress,
+        };
+        if (data.num_pages !== undefined && data.num_pages > 0) {
+          updatedDoc.num_pages = data.num_pages;
+        }
+        docs.value.splice(docIndex, 1, updatedDoc);
+        console.log(`[解析中] 进度: ${targetProgress}%`);
       } else if (data.status === "parsed") {
         console.log(`解析完成 (${res.document_id}): num_pages=${data.num_pages}, elapsed=${elapsed}ms`);
-        // 解析完成，平滑过渡到100%
-        tempDoc.status = "parsing";
         
-        if (tempDoc.progress < 100) {
-          tempDoc.progress = smoothProgress(100, tempDoc.progress);
-        } else {
-          tempDoc.progress = 100;
+        // 找到文档在数组中的索引
+        const docIndex = docs.value.findIndex(d => d.document_id === res.document_id);
+        if (docIndex < 0) {
+          console.warn(`文档 ${res.document_id} 不在列表中`);
+          return;
         }
+        
+        const currentDoc = docs.value[docIndex];
+        
+        // 解析完成，直接设置为100%
+        const newProgress = 100;
         
         // 如果 num_pages > 0，立即更新为 ready
         if (data.num_pages > 0) {
-          tempDoc.status = "ready";
-          tempDoc.num_pages = data.num_pages;
+          docs.value.splice(docIndex, 1, {
+            ...currentDoc,
+            status: "ready",
+            progress: 100,
+            num_pages: data.num_pages,
+          });
           ws.disconnect();
           activeWebSockets.delete(res.document_id);
           // 重新加载项目文档列表以获取最新状态
-          if (finalProjectId) await loadProjectDocuments(finalProjectId);
-        } else if (tempDoc.progress >= 100 && elapsed >= minDisplayTime) {
+          if (finalProjectId) await loadProjectDocuments(finalProjectId, true);
+        } else if (elapsed >= minDisplayTime) {
           // 如果没有 num_pages，等待 minDisplayTime 后再更新
-          tempDoc.status = "ready";
-          tempDoc.num_pages = data.num_pages || 0;
+          docs.value.splice(docIndex, 1, {
+            ...currentDoc,
+            status: "ready",
+            progress: 100,
+            num_pages: data.num_pages || 0,
+          });
           ws.disconnect();
           activeWebSockets.delete(res.document_id);
           // 重新加载项目文档列表以获取最新状态
@@ -242,8 +403,15 @@ const onFileChange = async (e: Event) => {
     
     ws.onError((error) => {
       console.error("WebSocket 错误:", error);
-      tempDoc.status = "parsing";
-      tempDoc.progress = 50;
+      const docIndex = docs.value.findIndex(d => d.document_id === res.document_id);
+      if (docIndex >= 0) {
+        const currentDoc = docs.value[docIndex];
+        docs.value.splice(docIndex, 1, {
+          ...currentDoc,
+          status: "parsing",
+          progress: 50,
+        });
+      }
     });
     
     ws.onClose(() => {
@@ -253,8 +421,15 @@ const onFileChange = async (e: Event) => {
     // 连接 WebSocket
     ws.connect().catch((error) => {
       console.error("WebSocket 连接失败:", error);
-      tempDoc.status = "parsing";
-      tempDoc.progress = 50;
+      const docIndex = docs.value.findIndex(d => d.document_id === res.document_id);
+      if (docIndex >= 0) {
+        const currentDoc = docs.value[docIndex];
+        docs.value.splice(docIndex, 1, {
+          ...currentDoc,
+          status: "parsing",
+          progress: 50,
+        });
+      }
     });
     
   } catch (error) {
@@ -278,6 +453,7 @@ const onFilesChange = async (e: Event) => {
     lang_out: "zh",
     status: "uploading" as DocStatus,
     progress: 0,
+    thumbnailError: false,
   }));
   docs.value.unshift(...tempDocs);
 
@@ -353,13 +529,19 @@ const handlePendingUpload = async () => {
     lang_out: "zh",
     status: "uploading",
     progress: 0,
+    thumbnailError: false,
   };
   docs.value.unshift(uploadingDoc);
   console.log(`[上传] 创建文档卡片: ${uploadingDoc.document_id}, 初始进度: ${uploadingDoc.progress}%`);
   
   try {
-    // 开始实际上传
-    const { project_id } = await createProject("我的项目");
+    // 开始实际上传（使用当前项目ID，如果没有则创建新项目）
+    let project_id = currentProjectId.value;
+    if (!project_id) {
+      const project = await createProject("我的项目");
+      project_id = project.project_id;
+      currentProjectId.value = project_id;
+    }
     const res = await uploadPdf({ project_id, file: pendingFile, lang_in: "en", lang_out: "zh" });
     
     // 更新文档ID（WebSocket 会发送真实进度）
@@ -424,13 +606,14 @@ const handlePendingUpload = async () => {
       // 根据状态更新进度
       if (data.status === "uploading") {
         const targetProgress = Math.min(data.parse_progress || currentDoc.progress, 30);
-        const newProgress = smoothProgress(targetProgress, currentDoc.progress);
-        docs.value[docIndex] = {
+        // 直接使用目标进度，不使用平滑进度
+        const updatedDoc: Doc = {
           ...currentDoc,
           status: "uploading",
-          progress: newProgress,
+          progress: targetProgress,
         };
-        console.log(`[上传中] 目标进度: ${targetProgress}%, 当前进度: ${newProgress}%`);
+        docs.value.splice(docIndex, 1, updatedDoc);
+        console.log(`[上传中] 进度: ${targetProgress}%`);
       } else if (data.status === "parsing") {
         // 立即更新状态为 parsing（从 uploading 切换）
         
@@ -459,36 +642,19 @@ const handlePendingUpload = async () => {
           targetProgress = 30;
           console.log(`[解析中] 无进度信息，保持在 30%`);
         }
-        const oldProgress = currentDoc.progress;
-        // 解析阶段：实时更新进度
-        let newProgress: number;
-        
-        // 如果目标进度是30%（初始解析状态）
-        if (targetProgress === 30) {
-          if (currentDoc.progress >= 30) {
-            // 当前进度已经>=30%，保持当前进度（避免倒退）
-            newProgress = currentDoc.progress;
-          } else {
-            // 当前进度<30%，平滑过渡到30%（从上传切换到解析）
-            newProgress = smoothProgress(30, currentDoc.progress);
-          }
-        } else {
-          // 目标进度>30%，直接使用目标进度，实时更新
-          newProgress = targetProgress;
-        }
-        
-        // 如果消息中包含 num_pages，更新它（解析过程中可能会识别到页数）
+        // 直接使用目标进度，不使用平滑进度
         const updatedDoc: Doc = {
           ...currentDoc,
           status: "parsing",
-          progress: newProgress,
+          progress: targetProgress,
         };
         if (data.num_pages !== undefined && data.num_pages > 0) {
           updatedDoc.num_pages = data.num_pages;
         }
         
-        docs.value[docIndex] = updatedDoc;
-        console.log(`[解析中] 进度更新: ${oldProgress}% -> ${newProgress}% (目标: ${targetProgress}%)${data.num_pages ? `, 页数: ${data.num_pages}` : ''}`);
+        // 使用 splice 确保响应式更新
+        docs.value.splice(docIndex, 1, updatedDoc);
+        console.log(`[解析中] 进度: ${targetProgress}%${data.num_pages ? `, 页数: ${data.num_pages}` : ''}`);
       } else if (data.status === "parsed") {
         console.log(`解析完成 (${res.document_id}): num_pages=${data.num_pages}, elapsed=${elapsed}ms`);
         
@@ -691,6 +857,7 @@ const loadDocumentFromQuery = async () => {
       lang_out: "zh",
       status: isUploading ? "uploading" : "parsing",
       progress: isUploading ? 0 : 30,
+      thumbnailError: false,
     };
     docs.value.unshift(doc);
   }
@@ -863,8 +1030,8 @@ const loadDocumentFromQuery = async () => {
                       status: "ready",
                       progress: 100,
                     };
-                    // 重新加载项目文档列表
-                    if (currentProjectId.value) await loadProjectDocuments(currentProjectId.value);
+                    // 重新加载项目文档列表（合并模式，保留其他正在处理的文档）
+                    if (currentProjectId.value) await loadProjectDocuments(currentProjectId.value, true);
                     router.replace({ query: {} });
                     ws.disconnect();
                     activeWebSockets.delete(documentId);
@@ -881,8 +1048,8 @@ const loadDocumentFromQuery = async () => {
                       status: "ready",
                       progress: 100,
                     };
-                    // 重新加载项目文档列表
-                    if (currentProjectId.value) await loadProjectDocuments(currentProjectId.value);
+                    // 重新加载项目文档列表（合并模式，保留其他正在处理的文档）
+                    if (currentProjectId.value) await loadProjectDocuments(currentProjectId.value, true);
                     router.replace({ query: {} });
                     ws.disconnect();
                     activeWebSockets.delete(documentId);
@@ -913,8 +1080,8 @@ const loadDocumentFromQuery = async () => {
                   status: "ready",
                   progress: 100,
                 };
-                // 重新加载项目文档列表
-                if (currentProjectId.value) await loadProjectDocuments(currentProjectId.value);
+                // 重新加载项目文档列表（合并模式，保留其他正在处理的文档）
+                if (currentProjectId.value) await loadProjectDocuments(currentProjectId.value, true);
                 router.replace({ query: {} });
                 ws.disconnect();
                 activeWebSockets.delete(documentId);
@@ -931,8 +1098,8 @@ const loadDocumentFromQuery = async () => {
                   status: "ready",
                   progress: 100,
                 };
-                // 重新加载项目文档列表
-                if (currentProjectId.value) await loadProjectDocuments(currentProjectId.value);
+                // 重新加载项目文档列表（合并模式，保留其他正在处理的文档）
+                if (currentProjectId.value) await loadProjectDocuments(currentProjectId.value, true);
                 router.replace({ query: {} });
                 ws.disconnect();
                 activeWebSockets.delete(documentId);
@@ -970,20 +1137,31 @@ const loadDocumentFromQuery = async () => {
 };
 
 onMounted(async () => {
-  // 尝试从 URL 参数获取项目ID，或者创建/使用默认项目
+  // 尝试从 URL 参数获取项目ID
   const projectIdFromQuery = route.query.project_id as string | undefined;
   
   if (projectIdFromQuery) {
     currentProjectId.value = projectIdFromQuery;
     await loadProjectDocuments(projectIdFromQuery);
   } else {
-    // 如果没有项目ID，创建一个新项目并加载文档列表
+    // 优先加载用户的所有文档（不依赖项目）
     try {
-      const { project_id } = await createProject(projectName.value || "我的项目");
-      currentProjectId.value = project_id;
-      await loadProjectDocuments(project_id);
+      await loadUserDocuments(false);
+      // 如果加载后没有文档，且没有当前项目ID，创建一个默认项目
+      if (docs.value.length === 0 && !currentProjectId.value) {
+        const { project_id } = await createProject(projectName.value || "我的项目");
+        currentProjectId.value = project_id;
+      }
     } catch (error) {
-      console.error("创建项目失败:", error);
+      console.error("加载用户文档失败:", error);
+      // 如果加载失败，尝试创建或获取默认项目
+      try {
+        const { project_id } = await createProject(projectName.value || "我的项目");
+        currentProjectId.value = project_id;
+        await loadProjectDocuments(project_id);
+      } catch (createError) {
+        console.error("创建或加载项目失败:", createError);
+      }
     }
   }
   

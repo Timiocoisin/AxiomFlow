@@ -1,7 +1,9 @@
 from pathlib import Path
+import io
+import base64
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from ..repo import repo
 
@@ -158,6 +160,93 @@ async def get_document_progress(document_id: str) -> dict:
             "parse_job": parse_job,
             "translate_job": None,
         }
+
+
+@router.get("/{document_id}/thumbnail")
+async def get_document_thumbnail(document_id: str, width: int = 300, height: int = 400):
+    """
+    获取PDF文档第一页的缩略图
+    
+    Args:
+        document_id: 文档ID
+        width: 缩略图宽度（默认300px）
+        height: 缩略图高度（默认400px）
+    
+    Returns:
+        PNG图片响应
+    """
+    try:
+        data = repo.load_document_json(document_id)
+        src = (data.get("document") or {}).get("source_pdf_path")
+        if not src:
+            raise HTTPException(status_code=404, detail="source_pdf_not_found")
+        
+        path = Path(str(src))
+        # 安全：必须位于 uploads 目录下
+        try:
+            uploads_root = repo.paths.uploads.resolve()
+            if uploads_root not in path.resolve().parents and path.resolve() != uploads_root:
+                raise HTTPException(status_code=400, detail="invalid_source_pdf_path")
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="invalid_source_pdf_path") from exc
+        
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="source_pdf_missing_on_disk")
+        
+        # 使用 PyMuPDF 生成第一页缩略图
+        import fitz  # PyMuPDF
+        from PIL import Image
+        
+        doc = fitz.open(path.as_posix())
+        if len(doc) == 0:
+            doc.close()
+            raise HTTPException(status_code=400, detail="pdf_has_no_pages")
+        
+        # 获取第一页
+        page = doc[0]
+        
+        # 计算缩放比例，保持宽高比
+        page_rect = page.rect
+        page_width = page_rect.width
+        page_height = page_rect.height
+        
+        scale_x = width / page_width
+        scale_y = height / page_height
+        scale = min(scale_x, scale_y)  # 保持宽高比
+        
+        # 渲染页面为图片
+        mat = fitz.Matrix(scale, scale)
+        pix = page.get_pixmap(matrix=mat, alpha=False)
+        
+        # 转换为PIL Image
+        img_data = pix.tobytes("png")
+        img = Image.open(io.BytesIO(img_data))
+        
+        # 如果图片尺寸小于目标尺寸，创建白色背景并居中
+        if img.width < width or img.height < height:
+            bg = Image.new("RGB", (width, height), color=(255, 255, 255))
+            # 居中粘贴
+            x = (width - img.width) // 2
+            y = (height - img.height) // 2
+            bg.paste(img, (x, y))
+            img = bg
+        
+        # 转换为PNG字节流
+        output = io.BytesIO()
+        img.save(output, format="PNG")
+        output.seek(0)
+        
+        doc.close()
+        
+        return Response(content=output.read(), media_type="image/png")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"生成缩略图失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"生成缩略图失败: {str(e)}")
 
 
 @router.patch("/{document_id}/blocks/{block_id}", response_model=dict)

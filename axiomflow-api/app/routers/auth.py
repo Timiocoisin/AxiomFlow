@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 import os
 import base64
@@ -41,6 +41,10 @@ from ..core.auth_db import (
     get_last_success_login,
     add_password_history,
     get_recent_password_hashes,
+    get_login_lock,
+    clear_login_lock,
+    increase_login_fail_and_maybe_lock,
+    check_and_increase_rate_limit,
 )
 from ..db.schema import User
 
@@ -85,15 +89,6 @@ _email_users_fallback: dict[str, dict] = {}
 
 # 注意：验证码/重置token/邮箱验证token 等临时数据已迁移到数据库持久化（见 app/core/auth_db.py）
 
-# 登录失败尝试计数与锁定（键: f"{ip}:{email}"）
-_login_attempts: dict[str, dict] = {}
-
-# 速率限制桶（键: 标识符，如 ip / email）
-_login_rate_limit: Dict[str, Deque[float]] = {}
-_register_rate_limit: Dict[str, Deque[float]] = {}
-_forgot_email_rate_limit: Dict[str, Deque[float]] = {}
-_forgot_ip_rate_limit: Dict[str, Deque[float]] = {}
-
 # 登录相关安全配置
 LOGIN_MAX_FAILED_ATTEMPTS = 5            # 连续失败次数上限
 LOGIN_LOCK_SECONDS = 15 * 60             # 锁定时间：15分钟
@@ -109,6 +104,36 @@ FORGOT_IP_MAX_PER_HOUR = 20              # 同一IP每小时最大发送次数
 
 # 密码历史检查：禁止复用最近 N 次密码
 PASSWORD_HISTORY_LIMIT = 5
+
+# 统一的邮箱正则（后端所有邮箱格式校验使用这一份，避免魔法字符串）
+import re
+
+EMAIL_REGEX = re.compile(
+    r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+)
+
+
+def _validate_password_strong(password: str) -> None:
+    """
+    后端统一的密码强度校验：
+    - 至少 8 个字符
+    - 同时包含大写字母和小写字母
+    - 至少包含 1 个数字
+
+    校验失败时抛出 HTTPException，错误文案保持通用：
+    「密码不符合安全要求」
+    """
+    import re
+
+    pwd = password or ""
+    if len(pwd) < 8:
+        raise HTTPException(status_code=400, detail="密码不符合安全要求")
+    if not re.search(r"[a-z]", pwd):
+        raise HTTPException(status_code=400, detail="密码不符合安全要求")
+    if not re.search(r"[A-Z]", pwd):
+        raise HTTPException(status_code=400, detail="密码不符合安全要求")
+    if not re.search(r"\d", pwd):
+        raise HTTPException(status_code=400, detail="密码不符合安全要求")
 
 
 def _get_client_ip(request: Request) -> str:
@@ -130,14 +155,12 @@ def _check_rate_limit(
     detail: str,
 ) -> None:
     """
-    简单滑动窗口速率限制。
+    （已弃用示例）内存版滑动窗口速率限制。
 
-    Args:
-        bucket: 存储时间戳的字典
-        key: 限制键（如 ip / email）
-        limit: 窗口内最大请求数
-        window_seconds: 窗口大小（秒）
-        detail: 返回给前端的错误信息
+    当前生产逻辑统一使用持久化版本：
+    see: app.core.auth_db.check_and_increase_rate_limit
+
+    保留此函数仅作为示例和回退实现。
     """
     now = time.time()
     q = bucket.get(key)
@@ -190,9 +213,25 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
+class LoginUnlockSendRequest(BaseModel):
+    email: str
+
+
+class LoginUnlockVerifyRequest(BaseModel):
+    email: str
+    code: str
+    session_id: str
+
+
+class ResendVerifyEmailRequest(BaseModel):
+    email: str
+
+
 class AuthResponse(BaseModel):
     token: str
     user: dict
+    # 上次成功登录信息（当前登录之前的一次），仅在登录接口中返回
+    last_login: Optional[dict] = None
 
 
 @router.post("/auth/google", response_model=AuthResponse)
@@ -233,31 +272,36 @@ async def google_login(request: GoogleTokenRequest):
             raise ValueError('Wrong issuer.')
 
         # 提取用户信息
-        google_user_id = idinfo['sub']
-        email = idinfo.get('email', '').lower()
-        name = idinfo.get('name', email.split('@')[0])
-        picture = idinfo.get('picture', '')
+        google_user_id = idinfo["sub"]
+        email = idinfo.get("email", "").lower()
+        name = idinfo.get("name", email.split("@")[0])
+        picture = idinfo.get("picture", "")
+        email_verified = bool(idinfo.get("email_verified", False))
 
         # 检查用户是否已存在（通过邮箱）
         user = get_user_by_email(email)
-        
+
         if not user:
             # 创建新用户（OAuth 用户不需要密码）
             # 使用一个占位符密码哈希（OAuth 用户不会使用密码登录）
-            placeholder_hash = bcrypt.hashpw(b"oauth_user_no_password", bcrypt.gensalt()).decode('utf-8')
+            placeholder_hash = bcrypt.hashpw(
+                b"oauth_user_no_password", bcrypt.gensalt()
+            ).decode("utf-8")
             try:
                 user = create_user(
                     email=email,
                     name=name,
                     password_hash=placeholder_hash,
                     provider="google",
-                    avatar=picture
+                    avatar=picture,
                 )
             except ValueError:
                 # 如果创建失败（可能是并发创建），再次尝试获取
                 user = get_user_by_email(email)
                 if not user:
-                    raise HTTPException(status_code=500, detail="创建用户失败")
+                    raise HTTPException(
+                        status_code=500, detail="创建用户失败"
+                    )
         else:
             # 更新用户信息（如果头像或名称有变化）
             if user.provider != "google":
@@ -270,6 +314,14 @@ async def google_login(request: GoogleTokenRequest):
                             db_user.avatar = picture
                         db_user.updated_at = datetime.utcnow().isoformat()
                 user = get_user_by_id(user.id)
+
+        # 如果 Google 告知邮箱已验证，则在本地标记为已验证
+        if email and email_verified:
+            try:
+                mark_email_verified(email)
+            except Exception:
+                # 标记失败不影响登录流程
+                pass
 
         # 生成 JWT token
         token = create_access_token(data={"sub": user.id, "email": user.email})
@@ -364,13 +416,23 @@ async def github_oauth_callback(request: Request, code: str = "", state: str = "
 
         # 3) 邮箱（优先取 verified primary）
         email = gh_user.get("email") or ""
+        email_verified = False
         if not email:
-            emails_res = await client.get("https://api.github.com/user/emails", headers=headers)
+            emails_res = await client.get(
+                "https://api.github.com/user/emails", headers=headers
+            )
             if emails_res.status_code < 400:
                 emails = emails_res.json() or []
-                primary_verified = next((e for e in emails if e.get("primary") and e.get("verified")), None)
-                any_verified = next((e for e in emails if e.get("verified")), None)
-                email = (primary_verified or any_verified or {}).get("email") or ""
+                primary_verified = next(
+                    (e for e in emails if e.get("primary") and e.get("verified")),
+                    None,
+                )
+                any_verified = next(
+                    (e for e in emails if e.get("verified")), None
+                )
+                chosen = primary_verified or any_verified
+                email = (chosen or {}).get("email") or ""
+                email_verified = bool(chosen and chosen.get("verified"))
 
         github_user_id = str(gh_user.get("id", ""))
         login_name = gh_user.get("login", "") or ""
@@ -380,7 +442,7 @@ async def github_oauth_callback(request: Request, code: str = "", state: str = "
         if not email:
             # 兜底：GitHub 可能不返回邮箱
             email = f"{login_name or github_user_id}@users.noreply.github.com"
-        
+
         email = email.lower()
 
         # 检查用户是否已存在（通过邮箱）
@@ -389,20 +451,24 @@ async def github_oauth_callback(request: Request, code: str = "", state: str = "
         if not user:
             # 创建新用户（OAuth 用户不需要密码）
             # 使用一个占位符密码哈希（OAuth 用户不会使用密码登录）
-            placeholder_hash = bcrypt.hashpw(b"oauth_user_no_password", bcrypt.gensalt()).decode('utf-8')
+            placeholder_hash = bcrypt.hashpw(
+                b"oauth_user_no_password", bcrypt.gensalt()
+            ).decode("utf-8")
             try:
                 user = create_user(
                     email=email,
                     name=name,
                     password_hash=placeholder_hash,
                     provider="github",
-                    avatar=avatar
+                    avatar=avatar,
                 )
             except ValueError:
                 # 如果创建失败（可能是并发创建），再次尝试获取
                 user = get_user_by_email(email)
                 if not user:
-                    raise HTTPException(status_code=500, detail="创建用户失败")
+                    raise HTTPException(
+                        status_code=500, detail="创建用户失败"
+                    )
         else:
             # 更新用户信息（如果头像或名称有变化）
             if user.provider != "github":
@@ -416,11 +482,22 @@ async def github_oauth_callback(request: Request, code: str = "", state: str = "
                         db_user.updated_at = datetime.utcnow().isoformat()
                 user = get_user_by_id(user.id)
 
+        # 如果选中的 GitHub 邮箱是 verified，则本地标记为已验证
+        if email and email_verified:
+            try:
+                mark_email_verified(email)
+            except Exception:
+                pass
+
         # 生成 JWT token
-        token = create_access_token(data={"sub": user.id, "email": user.email})
+        token = create_access_token(
+            data={"sub": user.id, "email": user.email}
+        )
 
         user_dict = user_to_dict(user)
-        user_b64 = base64.b64encode(json.dumps(user_dict, ensure_ascii=False).encode("utf-8")).decode("utf-8")
+        user_b64 = base64.b64encode(
+            json.dumps(user_dict, ensure_ascii=False).encode("utf-8")
+        ).decode("utf-8")
 
         # 回跳到前端 auth 页：由前端消费 query 后写入 localStorage，并按 redirect 跳转
         query = urlencode({"provider": "github", "auth_token": token, "user": user_b64, "redirect": redirect_path})
@@ -432,18 +509,18 @@ async def email_register(request: EmailRegisterRequest, http_request: Request):
     """
     邮箱注册
     """
-    import re
-    
-    # 速率限制：同一 IP 每小时最多 REGISTER_RATE_LIMIT_PER_HOUR 次注册尝试
+    # 速率限制：同一 IP 每小时最多 REGISTER_RATE_LIMIT_PER_HOUR 次注册尝试（持久化）
     client_ip = _get_client_ip(http_request)
-    register_key = f"register:{client_ip}"
-    _check_rate_limit(
-        _register_rate_limit,
-        register_key,
+    register_key = f"{client_ip}"
+    ok_register = check_and_increase_rate_limit(
+        scope="register",
+        key=register_key,
         limit=REGISTER_RATE_LIMIT_PER_HOUR,
         window_seconds=60 * 60,
-        detail="注册请求过于频繁，请稍后再试",
+        now_ts=int(time.time()),
     )
+    if not ok_register:
+        raise HTTPException(status_code=429, detail="注册请求过于频繁，请稍后再试")
 
     # 验证验证码（如果提供）
     if request.captcha_code and request.captcha_session:
@@ -455,14 +532,12 @@ async def email_register(request: EmailRegisterRequest, http_request: Request):
         if not ok:
             raise HTTPException(status_code=400, detail="验证码无效或已过期，请刷新后重试")
     
-    # 验证邮箱格式
-    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    if not re.match(email_pattern, request.email):
+    # 验证邮箱格式（统一使用 EMAIL_REGEX）
+    if not EMAIL_REGEX.match(request.email):
         raise HTTPException(status_code=400, detail="邮箱格式不正确")
     
-    # 验证密码长度
-    if len(request.password) < 8:
-        raise HTTPException(status_code=400, detail="密码长度至少为8位")
+    # 验证密码强度（与前端规则一致）
+    _validate_password_strong(request.password)
     
     # 验证用户名
     if not request.name or len(request.name.strip()) < 2:
@@ -535,15 +610,16 @@ async def email_login(request: EmailLoginRequest, http_request: Request):
     client_ip = _get_client_ip(http_request)
     user_agent = http_request.headers.get("user-agent", "")
 
-    # 速率限制：同一 IP 每分钟最多 LOGIN_RATE_LIMIT_PER_MINUTE 次登录尝试
-    login_rate_key = f"login:{client_ip}"
-    _check_rate_limit(
-        _login_rate_limit,
-        login_rate_key,
+    # 速率限制：同一 IP 每分钟最多 LOGIN_RATE_LIMIT_PER_MINUTE 次登录尝试（持久化）
+    ok_login_rate = check_and_increase_rate_limit(
+        scope="login",
+        key=client_ip,
         limit=LOGIN_RATE_LIMIT_PER_MINUTE,
         window_seconds=60,
-        detail="登录请求过于频繁，请稍后再试",
+        now_ts=int(time.time()),
     )
+    if not ok_login_rate:
+        raise HTTPException(status_code=429, detail="登录请求过于频繁，请稍后再试")
 
     # 验证验证码（如果提供）
     if request.captcha_code and request.captcha_session:
@@ -565,12 +641,11 @@ async def email_login(request: EmailLoginRequest, http_request: Request):
     
     email_lower = request.email.lower()
 
-    # 检查账户是否被临时锁定
-    login_attempt_key = f"{client_ip}:{email_lower}"
-    attempt_info = _login_attempts.get(login_attempt_key)
-    now_ts = time.time()
-    if attempt_info and attempt_info.get("lock_until", 0) > now_ts:
-        remaining = int(attempt_info["lock_until"] - now_ts)
+    # 检查账户是否被临时锁定（持久化）
+    now_ts = int(time.time())
+    lock_info = get_login_lock(client_ip, email_lower)
+    if lock_info and lock_info.lock_until and now_ts < int(lock_info.lock_until):
+        remaining = int(int(lock_info.lock_until) - now_ts)
         minutes = max(1, remaining // 60)
         log_login_attempt(
             user_id=None,
@@ -603,34 +678,44 @@ async def email_login(request: EmailLoginRequest, http_request: Request):
             success=False,
             reason="user_not_found" if not user else "invalid_password",
         )
-        # 登录失败，记录失败次数
-        if not attempt_info:
-            attempt_info = {"fail_count": 0, "lock_until": 0.0}
-            _login_attempts[login_attempt_key] = attempt_info
+        # 登录失败，记录失败次数（持久化）
+        fail_count, lock_until_ts = increase_login_fail_and_maybe_lock(
+            ip=client_ip,
+            email=email_lower,
+            max_failed_attempts=LOGIN_MAX_FAILED_ATTEMPTS,
+            lock_seconds=LOGIN_LOCK_SECONDS,
+            now_ts=now_ts,
+        )
 
-        attempt_info["fail_count"] = int(attempt_info.get("fail_count", 0)) + 1
-
-        remaining = LOGIN_MAX_FAILED_ATTEMPTS - attempt_info["fail_count"]
-        if attempt_info["fail_count"] >= LOGIN_MAX_FAILED_ATTEMPTS:
-            # 超过失败次数，锁定账户
-            attempt_info["lock_until"] = now_ts + LOGIN_LOCK_SECONDS
+        if lock_until_ts and now_ts < int(lock_until_ts):
             raise HTTPException(
                 status_code=429,
                 detail="密码错误次数过多，账户已暂时锁定，请稍后再试",
             )
-        else:
-            # 仍有剩余尝试次数
-            remaining = max(0, remaining)
-            raise HTTPException(
-                status_code=401,
-                detail=f"邮箱或密码错误，剩余尝试次数 {remaining} 次",
-            )
 
-    # 登录成功，清理失败记录
-    if login_attempt_key in _login_attempts:
-        _login_attempts.pop(login_attempt_key, None)
+        remaining = max(0, LOGIN_MAX_FAILED_ATTEMPTS - fail_count)
+        raise HTTPException(
+            status_code=401,
+            detail=f"邮箱或密码错误，剩余尝试次数 {remaining} 次",
+        )
 
-    # 登录成功：写审计日志
+    # 登录成功，清理失败记录（持久化）
+    clear_login_lock(client_ip, email_lower)
+
+    # 查询上一次成功登录记录（当前登录之前）
+    last_success = None
+    try:
+        last_row = get_last_success_login(user.id)
+        if last_row:
+            last_success = {
+                "time": getattr(last_row, "created_at", None),
+                "ip": getattr(last_row, "ip", None),
+                "user_agent": getattr(last_row, "user_agent", None),
+            }
+    except Exception:
+        last_success = None
+
+    # 登录成功：写审计日志（当前这次）
     try:
         log_login_attempt(
             user_id=user.id,
@@ -645,10 +730,11 @@ async def email_login(request: EmailLoginRequest, http_request: Request):
     
     # 生成 JWT token
     token = create_access_token(data={"sub": user.id, "email": user.email})
-    
+
     return AuthResponse(
         token=token,
-        user=user_to_dict(user)
+        user=user_to_dict(user),
+        last_login=last_success,
     )
 
 
@@ -761,35 +847,39 @@ async def forgot_password(request: ForgotPasswordRequest, http_request: Request)
     # 频率限制：同一邮箱 & IP 的验证码发送
     client_ip = _get_client_ip(http_request)
 
+    now_ts = int(time.time())
     # 同一邮箱 60 秒内只能发送一次
-    email_interval_key = f"forgot-email-interval:{email_lower}"
-    _check_rate_limit(
-        _forgot_email_rate_limit,
-        email_interval_key,
+    ok_interval = check_and_increase_rate_limit(
+        scope="forgot_email_interval",
+        key=email_lower,
         limit=1,
         window_seconds=FORGOT_EMAIL_INTERVAL_SECONDS,
-        detail="验证码发送过于频繁，请稍后再试",
+        now_ts=now_ts,
     )
+    if not ok_interval:
+        raise HTTPException(status_code=429, detail="验证码发送过于频繁，请稍后再试")
 
     # 同一邮箱 15 分钟内最多 FORGOT_EMAIL_MAX_PER_15MIN 次
-    email_window_key = f"forgot-email-window:{email_lower}"
-    _check_rate_limit(
-        _forgot_email_rate_limit,
-        email_window_key,
+    ok_email_window = check_and_increase_rate_limit(
+        scope="forgot_email_window",
+        key=email_lower,
         limit=FORGOT_EMAIL_MAX_PER_15MIN,
         window_seconds=15 * 60,
-        detail="该邮箱请求验证码过于频繁，请稍后再试",
+        now_ts=now_ts,
     )
+    if not ok_email_window:
+        raise HTTPException(status_code=429, detail="该邮箱请求验证码过于频繁，请稍后再试")
 
     # 同一 IP 每小时最多 FORGOT_IP_MAX_PER_HOUR 次
-    ip_window_key = f"forgot-ip:{client_ip}"
-    _check_rate_limit(
-        _forgot_ip_rate_limit,
-        ip_window_key,
+    ok_ip_window = check_and_increase_rate_limit(
+        scope="forgot_ip",
+        key=client_ip,
         limit=FORGOT_IP_MAX_PER_HOUR,
         window_seconds=60 * 60,
-        detail="当前网络环境请求验证码过于频繁，请稍后再试",
+        now_ts=now_ts,
     )
+    if not ok_ip_window:
+        raise HTTPException(status_code=429, detail="当前网络环境请求验证码过于频繁，请稍后再试")
 
     # 检查用户是否存在（从数据库）
     user = get_user_by_email(email_lower)
@@ -831,6 +921,174 @@ async def forgot_password(request: ForgotPasswordRequest, http_request: Request)
         result["message"] = "验证码已生成（邮件服务未配置，请查看返回的code字段）"
     
     return result
+
+
+@router.post("/auth/login-unlock/send")
+async def send_login_unlock_code(request: LoginUnlockSendRequest, http_request: Request):
+    """
+    发送用于解锁登录的邮箱验证码（当账户因多次密码错误被锁定时使用）
+    """
+    email_lower = request.email.lower()
+    client_ip = _get_client_ip(http_request)
+    now_ts = int(time.time())
+
+    # 频率限制：与忘记密码类似，但使用独立 scope，互不影响
+    ok_interval = check_and_increase_rate_limit(
+        scope="login_unlock_email_interval",
+        key=email_lower,
+        limit=1,
+        window_seconds=FORGOT_EMAIL_INTERVAL_SECONDS,
+        now_ts=now_ts,
+    )
+    if not ok_interval:
+        raise HTTPException(status_code=429, detail="验证码发送过于频繁，请稍后再试")
+
+    ok_email_window = check_and_increase_rate_limit(
+        scope="login_unlock_email_window",
+        key=email_lower,
+        limit=FORGOT_EMAIL_MAX_PER_15MIN,
+        window_seconds=15 * 60,
+        now_ts=now_ts,
+    )
+    if not ok_email_window:
+        raise HTTPException(status_code=429, detail="该邮箱请求验证码过于频繁，请稍后再试")
+
+    ok_ip_window = check_and_increase_rate_limit(
+        scope="login_unlock_ip",
+        key=client_ip,
+        limit=FORGOT_IP_MAX_PER_HOUR,
+        window_seconds=60 * 60,
+        now_ts=now_ts,
+    )
+    if not ok_ip_window:
+        raise HTTPException(status_code=429, detail="当前网络环境请求验证码过于频繁，请稍后再试")
+
+    # 为了安全，不暴露邮箱是否存在
+    user = get_user_by_email(email_lower)
+    if not user:
+        return {"message": "如果该邮箱已注册，解锁验证码已发送到您的邮箱", "session_id": ""}
+
+    # 生成验证码（与忘记密码相同规则）
+    import string
+
+    chars = string.ascii_uppercase.replace("I", "").replace("O", "") + string.digits.replace("0", "").replace("1", "")
+    verification_code = "".join(secrets.choice(chars) for _ in range(6))
+
+    # 生成 session_id 并落库（使用同一张 EmailCodeSession 表）
+    session_id = secrets.token_urlsafe(16)
+    create_email_code_session(
+        session_id,
+        email_lower,
+        verification_code,
+        expires_at=now_ts + 300,  # 5分钟过期
+        ip=client_ip,
+    )
+
+    # 发送邮件（使用现有验证码邮件模板）
+    email_service = get_email_service()
+    email_service.send_verification_code(email_lower, verification_code)
+
+    result = {
+        "message": "解锁验证码已发送到您的邮箱",
+        "session_id": session_id,
+    }
+    if not email_service.enabled:
+        result["code"] = verification_code
+        result["message"] = "解锁验证码已生成（邮件服务未配置，请查看返回的code字段）"
+
+    return result
+
+
+@router.post("/auth/login-unlock/verify")
+async def verify_login_unlock_code(request: LoginUnlockVerifyRequest, http_request: Request):
+    """
+    验证解锁登录的邮箱验证码，通过后清除当前 IP + 邮箱 的锁定状态
+    """
+    email_lower = request.email.lower()
+    client_ip = _get_client_ip(http_request)
+
+    ok, reason = verify_and_consume_email_code(
+        request.session_id,
+        email_lower,
+        request.code,
+        now_ts=int(time.time()),
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail=reason or "验证码无效或已过期")
+
+    # 验证通过，清除当前 IP + 邮箱 的登录锁定记录
+    clear_login_lock(client_ip, email_lower)
+
+    return {
+        "message": "验证成功，账户已解锁，现在可以重新尝试登录",
+    }
+
+
+@router.post("/auth/resend-verify-email")
+async def resend_verify_email(request: ResendVerifyEmailRequest, http_request: Request):
+    """
+    重新发送邮箱验证邮件（用户邮箱未验证时使用）
+    """
+    client_ip = _get_client_ip(http_request)
+    email_lower = request.email.lower().strip()
+
+    # 基本邮箱格式校验
+    if not EMAIL_REGEX.match(email_lower):
+        raise HTTPException(status_code=400, detail="邮箱格式不正确")
+
+    # 限流：同一邮箱 10 分钟 1 次，同一 IP 每小时若干次
+    now_ts = int(time.time())
+    ok_interval = check_and_increase_rate_limit(
+        scope="resend_verify_email_interval",
+        key=email_lower,
+        limit=1,
+        window_seconds=10 * 60,
+        now_ts=now_ts,
+    )
+    if not ok_interval:
+        raise HTTPException(status_code=429, detail="验证邮件发送过于频繁，请稍后再试")
+
+    ok_ip = check_and_increase_rate_limit(
+        scope="resend_verify_email_ip",
+        key=client_ip,
+        limit=FORGOT_IP_MAX_PER_HOUR,
+        window_seconds=60 * 60,
+        now_ts=now_ts,
+    )
+    if not ok_ip:
+        raise HTTPException(status_code=429, detail="当前网络环境请求过于频繁，请稍后再试")
+
+    user = get_user_by_email(email_lower)
+    if not user:
+        # 不暴露用户是否存在
+        return {"message": "如果该邮箱已注册，我们已重新发送验证邮件，请查收"}
+
+    # 如果已经验证过，则直接返回提示
+    if getattr(user, "is_email_verified", False):
+        return {"message": "该邮箱已完成验证，无需重复验证"}
+
+    # 创建新的验证 token 并发送邮件
+    email_service = get_email_service()
+    if not email_service.enabled:
+        raise HTTPException(status_code=500, detail="邮件服务未配置，请联系管理员")
+
+    verify_token = secrets.token_urlsafe(32)
+    create_email_verify_token(
+        verify_token,
+        email_lower,
+        expires_at=now_ts + 24 * 3600,
+        ip=client_ip,
+    )
+    verify_url = f"{FRONTEND_BASE_URL}/auth/verify-email?token={verify_token}"
+    try:
+        email_service.send_email_verification(email_lower, verify_url)
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).warning("重发邮箱验证邮件失败: %s", e)
+        raise HTTPException(status_code=500, detail="发送验证邮件失败，请稍后重试")
+
+    return {"message": "验证邮件已重新发送，请在 24 小时内完成验证"}
 
 
 @router.post("/auth/verify-email-code")
@@ -997,9 +1255,8 @@ async def reset_password(request: ResetPasswordRequest):
     if not email:
         raise HTTPException(status_code=400, detail="重置链接无效或已过期")
     
-    # 验证新密码
-    if len(request.new_password) < 8:
-        raise HTTPException(status_code=400, detail="密码长度至少为8位")
+    # 验证新密码强度（与注册时规则一致）
+    _validate_password_strong(request.new_password)
     
     # 使用 bcrypt 哈希新密码
     password_hash = bcrypt.hashpw(request.new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')

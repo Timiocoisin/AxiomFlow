@@ -1,5 +1,26 @@
 export const API_BASE = "http://localhost:8000/v1";
 
+// 获取认证token
+function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
+}
+
+// 创建带认证的fetch请求
+async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = getAuthToken();
+  const headers = new Headers(options.headers);
+  
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  
+  return fetch(url, {
+    ...options,
+    headers,
+  });
+}
+
 export type StructuredDoc = {
   document: {
     id: string;
@@ -34,7 +55,7 @@ export type StructuredDoc = {
 export async function createProject(name: string): Promise<{ project_id: string }> {
   const body = new FormData();
   body.set("name", name);
-  const res = await fetch(`${API_BASE}/projects`, { method: "POST", body });
+  const res = await authenticatedFetch(`${API_BASE}/projects`, { method: "POST", body });
   if (!res.ok) throw new Error(await res.text());
   return await res.json();
 }
@@ -52,13 +73,34 @@ export async function getProjectDocuments(project_id: string): Promise<{
     updated_at: string;
   }>;
 }> {
-  const res = await fetch(`${API_BASE}/projects/${project_id}/documents`);
+  const res = await authenticatedFetch(`${API_BASE}/projects/${project_id}/documents`);
   if (!res.ok) {
     const text = await res.text();
     if (res.status === 404) {
       throw new Error(`项目 ${project_id} 不存在`);
     }
     throw new Error(text || `获取文档列表失败 (${res.status})`);
+  }
+  return await res.json();
+}
+
+export async function getUserDocuments(): Promise<{
+  documents: Array<{
+    document_id: string;
+    project_id: string;
+    title: string;
+    num_pages: number;
+    lang_in: string;
+    lang_out: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+}> {
+  const res = await authenticatedFetch(`${API_BASE}/projects/documents`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `获取用户文档列表失败 (${res.status})`);
   }
   return await res.json();
 }
@@ -73,7 +115,7 @@ export async function uploadPdf(params: {
   body.set("file", params.file);
   body.set("lang_in", params.lang_in ?? "en");
   body.set("lang_out", params.lang_out ?? "zh");
-  const res = await fetch(`${API_BASE}/projects/${params.project_id}/files`, {
+  const res = await authenticatedFetch(`${API_BASE}/projects/${params.project_id}/files`, {
     method: "POST",
     body,
   });
@@ -278,7 +320,10 @@ export async function getBatch(params: { batch_id: string }): Promise<any> {
   return await res.json();
 }
 
-export async function googleLogin(token: string): Promise<{ token: string; user: { id: string; email: string; name: string; avatar?: string; provider: string } }> {
+export async function googleLogin(token: string): Promise<{
+  token: string;
+  user: { id: string; email: string; name: string; avatar?: string; provider: string; email_verified?: boolean };
+}> {
   const res = await fetch(`${API_BASE}/auth/google`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -306,7 +351,10 @@ export async function emailRegister(params: {
   password: string;
   captcha_code?: string;
   captcha_session?: string;
-}): Promise<{ token: string; user: { id: string; email: string; name: string; provider: string } }> {
+}): Promise<{
+  token: string;
+  user: { id: string; email: string; name: string; provider: string; email_verified?: boolean };
+}> {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -329,7 +377,11 @@ export async function emailLogin(params: {
   password: string;
   captcha_code?: string;
   captcha_session?: string;
-}): Promise<{ token: string; user: { id: string; email: string; name: string; provider: string } }> {
+}): Promise<{
+  token: string;
+  user: { id: string; email: string; name: string; provider: string; email_verified?: boolean };
+  last_login?: { time?: string; ip?: string; user_agent?: string } | null;
+}> {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -396,6 +448,64 @@ export async function resetPassword(params: { token: string; new_password: strin
       throw new Error(errorData.detail || text);
     } catch {
       throw new Error(text || `重置失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+export async function sendLoginUnlockCode(params: { email: string }): Promise<{ message: string; session_id: string; code?: string }> {
+  const res = await fetch(`${API_BASE}/auth/login-unlock/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `请求失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+export async function verifyLoginUnlockCode(params: {
+  email: string;
+  code: string;
+  session_id: string;
+}): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE}/auth/login-unlock/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `验证失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+export async function resendVerifyEmail(params: { email: string }): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE}/auth/resend-verify-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `请求失败 (${res.status})`);
     }
   }
   return await res.json();
