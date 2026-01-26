@@ -498,44 +498,6 @@ body {
   color: #64748b;
 }
 
-.email-verify-badge {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  line-height: 1.4;
-}
-
-.email-verify-badge.verified {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(34, 211, 238, 0.15));
-  color: #059669;
-  border: 1px solid rgba(16, 185, 129, 0.2);
-}
-
-.email-verify-badge.unverified {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(251, 191, 36, 0.15));
-  color: #d97706;
-  border: 1px solid rgba(245, 158, 11, 0.2);
-}
-
-.user-menu-item.resend-verify-item {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(139, 92, 246, 0.08));
-  color: #3b82f6;
-  font-weight: 500;
-  margin-top: 4px;
-}
-
-.user-menu-item.resend-verify-item:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.15));
-  color: #2563eb;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
-}
-
 /* 登录/注册页面样式 - 参考 Apple/Google/Stripe 设计 */
 .auth-container {
   min-height: calc(100vh - 80px);
@@ -2579,6 +2541,53 @@ body {
     0 2px 6px rgba(0, 0, 0, 0.04);
 }
 
+/* 删除按钮 */
+.doc-delete-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.1),
+    0 1px 4px rgba(0, 0, 0, 0.06);
+  color: #64748b;
+}
+
+.doc-delete-button:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  transform: scale(1.05);
+  box-shadow: 
+    0 4px 12px rgba(239, 68, 68, 0.2),
+    0 2px 6px rgba(239, 68, 68, 0.15);
+}
+
+.doc-delete-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.doc-delete-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.doc-delete-button svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
+}
+
 /* 解析中的遮罩层 */
 .doc-thumbnail-overlay {
   position: absolute;
@@ -3063,39 +3072,6 @@ body {
   font-weight: 500;
 }
 
-.resend-verify-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  border-radius: 10px;
-  color: #3b82f6;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  align-self: flex-start;
-}
-
-.resend-verify-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.15));
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #2563eb;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
-}
-
-.resend-verify-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.resend-verify-button svg {
-  width: 18px;
-  height: 18px;
-}
 
 .settings-item-hint {
   margin: 0;

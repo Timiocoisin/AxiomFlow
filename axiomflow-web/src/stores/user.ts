@@ -7,7 +7,6 @@ export interface User {
   name?: string;
   avatar?: string;
   provider?: "email" | "google" | "github";
-  email_verified?: boolean;
 }
 
 export const useUserStore = defineStore("user", () => {
@@ -49,20 +48,6 @@ export const useUserStore = defineStore("user", () => {
     sessionStorage.removeItem("user");
   };
 
-  const setEmailVerified = (verified: boolean) => {
-    if (!user.value) return;
-    user.value = {
-      ...user.value,
-      email_verified: verified,
-    };
-    const serialized = JSON.stringify(user.value);
-    if (localStorage.getItem("auth_token")) {
-      localStorage.setItem("user", serialized);
-    } else if (sessionStorage.getItem("auth_token")) {
-      sessionStorage.setItem("user", serialized);
-    }
-  };
-
   const loadUserFromStorage = () => {
     // 优先从localStorage读取，如果没有则从sessionStorage读取
     const storedUser = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -96,7 +81,6 @@ export const useUserStore = defineStore("user", () => {
     login,
     logout,
     loadUserFromStorage,
-    setEmailVerified,
   };
 });
 

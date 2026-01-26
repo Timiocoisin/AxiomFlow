@@ -2,10 +2,12 @@ from pathlib import Path
 import io
 import base64
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse, Response
 
 from ..repo import repo
+from ..core.dependencies import get_current_user
+from ..db.schema import User
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -176,8 +178,26 @@ async def get_document_thumbnail(document_id: str, width: int = 300, height: int
         PNG图片响应
     """
     try:
-        data = repo.load_document_json(document_id)
-        src = (data.get("document") or {}).get("source_pdf_path")
+        # 直接从数据库获取 source_pdf_path，不依赖 JSON 数据
+        # 这样即使文档还在解析中，也能生成缩略图
+        src = None
+        
+        # 优先从数据库获取（适用于 MySQLRepo）
+        if hasattr(repo, "_get_session"):
+            from ..db.schema import Document as DocumentModel
+            with repo._get_session() as session:
+                doc = session.query(DocumentModel).filter(DocumentModel.id == document_id).first()
+                if doc and doc.source_pdf_path:
+                    src = doc.source_pdf_path
+        
+        # 如果数据库中没有，尝试从 JSON 获取（兼容 InMemoryRepo 或旧数据）
+        if not src:
+            try:
+                data = repo.load_document_json(document_id)
+                src = (data.get("document") or {}).get("source_pdf_path")
+            except (FileNotFoundError, KeyError):
+                pass  # JSON 不存在时继续，可能文档还在解析中
+        
         if not src:
             raise HTTPException(status_code=404, detail="source_pdf_not_found")
         
@@ -277,5 +297,52 @@ async def edit_block_translation(document_id: str, block_id: str, payload: dict)
     else:
         repo.update_block_translation(document_id, block_id, translated_text)
     return {"ok": True}
+
+
+@router.delete("/{document_id}", response_model=dict)
+async def delete_document(
+    document_id: str,
+    current_user: User = Depends(get_current_user)
+) -> dict:
+    """
+    删除文档（只有文档所有者才能删除）
+    
+    Args:
+        document_id: 文档ID
+        current_user: 当前登录用户
+        
+    Returns:
+        dict: 删除结果
+    """
+    # 验证文档是否存在以及用户权限
+    if hasattr(repo, "_get_session"):
+        from ..db.schema import Document as DocumentModel
+        with repo._get_session() as session:
+            doc = session.query(DocumentModel).filter(DocumentModel.id == document_id).first()
+            if not doc:
+                raise HTTPException(status_code=404, detail="文档不存在")
+            
+            # 检查用户权限：只有文档所有者才能删除
+            if doc.user_id and doc.user_id != current_user.id:
+                raise HTTPException(status_code=403, detail="无权删除此文档")
+    
+    # 删除文档（包括数据库记录和相关文件）
+    try:
+        if hasattr(repo, "delete_document"):
+            repo.delete_document(document_id)
+        else:
+            # InMemoryRepo 不支持删除，返回错误
+            raise HTTPException(status_code=501, detail="当前存储后端不支持删除操作")
+        
+        return {"ok": True, "message": "文档已删除"}
+    except KeyError as e:
+        if "document_not_found" in str(e):
+            raise HTTPException(status_code=404, detail="文档不存在")
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"删除文档失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除文档失败: {str(e)}")
 
 

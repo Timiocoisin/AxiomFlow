@@ -24,7 +24,6 @@ from ..core.user_db import (
     update_user_password,
     user_to_dict,
     get_db_session,
-    mark_email_verified,
 )
 from ..core.email_service import get_email_service
 from ..core.auth_db import (
@@ -35,8 +34,6 @@ from ..core.auth_db import (
     create_password_reset_token,
     get_password_reset_token_email,
     consume_password_reset_token,
-    create_email_verify_token,
-    consume_email_verify_token,
     log_login_attempt,
     get_last_success_login,
     add_password_history,
@@ -223,10 +220,6 @@ class LoginUnlockVerifyRequest(BaseModel):
     session_id: str
 
 
-class ResendVerifyEmailRequest(BaseModel):
-    email: str
-
-
 class AuthResponse(BaseModel):
     token: str
     user: dict
@@ -304,24 +297,21 @@ async def google_login(request: GoogleTokenRequest):
                     )
         else:
             # 更新用户信息（如果头像或名称有变化）
-            if user.provider != "google":
-                # 如果用户之前是邮箱注册，更新 provider
+            # 注意：这里需要提交事务以确保 provider / avatar 真正持久化
+            if user.provider != "google" or (picture and not getattr(user, "avatar", None)):
                 with get_db_session() as session:
                     db_user = session.query(User).filter(User.id == user.id).first()
                     if db_user:
-                        db_user.provider = "google"
+                        # 如果之前是邮箱注册，切换为 google 提供者
+                        if db_user.provider != "google":
+                            db_user.provider = "google"
+                        # 如果数据库中还没有头像，而 Google 提供了头像，则保存
                         if picture and not db_user.avatar:
                             db_user.avatar = picture
                         db_user.updated_at = datetime.utcnow().isoformat()
+                        session.commit()
+                # 重新加载最新的用户对象
                 user = get_user_by_id(user.id)
-
-        # 如果 Google 告知邮箱已验证，则在本地标记为已验证
-        if email and email_verified:
-            try:
-                mark_email_verified(email)
-            except Exception:
-                # 标记失败不影响登录流程
-                pass
 
         # 生成 JWT token
         token = create_access_token(data={"sub": user.id, "email": user.email})
@@ -471,23 +461,19 @@ async def github_oauth_callback(request: Request, code: str = "", state: str = "
                     )
         else:
             # 更新用户信息（如果头像或名称有变化）
-            if user.provider != "github":
+            # 注意：这里需要提交事务以确保 provider / avatar 真正持久化
+            if user.provider != "github" or (avatar and not getattr(user, "avatar", None)):
                 # 如果用户之前是邮箱注册，更新 provider
                 with get_db_session() as session:
                     db_user = session.query(User).filter(User.id == user.id).first()
                     if db_user:
-                        db_user.provider = "github"
+                        if db_user.provider != "github":
+                            db_user.provider = "github"
                         if avatar and not db_user.avatar:
                             db_user.avatar = avatar
                         db_user.updated_at = datetime.utcnow().isoformat()
+                        session.commit()
                 user = get_user_by_id(user.id)
-
-        # 如果选中的 GitHub 邮箱是 verified，则本地标记为已验证
-        if email and email_verified:
-            try:
-                mark_email_verified(email)
-            except Exception:
-                pass
 
         # 生成 JWT token
         token = create_access_token(
@@ -570,24 +556,6 @@ async def email_register(request: EmailRegisterRequest, http_request: Request):
     
     # 使用 user_to_dict 获取用户信息（会创建新的会话）
     user_dict = user_to_dict(user)
-
-    # 注册后发送邮箱验证邮件（异步体验：即使发送失败也不影响注册结果）
-    try:
-        email_service = get_email_service()
-        if email_service.enabled:
-            verify_token = secrets.token_urlsafe(32)
-            create_email_verify_token(
-                verify_token,
-                user_email,
-                expires_at=int(time.time()) + 24 * 3600,  # 24 小时有效
-                ip=client_ip,
-            )
-            verify_url = f"{FRONTEND_BASE_URL}/auth/verify-email?token={verify_token}"
-            email_service.send_email_verification(user_email, verify_url)
-    except Exception as e:  # pragma: no cover - 邮件失败不影响注册
-        # 记录日志但不抛出，以免影响注册流程
-        import logging
-        logging.getLogger(__name__).warning("发送邮箱验证邮件失败: %s", e)
 
     # 写入密码历史（用于防止近期密码复用）
     try:
@@ -1024,73 +992,6 @@ async def verify_login_unlock_code(request: LoginUnlockVerifyRequest, http_reque
     }
 
 
-@router.post("/auth/resend-verify-email")
-async def resend_verify_email(request: ResendVerifyEmailRequest, http_request: Request):
-    """
-    重新发送邮箱验证邮件（用户邮箱未验证时使用）
-    """
-    client_ip = _get_client_ip(http_request)
-    email_lower = request.email.lower().strip()
-
-    # 基本邮箱格式校验
-    if not EMAIL_REGEX.match(email_lower):
-        raise HTTPException(status_code=400, detail="邮箱格式不正确")
-
-    # 限流：同一邮箱 10 分钟 1 次，同一 IP 每小时若干次
-    now_ts = int(time.time())
-    ok_interval = check_and_increase_rate_limit(
-        scope="resend_verify_email_interval",
-        key=email_lower,
-        limit=1,
-        window_seconds=10 * 60,
-        now_ts=now_ts,
-    )
-    if not ok_interval:
-        raise HTTPException(status_code=429, detail="验证邮件发送过于频繁，请稍后再试")
-
-    ok_ip = check_and_increase_rate_limit(
-        scope="resend_verify_email_ip",
-        key=client_ip,
-        limit=FORGOT_IP_MAX_PER_HOUR,
-        window_seconds=60 * 60,
-        now_ts=now_ts,
-    )
-    if not ok_ip:
-        raise HTTPException(status_code=429, detail="当前网络环境请求过于频繁，请稍后再试")
-
-    user = get_user_by_email(email_lower)
-    if not user:
-        # 不暴露用户是否存在
-        return {"message": "如果该邮箱已注册，我们已重新发送验证邮件，请查收"}
-
-    # 如果已经验证过，则直接返回提示
-    if getattr(user, "is_email_verified", False):
-        return {"message": "该邮箱已完成验证，无需重复验证"}
-
-    # 创建新的验证 token 并发送邮件
-    email_service = get_email_service()
-    if not email_service.enabled:
-        raise HTTPException(status_code=500, detail="邮件服务未配置，请联系管理员")
-
-    verify_token = secrets.token_urlsafe(32)
-    create_email_verify_token(
-        verify_token,
-        email_lower,
-        expires_at=now_ts + 24 * 3600,
-        ip=client_ip,
-    )
-    verify_url = f"{FRONTEND_BASE_URL}/auth/verify-email?token={verify_token}"
-    try:
-        email_service.send_email_verification(email_lower, verify_url)
-    except Exception as e:
-        import logging
-
-        logging.getLogger(__name__).warning("重发邮箱验证邮件失败: %s", e)
-        raise HTTPException(status_code=500, detail="发送验证邮件失败，请稍后重试")
-
-    return {"message": "验证邮件已重新发送，请在 24 小时内完成验证"}
-
-
 @router.post("/auth/verify-email-code")
 async def verify_email_code(request: VerifyEmailCodeRequest):
     """
@@ -1120,129 +1021,6 @@ async def verify_email_code(request: VerifyEmailCodeRequest):
         "message": "验证成功",
         "token": reset_token
     }
-
-
-@router.get("/auth/verify-email")
-async def verify_email(token: str):
-    """
-    通过邮件中的链接验证邮箱
-    """
-    now_ts = int(time.time())
-    email = consume_email_verify_token(token, now_ts=now_ts)
-    if not email:
-        raise HTTPException(status_code=400, detail="验证链接无效或已过期")
-
-    if not mark_email_verified(email):
-        raise HTTPException(status_code=400, detail="用户不存在或邮箱不匹配")
-
-    # 返回简单 HTML 页面，使用与产品一致的渐变和圆角样式
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="zh-CN">
-    <head>
-        <meta charset="UTF-8">
-        <title>AxiomFlow 邮箱验证成功</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            body {{
-                margin: 0;
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-                background: radial-gradient(circle at top left, #e0f2fe 0%, #eef2ff 40%, #fdf2ff 100%);
-            }}
-            .card {{
-                width: 100%;
-                max-width: 480px;
-                padding: 32px 28px 30px;
-                border-radius: 28px;
-                background: linear-gradient(145deg, #ffffff 0%, #f9fafb 45%, #eff6ff 100%);
-                box-shadow:
-                    0 24px 80px rgba(15,23,42,0.18),
-                    0 10px 30px rgba(129,140,248,0.18),
-                    0 0 0 1px rgba(255,255,255,0.9) inset;
-                text-align: center;
-            }}
-            .icon {{
-                width: 56px;
-                height: 56px;
-                margin: 0 auto 16px;
-                border-radius: 999px;
-                background: conic-gradient(from 180deg at 50% 50%, #4ade80, #22c55e, #22d3ee, #6366f1, #4ade80);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                box-shadow:
-                    0 0 0 6px rgba(34,197,94,0.12),
-                    0 14px 35px rgba(22,163,74,0.45);
-            }}
-            .icon-inner {{
-                width: 40px;
-                height: 40px;
-                border-radius: 999px;
-                background: #ecfdf5;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: #16a34a;
-                font-size: 26px;
-            }}
-            .title {{
-                font-size: 22px;
-                font-weight: 700;
-                color: #0f172a;
-                letter-spacing: -0.02em;
-                margin-bottom: 8px;
-            }}
-            .desc {{
-                font-size: 14px;
-                color: #64748b;
-                line-height: 1.7;
-                margin-bottom: 18px;
-            }}
-            .hint {{
-                font-size: 13px;
-                color: #94a3b8;
-                margin-bottom: 22px;
-            }}
-            .button {{
-                display: inline-block;
-                padding: 10px 22px;
-                border-radius: 999px;
-                background: linear-gradient(135deg, #4f46e5 0%, #6366f1 40%, #8b5cf6 100%);
-                color: #f9fafb;
-                font-size: 14px;
-                font-weight: 600;
-                text-decoration: none;
-                box-shadow:
-                    0 16px 40px rgba(79,70,229,0.45),
-                    0 0 0 1px rgba(129,140,248,0.7);
-            }}
-            .footer {{
-                margin-top: 18px;
-                font-size: 11px;
-                color: #cbd5e1;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <div class="icon">
-                <div class="icon-inner">✓</div>
-            </div>
-            <div class="title">邮箱验证成功</div>
-            <div class="desc">您的邮箱 <strong>{email}</strong> 已成功完成验证，现在可以安全地使用 AxiomFlow 的全部功能。</div>
-            <div class="hint">您可以关闭此页面，并在应用中继续操作。</div>
-            <a class="button" href="{FRONTEND_BASE_URL}" target="_self" rel="noopener">返回 AxiomFlow</a>
-            <div class="footer">© 2024 AxiomFlow Team</div>
-        </div>
-    </body>
-    </html>
-    """
-
-    return Response(content=html, media_type="text/html")
 
 
 @router.post("/auth/reset-password")

@@ -718,7 +718,6 @@ import {
   resetPassword,
   sendLoginUnlockCode,
   verifyLoginUnlockCode,
-  resendVerifyEmail,
 } from "@/lib/api";
 
 const router = useRouter();
@@ -1468,12 +1467,7 @@ const handleSubmit = async () => {
         captcha_session: captchaSession.value,
       });
       userStore.login(result.user, result.token, rememberMe.value);
-      // 登录成功提示
-      if (result.user && (result.user as any).email_verified === false) {
-        showToast("info", "邮箱未验证", "已登录，但部分功能可能受限，请前往邮箱完成验证。");
-      } else {
-        showToast("success", "登录成功", `欢迎回来，${result.user.name || result.user.email}！`);
-      }
+      showToast("success", "登录成功", `欢迎回来，${result.user.name || result.user.email}！`);
       // 轻量提示上次登录信息（如果有）
       if (result.last_login && result.last_login.time) {
         const time = result.last_login.time;

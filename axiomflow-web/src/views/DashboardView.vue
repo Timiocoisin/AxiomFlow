@@ -44,6 +44,19 @@
               <span v-else-if="d.status === 'parsing'">解析中</span>
             </div>
           </div>
+          <!-- 删除按钮（右上角） -->
+          <button
+            v-if="d.status === 'ready' && !d.document_id.startsWith('temp-')"
+            class="doc-delete-button"
+            @click.stop="handleDeleteDocument(d.document_id, d.title)"
+            :disabled="deletingDocumentId === d.document_id"
+            title="删除文档"
+          >
+            <svg v-if="deletingDocumentId !== d.document_id" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 6H5H21M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <LoadingIcon v-else :spinning="true" />
+          </button>
         </div>
         
         <!-- 进度条（解析中/上传中时显示） -->
@@ -96,6 +109,18 @@
         <p class="empty-state-description">开始上传您的第一个 PDF 文档，让我们帮您解析和翻译</p>
       </div>
     </div>
+    <!-- 删除确认对话框 -->
+    <ConfirmDialog
+      v-model:visible="showDeleteDialog"
+      :title="deleteDialogTitle"
+      :message="deleteDialogMessage"
+      type="danger"
+      confirm-text="删除"
+      cancel-text="取消"
+      :loading="deletingDocumentId !== null"
+      @confirm="confirmDeleteDocument"
+      @cancel="cancelDeleteDocument"
+    />
   </section>
 </template>
 
@@ -104,7 +129,9 @@ import { onMounted, ref, watch, onUnmounted, nextTick } from "vue";
 import AppCard from "@/components/AppCard.vue";
 import AppButton from "@/components/AppButton.vue";
 import LoadingIcon from "@/components/LoadingIcon.vue";
-import { batchUpload, createProject, uploadPdf, getDocument, getProjectDocuments, getUserDocuments } from "@/lib/api";
+import ConfirmDialog from "@/components/ConfirmDialog.vue";
+import { batchUpload, createProject, uploadPdf, getDocument, getProjectDocuments, getUserDocuments, deleteDocument } from "@/lib/api";
+import { showToast } from "@/components/Toast";
 import { useRouter, useRoute } from "vue-router";
 import { DocumentProgressWebSocket } from "@/lib/websocket";
 
@@ -130,6 +157,12 @@ const filesInput = ref<HTMLInputElement | null>(null);
 const projectName = ref("我的项目");
 const currentProjectId = ref<string | null>(null); // 当前项目ID
 const activeWebSockets = new Map<string, DocumentProgressWebSocket>(); // document_id -> WebSocket
+const deletingDocumentId = ref<string | null>(null); // 正在删除的文档ID
+const showDeleteDialog = ref(false); // 显示删除确认对话框
+const deleteDialogTitle = ref(""); // 删除对话框标题
+const deleteDialogMessage = ref(""); // 删除对话框消息
+const pendingDeleteDocumentId = ref<string | null>(null); // 待删除的文档ID
+const pendingDeleteTitle = ref(""); // 待删除的文档标题
 
 // 从 API 加载项目文档列表（合并模式：保留正在处理的临时文档）
 const loadProjectDocuments = async (project_id: string, merge: boolean = false) => {
@@ -250,6 +283,57 @@ const handleThumbnailLoad = (document_id: string) => {
       thumbnailError: false,
     });
   }
+};
+
+// 删除文档 - 显示确认对话框
+const handleDeleteDocument = (document_id: string, title: string) => {
+  pendingDeleteDocumentId.value = document_id;
+  pendingDeleteTitle.value = title;
+  deleteDialogTitle.value = "确认删除文档";
+  deleteDialogMessage.value = `确定要删除文档 "${title}" 吗？此操作无法撤销，文档及其所有相关数据将被永久删除。`;
+  showDeleteDialog.value = true;
+};
+
+// 确认删除文档
+const confirmDeleteDocument = async () => {
+  if (!pendingDeleteDocumentId.value) return;
+  
+  const document_id = pendingDeleteDocumentId.value;
+  const title = pendingDeleteTitle.value;
+  
+  deletingDocumentId.value = document_id;
+  try {
+    await deleteDocument(document_id);
+    showToast("success", "删除成功", `文档 "${title}" 已删除`);
+    
+    // 从列表中移除文档
+    const docIndex = docs.value.findIndex(d => d.document_id === document_id);
+    if (docIndex >= 0) {
+      docs.value.splice(docIndex, 1);
+    }
+    
+    // 关闭相关的 WebSocket 连接
+    const ws = activeWebSockets.get(document_id);
+    if (ws) {
+      ws.close();
+      activeWebSockets.delete(document_id);
+    }
+    
+    // 关闭对话框
+    showDeleteDialog.value = false;
+    pendingDeleteDocumentId.value = null;
+    pendingDeleteTitle.value = "";
+  } catch (error: any) {
+    showToast("error", "删除失败", error.message || "请稍后重试");
+  } finally {
+    deletingDocumentId.value = null;
+  }
+};
+
+// 取消删除
+const cancelDeleteDocument = () => {
+  pendingDeleteDocumentId.value = null;
+  pendingDeleteTitle.value = "";
 };
 
 const onFileChange = async (e: Event) => {

@@ -252,6 +252,42 @@ class MySQLRepo:
                     return
         raise KeyError("block_not_found")
 
+    def delete_document(self, document_id: str) -> None:
+        """删除文档及其相关文件"""
+        with self._get_session() as session:
+            doc = session.query(DocumentModel).filter(DocumentModel.id == document_id).first()
+            if not doc:
+                raise KeyError("document_not_found")
+            
+            # 删除相关文件
+            # 1. 删除源 PDF 文件
+            if doc.source_pdf_path:
+                pdf_path = Path(doc.source_pdf_path)
+                if pdf_path.exists() and self.paths.uploads.resolve() in pdf_path.resolve().parents:
+                    try:
+                        pdf_path.unlink()
+                    except Exception:
+                        pass  # 文件可能已被删除，忽略错误
+            
+            # 2. 删除导出文件（查找所有以 document_id 开头的导出文件）
+            if self.paths.exports.exists():
+                for export_file in self.paths.exports.glob(f"{document_id}*"):
+                    try:
+                        export_file.unlink()
+                    except Exception:
+                        pass
+            
+            # 3. 删除资源文件（查找所有以 document_id 开头的资源文件）
+            if self.paths.assets.exists():
+                for asset_file in self.paths.assets.rglob(f"{document_id}*"):
+                    try:
+                        asset_file.unlink()
+                    except Exception:
+                        pass
+            
+            # 4. 删除数据库记录（级联删除相关的 jobs）
+            session.delete(doc)
+
     # --- Exports & Assets ---
 
     def save_export_file(self, filename: str, content: bytes) -> Path:

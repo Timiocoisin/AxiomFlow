@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Depends
 
 from ..models.domain import JobStage
 from ..tasks.batch import run_batch_translate
+from ..core.dependencies import get_current_user
+from ..db.schema import User
 
 from ..repo import repo
 from ..services.pdf_parse import parse_pdf_to_structured_json
@@ -19,15 +21,16 @@ async def batch_upload(
     files: list[UploadFile] = File(...),
     auto_translate: bool = Form(True),
     provider: str = Form("ollama"),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """
-    Web 端无法直接读取本地目录，目录翻译用“多文件上传”替代：
+    Web 端无法直接读取本地目录，目录翻译用"多文件上传"替代：
     一次上传多个 PDF，后端逐个解析并创建 batch 记录。
     """
     if not files:
         raise HTTPException(status_code=400, detail="no_files")
 
-    project_id = repo.create_project(project_name)
+    project_id = repo.create_project(project_name, user_id=current_user.id)
     document_ids: list[str] = []
     items: list[dict] = []
 
@@ -36,6 +39,18 @@ async def batch_upload(
             continue
         content = await f.read()
         document_id, pdf_path = repo.save_upload(f.filename, content)
+        
+        # 先在数据库中创建 Document 记录（记录用户ID）
+        repo.create_document(
+            document_id=document_id,
+            project_id=project_id,
+            title=f.filename or "",
+            lang_in=lang_in,
+            lang_out=lang_out,
+            source_pdf_path=str(pdf_path),
+            user_id=current_user.id,
+        )
+        
         structured = parse_pdf_to_structured_json(
             pdf_path,
             document_id=document_id,

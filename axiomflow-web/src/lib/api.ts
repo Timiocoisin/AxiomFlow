@@ -135,6 +135,22 @@ export async function getDocument(document_id: string): Promise<StructuredDoc> {
   return await res.json();
 }
 
+export async function deleteDocument(document_id: string): Promise<{ ok: boolean; message?: string }> {
+  const res = await authenticatedFetch(`${API_BASE}/documents/${document_id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `删除文档失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
 export function getSourcePdfUrl(document_id: string): string {
   return `${API_BASE}/documents/${document_id}/source`;
 }
@@ -493,22 +509,5 @@ export async function verifyLoginUnlockCode(params: {
   return await res.json();
 }
 
-export async function resendVerifyEmail(params: { email: string }): Promise<{ message: string }> {
-  const res = await fetch(`${API_BASE}/auth/resend-verify-email`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    try {
-      const errorData = JSON.parse(text);
-      throw new Error(errorData.detail || text);
-    } catch {
-      throw new Error(text || `请求失败 (${res.status})`);
-    }
-  }
-  return await res.json();
-}
 
 
