@@ -1,6 +1,10 @@
 <template>
   <div class="pdf-viewer">
-    <div class="pdf-toolbar" style="display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div
+      v-if="!continuous"
+      class="pdf-toolbar"
+      style="display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:10px"
+    >
       <div style="display:flex;gap:8px;align-items:center">
         <AppButton @click="prevPage" :disabled="pageIndex <= 0">上一页</AppButton>
         <AppButton @click="nextPage" :disabled="pageIndex >= numPages - 1">下一页</AppButton>
@@ -27,7 +31,8 @@
       </div>
     </div>
 
-    <div ref="scrollEl" class="pdf-scroll">
+    <!-- 分页模式：保留原有单页视图和交互 -->
+    <div v-if="!continuous" ref="scrollEl" class="pdf-scroll">
       <div class="pdf-page" :style="{ width: `${viewportW}px` }">
         <div class="canvas-wrap" :style="{ width: `${viewportW}px`, height: `${viewportH}px` }">
           <canvas ref="canvasEl" :width="viewportW" :height="viewportH" />
@@ -50,15 +55,31 @@
         </div>
       </div>
     </div>
+
+    <!-- 连续滚动模式：卡片内纵向滚动整本 PDF -->
+    <div v-else ref="scrollEl" class="pdf-scroll">
+      <div
+        v-for="page in numPages"
+        :key="page"
+        class="pdf-page"
+        :style="{ width: `${viewportW}px`, margin: '0 auto 16px' }"
+      >
+        <div class="canvas-wrap" :style="{ width: `${viewportW}px` }">
+          <canvas :ref="(el) => setCanvasRef(el as HTMLCanvasElement | null, page - 1)" />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import AppButton from "@/components/AppButton.vue";
-import * as pdfjsLib from "pdfjs-dist";
+// 使用 legacy ESM 构建 + workerPort，避免私有字段和打包器兼容问题
 // @ts-ignore
-import pdfWorker from "pdfjs-dist/build/pdf.worker?url";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+// @ts-ignore
+import PdfWorker from "pdfjs-dist/legacy/build/pdf.worker.mjs?worker";
 
 type Block = {
   id: string;
@@ -77,6 +98,8 @@ const props = defineProps<{
   blocks: Block[];
   activeBlockId: string | null;
   initialPageIndex?: number;
+  /** 连续滚动模式：隐藏工具栏，整本 PDF 在卡片内滚动 */
+  continuous?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -89,12 +112,16 @@ const scrollEl = ref<HTMLDivElement | null>(null);
 const pdfDoc = ref<any>(null);
 const pageIndex = ref<number>(props.initialPageIndex ?? 0);
 const numPages = ref<number>(1);
+const continuous = computed(() => !!props.continuous);
+const canvasList = ref<(HTMLCanvasElement | null)[]>([]);
 
 const onlyIssues = ref(false);
 const filterType = ref<string>("");
 const bilingual = ref(false);
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker as any;
+// 使用 workerPort 方式注册 worker，兼容 Vite 打包
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(pdfjsLib as any).GlobalWorkerOptions.workerPort = new (PdfWorker as any)();
 
 const scale = computed(() => {
   // 让页面宽度适配容器（最小 0.6，最大 1.6）
@@ -167,6 +194,28 @@ const renderPage = async () => {
   }
 };
 
+const setCanvasRef = (el: HTMLCanvasElement | null, index: number) => {
+  canvasList.value[index] = el;
+};
+
+const renderAllPages = async () => {
+  if (!pdfDoc.value) return;
+  const total = pdfDoc.value.numPages || 1;
+  numPages.value = total;
+  for (let i = 0; i < total; i++) {
+    const page = await pdfDoc.value.getPage(i + 1);
+    const vp = page.getViewport({ scale: scale.value });
+    const canvas = canvasList.value[i];
+    if (!canvas) continue;
+    canvas.width = Math.round(vp.width);
+    canvas.height = Math.round(vp.height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) continue;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  }
+};
+
 const ensureLoaded = async () => {
   if (pdfDoc.value) return;
   const loadingTask = pdfjsLib.getDocument({ url: props.pdfUrl, withCredentials: false });
@@ -195,7 +244,7 @@ watch(
     if (!id) return;
     const b = props.blocks.find((x) => x.id === id);
     if (!b) return;
-    if (b.bbox.page !== pageIndex.value) {
+    if (!continuous.value && b.bbox.page !== pageIndex.value) {
       pageIndex.value = b.bbox.page;
       await renderPage();
     }
@@ -207,12 +256,20 @@ watch(
 
 watch(scale, async () => {
   // 容器宽度变化时重绘
-  await renderPage();
+  if (continuous.value) {
+    await renderAllPages();
+  } else {
+    await renderPage();
+  }
 });
 
 onMounted(async () => {
   await ensureLoaded();
-  await renderPage();
+  if (continuous.value) {
+    await renderAllPages();
+  } else {
+    await renderPage();
+  }
 });
 </script>
 

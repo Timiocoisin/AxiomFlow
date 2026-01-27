@@ -74,8 +74,6 @@ class PDFParseCache:
         *,
         use_hybrid_parser: bool,
         use_feature_based_layout: bool,
-        enable_ocr: bool,
-        ocr_engine: str,
         vfont: str = "",
         vchar: str = "",
     ) -> str:
@@ -86,8 +84,6 @@ class PDFParseCache:
             pdf_path: PDF文件路径
             use_hybrid_parser: 是否使用混合解析器
             use_feature_based_layout: 是否使用基于特征的布局检测
-            enable_ocr: 是否启用OCR
-            ocr_engine: OCR引擎类型
             vfont: 公式字体匹配正则
             vchar: 公式字符匹配正则
 
@@ -99,8 +95,6 @@ class PDFParseCache:
         params = {
             "hybrid": use_hybrid_parser,
             "feature_layout": use_feature_based_layout,
-            "ocr": enable_ocr,
-            "ocr_engine": ocr_engine,
             "vfont": vfont,
             "vchar": vchar,
         }
@@ -119,8 +113,6 @@ class PDFParseCache:
         *,
         use_hybrid_parser: bool,
         use_feature_based_layout: bool,
-        enable_ocr: bool,
-        ocr_engine: str,
         vfont: str = "",
         vchar: str = "",
     ) -> dict[str, Any] | None:
@@ -138,8 +130,6 @@ class PDFParseCache:
             pdf_path,
             use_hybrid_parser=use_hybrid_parser,
             use_feature_based_layout=use_feature_based_layout,
-            enable_ocr=enable_ocr,
-            ocr_engine=ocr_engine,
             vfont=vfont,
             vchar=vchar,
         )
@@ -187,8 +177,6 @@ class PDFParseCache:
         *,
         use_hybrid_parser: bool,
         use_feature_based_layout: bool,
-        enable_ocr: bool,
-        ocr_engine: str,
         vfont: str = "",
         vchar: str = "",
     ) -> None:
@@ -204,8 +192,6 @@ class PDFParseCache:
             pdf_path,
             use_hybrid_parser=use_hybrid_parser,
             use_feature_based_layout=use_feature_based_layout,
-            enable_ocr=enable_ocr,
-            ocr_engine=ocr_engine,
             vfont=vfont,
             vchar=vchar,
         )

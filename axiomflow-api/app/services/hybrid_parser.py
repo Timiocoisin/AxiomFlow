@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Optional
 
 # 避免循环导入：在函数内部导入
 # from .pdf_parse import parse_pdf_to_structured_json as pymupdf_parse
@@ -43,6 +43,7 @@ class HybridPDFParser:
         project_id: str,
         lang_in: str,
         lang_out: str,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> dict[str, Any]:
         """
         解析PDF文档（混合模式）
@@ -64,6 +65,7 @@ class HybridPDFParser:
             lang_in=lang_in,
             lang_out=lang_out,
             use_hybrid_parser=False,  # 禁用混合解析，避免递归
+            progress_callback=progress_callback,
         )
         
         # 2. 字体层次结构分析
@@ -255,6 +257,7 @@ def parse_pdf_hybrid(
     lang_in: str,
     lang_out: str,
     use_deep_parsing: bool = True,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> dict[str, Any]:
     """
     混合模式解析PDF（便捷函数）
@@ -277,5 +280,6 @@ def parse_pdf_hybrid(
         project_id=project_id,
         lang_in=lang_in,
         lang_out=lang_out,
+        progress_callback=progress_callback,
     )
 

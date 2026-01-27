@@ -124,35 +124,63 @@ def run_parse_job(
             raise FileNotFoundError(f"PDF文件不存在: {pdf_path}")
 
         # 创建进度回调函数
-        def progress_callback(page_done: int, page_total: int) -> None:
-            """解析进度回调"""
-            progress = page_done / page_total if page_total > 0 else 0.0
+        def progress_callback(page_done: int, page_total: int, extra: dict | None = None) -> None:
+            """解析进度回调（支持更细粒度的 substage / 页内进度）"""
+            extra = extra or {}
+            substage = str(extra.get("substage") or "extract")
+            # 页内细分进度：0~1
+            step_done = extra.get("step_done")
+            step_total = extra.get("step_total")
+            step_ratio = 0.0
+            if isinstance(step_done, (int, float)) and isinstance(step_total, (int, float)) and step_total > 0:
+                step_ratio = max(0.0, min(1.0, float(step_done) / float(step_total)))
+
+            # 计算更真实的 overall progress：页进度 + 页内进度
+            if page_total > 0:
+                base_pages_done = max(0.0, float(page_done) - 1.0)  # 当前页尚未完成时，page_done 会是当前页序号
+                overall = (base_pages_done + step_ratio) / float(page_total)
+            else:
+                overall = 0.0
+
+            overall = max(0.0, min(0.999, overall))
+
             elapsed = time.time() - parse_start
             eta_s = None
-            if page_done > 0:
-                avg = elapsed / page_done
-                eta_s = max(0.0, (page_total - page_done) * avg)
-            
-            # 更新Job进度
+            if overall > 0:
+                avg = elapsed / overall
+                eta_s = max(0.0, (1.0 - overall) * avg)
+
+            # 人类可读 message
+            msg = extra.get("message")
+            if not isinstance(msg, str) or not msg.strip():
+                if isinstance(step_total, (int, float)) and step_total:
+                    msg = f"{substage}: {int(step_done or 0)}/{int(step_total)}"
+                else:
+                    msg = f"{substage}: {page_done}/{page_total} 页"
+
+            # 更新 Job（WS 会读取）
             repo.update_job(
                 parse_job_id,
-                progress=progress,
-                message=f"解析中: {page_done}/{page_total} 页",
-                done=page_done,
-                total=page_total,
+                progress=overall,
+                message=msg,
+                done=int(extra.get("done") or page_done),
+                total=int(extra.get("total") or page_total) if page_total else None,
                 eta_s=eta_s,
+                substage=substage,
+                stage=JobStage.parsing.value,
             )
-            
-            # 更新Celery任务状态
+
+            # 更新 Celery 任务状态（可选：调试/监控）
             self.update_state(
                 state="PROGRESS",
                 meta={
                     "stage": "parsing",
-                    "progress": progress,
-                    "done": page_done,
-                    "total": page_total,
+                    "substage": substage,
+                    "progress": overall,
+                    "done": int(extra.get("done") or page_done),
+                    "total": int(extra.get("total") or page_total) if page_total else None,
                     "eta_s": eta_s,
-                    "message": f"解析中: {page_done}/{page_total} 页",
+                    "message": msg,
                 },
             )
             
@@ -203,6 +231,7 @@ def run_parse_job(
             done=num_pages,
             total=num_pages,
             eta_s=0.0,
+            substage="done",
         )
         
         # 通过 HTTP 通知 FastAPI 服务器广播 WebSocket 更新

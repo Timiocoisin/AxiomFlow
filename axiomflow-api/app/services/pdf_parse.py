@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Callable, Optional
 from collections import Counter
 import re
 
@@ -16,294 +16,6 @@ from .layout_detect import (
 )
 from .formula_detect import extract_fonts_from_text_dict, detect_formula_block, FontInfo
 from .document_structure import analyze_document_structure
-
-
-def _parse_scanned_pdf_with_ocr(
-    pdf_path: Path,
-    *,
-    document_id: str,
-    project_id: str,
-    lang_in: str,
-    lang_out: str,
-    ocr_engine: str = "auto",
-    use_feature_based_layout: bool = True,
-    progress_callback: Optional[Callable[[int, int], None]] = None,
-) -> dict:
-    """
-    使用OCR解析扫描版PDF
-    
-    Args:
-        pdf_path: PDF文件路径
-        document_id: 文档ID
-        project_id: 项目ID
-        lang_in: 源语言
-        lang_out: 目标语言
-        ocr_engine: OCR引擎类型
-        use_feature_based_layout: 是否使用基于特征的布局检测
-    
-    Returns:
-        结构化文档JSON
-    """
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    try:
-        from .ocr_service import get_ocr_service
-        
-        # 确定OCR语言代码
-        ocr_lang_map = {
-            "en": "eng",
-            "zh": "chi_sim",
-            "zh-CN": "chi_sim",
-            "zh-TW": "chi_tra",
-            "ja": "jpn",
-            "ko": "kor",
-        }
-        ocr_lang = ocr_lang_map.get(lang_in, "eng")
-        if lang_in == "zh" and lang_out == "en":
-            # 中英混合
-            ocr_lang = "eng+chi_sim"
-        elif lang_in == "en" and lang_out == "zh":
-            # 英中混合
-            ocr_lang = "eng+chi_sim"
-        
-        # 初始化OCR服务
-        ocr_service = get_ocr_service(engine=ocr_engine, lang=ocr_lang)
-        
-        now = datetime.utcnow().isoformat()
-        doc = fitz.open(pdf_path.as_posix())
-        total_pages = doc.page_count
-        pages = []
-        reading_order = 0
-        
-        logger.info(f"开始OCR识别，共 {total_pages} 页...")
-        
-        # 如果有进度回调，先通知总页数
-        if progress_callback:
-            progress_callback(0, total_pages)
-        
-        for page_index in range(total_pages):
-            if page_index % 10 == 0:
-                logger.info(f"正在处理第 {page_index + 1}/{doc.page_count} 页...")
-            
-            page = doc.load_page(page_index)
-            rect = page.rect
-            
-            # 执行OCR识别
-            ocr_result = ocr_service.recognize_page(pdf_path, page_index, dpi=300)
-            
-            if not ocr_result.text.strip():
-                logger.warning(f"第 {page_index + 1} 页OCR未识别到文本")
-                # 创建一个空页面
-                # 每处理完一页，更新进度
-                if progress_callback:
-                    progress_callback(page_index + 1, total_pages)
-                
-                pages.append({
-                    "index": page_index,
-                    "width": float(rect.width),
-                    "height": float(rect.height),
-                    "blocks": [],
-                    "regions": [],
-                })
-                continue
-            
-            # 将OCR结果转换为blocks
-            blocks = []
-            
-            if ocr_result.words:
-                # 如果有单词级别信息，创建更精确的blocks
-                for word_idx, word_info in enumerate(ocr_result.words):
-                    word_text = word_info.get('text', '').strip()
-                    if not word_text:
-                        continue
-                    
-                    word_bbox = word_info.get('bbox', (0, 0, 0, 0))
-                    x0, y0, x1, y1 = word_bbox
-                    
-                    # 缩放坐标（OCR可能使用了不同的DPI）
-                    # 这里假设OCR返回的是像素坐标，需要转换为PDF坐标
-                    # 实际转换可能需要根据OCR引擎调整
-                    
-                    block_id = new_id("blk")
-                    block_type = _guess_block_type(word_text)
-                    column_index = _guess_column_index(x0, rect.width)
-                    hf = _is_header_or_footer(y0, y1, rect.height)
-                    
-                    block_dict = {
-                        "id": block_id,
-                        "document_id": document_id,
-                        "type": block_type,
-                        "bbox": {
-                            "page": page_index,
-                            "x0": float(x0),
-                            "y0": float(y0),
-                            "x1": float(x1),
-                            "y1": float(y1),
-                        },
-                        "reading_order": reading_order,
-                        "column_index": column_index,
-                        "page_index": page_index,
-                        "is_header_footer": hf,
-                        "text": word_text,
-                        "translation": None,
-                        "edited": False,
-                        "edited_at": None,
-                        "ocr_confidence": word_info.get('confidence', 0.0),
-                    }
-                    blocks.append(block_dict)
-                    reading_order += 1
-            else:
-                # 如果没有单词级别信息，将整页文本作为一个block
-                block_id = new_id("blk")
-                block_type = _guess_block_type(ocr_result.text)
-                
-                # 估算边界框（整页）
-                margin = 50  # 页边距
-                x0 = margin
-                y0 = margin
-                x1 = float(rect.width) - margin
-                y1 = float(rect.height) - margin
-                
-                column_index = _guess_column_index(x0, rect.width)
-                
-                block_dict = {
-                    "id": block_id,
-                    "document_id": document_id,
-                    "type": block_type,
-                    "bbox": {
-                        "page": page_index,
-                        "x0": float(x0),
-                        "y0": float(y0),
-                        "x1": float(x1),
-                        "y1": float(y1),
-                    },
-                    "reading_order": reading_order,
-                    "column_index": column_index,
-                    "page_index": page_index,
-                    "is_header_footer": None,
-                    "text": ocr_result.text,
-                    "translation": None,
-                    "edited": False,
-                    "edited_at": None,
-                    "ocr_confidence": ocr_result.confidence,
-                }
-                blocks.append(block_dict)
-                reading_order += 1
-            
-            # 合并段落块
-            blocks = _merge_paragraph_blocks(blocks, page_height=float(rect.height))
-            
-            # 布局检测
-            if use_feature_based_layout:
-                try:
-                    regions = detect_regions_feature_based(
-                        blocks,
-                        page_width=float(rect.width),
-                        page_height=float(rect.height),
-                        use_ml=True,
-                        min_confidence=0.4,
-                    )
-                except Exception as e:
-                    logger.warning(f"特征检测失败，回退到启发式方法: {e}")
-                    regions = detect_regions_heuristic(blocks)
-            else:
-                regions = detect_regions_heuristic(blocks)
-            
-            apply_regions_to_blocks(blocks, regions)
-            
-            # 重新排序
-            blocks = sorted(
-                blocks,
-                key=lambda b: (
-                    int(b.get("column_index", 0)),
-                    float((b.get("bbox") or {}).get("y0", 0.0)),
-                    float((b.get("bbox") or {}).get("x0", 0.0)),
-                ),
-            )
-            for idx, b in enumerate(blocks):
-                b["reading_order"] = reading_order
-                reading_order += 1
-            
-            # 每处理完一页，更新进度
-            if progress_callback:
-                progress_callback(page_index + 1, total_pages)
-            
-            pages.append({
-                "index": page_index,
-                "width": float(rect.width),
-                "height": float(rect.height),
-                "blocks": blocks,
-                "regions": [
-                    {
-                        "type": r.type,
-                        "x0": r.x0,
-                        "y0": r.y0,
-                        "x1": r.x1,
-                        "y1": r.y1,
-                        "score": r.score,
-                    }
-                    for r in regions
-                ],
-            })
-        
-        doc.close()
-        logger.info("OCR识别完成")
-        
-        # 构建结构化文档（与常规解析格式一致）
-        structured = {
-            "document": {
-                "id": document_id,
-                "project_id": project_id,
-                "title": _extract_original_filename(pdf_path),
-                "num_pages": len(pages),
-                "lang_in": lang_in,
-                "lang_out": lang_out,
-                "status": "parsed",
-                "created_at": now,
-                "updated_at": now,
-                "source_pdf_path": str(pdf_path),
-                "parsed_with_ocr": True,  # 标记使用了OCR
-            },
-            "pages": pages,
-        }
-        # 对 OCR 结果同样执行高级布局增强（跨页页眉/页脚、脚注、阅读顺序）
-        try:
-            from .layout_enhancement import enhance_layout_processing
-
-            enhance_layout_processing(
-                structured["pages"],
-                enable_header_footer_detection=True,
-                enable_footnote_enhancement=True,
-                enable_reading_order_optimization=True,
-            )
-        except Exception:
-            # 布局增强失败时不影响 OCR 主流程
-            logger.warning("布局增强模块在 OCR 流程中执行失败，继续返回基础结果", exc_info=True)
-
-        # 文档结构分析（章节/小节层级）
-        try:
-            struct_info = analyze_document_structure(structured["pages"])
-            if struct_info.get("sections"):
-                structured["sections"] = struct_info["sections"]
-        except Exception:
-            logger.warning("文档结构分析在 OCR 流程中失败，继续返回基础结果", exc_info=True)
-
-        # OCR 路径暂不走 pdf_parse_cache（通常用于一次性解析），直接返回
-        return structured
-    except Exception as e:
-        logger.error(f"OCR解析失败: {e}", exc_info=True)
-        # 如果OCR失败，回退到常规解析
-        logger.warning("回退到常规PDF解析...")
-        return parse_pdf_to_structured_json(
-            pdf_path,
-            document_id=document_id,
-            project_id=project_id,
-            lang_in=lang_in,
-            lang_out=lang_out,
-            use_hybrid_parser=False,
-            enable_ocr=False,
-        )
 
 
 def _guess_block_type(text: str) -> Literal["heading", "caption", "paragraph"]:
@@ -419,7 +131,8 @@ def parse_pdf_to_structured_json(
     lang_out: str,
     use_hybrid_parser: bool = True,
     use_feature_based_layout: bool = True,
-    enable_ocr: bool = True,
+    # OCR 已完全移除，以下参数仅为兼容旧调用保留（不再生效）
+    enable_ocr: bool = False,
     ocr_engine: str = "auto",
     vfont: str = "",
     vchar: str = "",
@@ -427,11 +140,10 @@ def parse_pdf_to_structured_json(
     progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> dict:
     """
-    解析 PDF 为结构化 JSON：
+    解析 PDF 为结构化 JSON（文本 PDF 路线）：
     - 使用 PyMuPDF 提取每页 text blocks（含 bbox）；
     - 粗粒度推断 Block.type（heading/paragraph/caption）；
     - 估计列索引 column_index，后续可用于阅读顺序与布局增强。
-    - 支持OCR识别扫描版PDF
     - 支持解析结果缓存（基于文件哈希）
     
     Args:
@@ -441,8 +153,6 @@ def parse_pdf_to_structured_json(
         lang_in: 源语言
         lang_out: 目标语言
         use_hybrid_parser: 是否使用混合解析器（PyMuPDF + PDFMiner）
-        enable_ocr: 是否启用OCR（自动检测扫描PDF）
-        ocr_engine: OCR引擎（"auto", "tesseract", "easyocr", "paddleocr")
         vfont: 公式字体匹配正则表达式
         vchar: 公式字符匹配正则表达式
         use_cache: 是否使用缓存
@@ -453,18 +163,16 @@ def parse_pdf_to_structured_json(
     import logging
     logger = logging.getLogger(__name__)
     
-    # 尝试从缓存获取
+    # 尝试从缓存获取（仅基于文本解析参数，不再区分 OCR）
     if use_cache:
         try:
             from .pdf_cache import get_pdf_parse_cache
-            
+
             cache = get_pdf_parse_cache()
             cached_result = cache.get(
                 pdf_path,
                 use_hybrid_parser=use_hybrid_parser,
                 use_feature_based_layout=use_feature_based_layout,
-                enable_ocr=enable_ocr,
-                ocr_engine=ocr_engine,
                 vfont=vfont,
                 vchar=vchar,
             )
@@ -479,29 +187,6 @@ def parse_pdf_to_structured_json(
         except Exception as e:
             logger.warning(f"缓存查询失败，继续正常解析: {e}")
     
-    # 检测是否为扫描PDF，如果是则使用OCR
-    if enable_ocr:
-        try:
-            from .ocr_service import is_scanned_pdf, get_ocr_service
-            
-            is_scanned = is_scanned_pdf(pdf_path, page_index=0)
-            if is_scanned:
-                logger.info(f"检测到扫描PDF，启用OCR识别: {pdf_path.name}")
-                # 使用OCR解析
-                return _parse_scanned_pdf_with_ocr(
-                    pdf_path,
-                    document_id=document_id,
-                    project_id=project_id,
-                    lang_in=lang_in,
-                    lang_out=lang_out,
-                    ocr_engine=ocr_engine,
-                    use_feature_based_layout=use_feature_based_layout,
-                    progress_callback=progress_callback,
-                )
-        except Exception as e:
-            logger.warning(f"OCR检测或初始化失败，使用常规解析: {e}")
-            # 继续使用常规解析
-    
     # 如果启用混合解析，使用HybridPDFParser
     if use_hybrid_parser:
         try:
@@ -514,6 +199,7 @@ def parse_pdf_to_structured_json(
                 lang_in=lang_in,
                 lang_out=lang_out,
                 use_deep_parsing=True,
+                progress_callback=progress_callback,
             )
         except Exception as e:
             logger.warning(f"混合解析失败，回退到PyMuPDF: {e}", exc_info=True)
@@ -525,7 +211,7 @@ def parse_pdf_to_structured_json(
                 lang_in=lang_in,
                 lang_out=lang_out,
                 use_hybrid_parser=False,
-                enable_ocr=False,  # 避免再次检测
+                progress_callback=progress_callback,
             )
     now = datetime.utcnow().isoformat()
     doc = fitz.open(pdf_path.as_posix())
@@ -533,16 +219,20 @@ def parse_pdf_to_structured_json(
     
     # 如果有进度回调，先通知总页数
     if progress_callback:
-        progress_callback(0, total_pages)
+        progress_callback(0, total_pages, {"substage": "extract", "step_done": 0, "step_total": 1, "message": f"开始解析: {total_pages} 页"})
     
     pages = []
     reading_order = 0
 
     for page_index in range(total_pages):
+        if progress_callback:
+            progress_callback(page_index + 1, total_pages, {"substage": "extract", "step_done": 0, "step_total": 1, "message": f"读取页面: {page_index + 1}/{total_pages}"})
         page = doc.load_page(page_index)
         rect = page.rect
 
         # 提取字体信息（使用 dict 格式获取详细字体信息）
+        if progress_callback:
+            progress_callback(page_index + 1, total_pages, {"substage": "extract", "step_done": 0, "step_total": 1, "message": "提取文本与字体信息"})
         text_dict = page.get_text("dict")
         font_map = extract_fonts_from_text_dict(text_dict)
 
@@ -550,8 +240,14 @@ def parse_pdf_to_structured_json(
         # (x0, y0, x1, y1, "text", block_no, block_type)
         block_dict_items = page.get_text("blocks")
         text_block_counter = 0  # 只计数有文本的块
+        if progress_callback:
+            progress_callback(
+                page_index + 1,
+                total_pages,
+                {"substage": "extract", "step_done": 0, "step_total": len(block_dict_items) or 1, "message": f"解析文本块: 0/{len(block_dict_items) or 1}"},
+            )
         
-        for b in block_dict_items:
+        for i, b in enumerate(block_dict_items):
             x0, y0, x1, y1, raw_text = b[0], b[1], b[2], b[3], b[4]
             text = (raw_text or "").strip()
             if not text:
@@ -596,11 +292,20 @@ def parse_pdf_to_structured_json(
 
             blocks.append(block_dict)
             reading_order += 1
+            # 页内更细的进度：每 20 个块通知一次（避免 WS 过载）
+            if progress_callback and (i % 20 == 0):
+                progress_callback(
+                    page_index + 1,
+                    total_pages,
+                    {"substage": "extract", "step_done": i, "step_total": len(block_dict_items) or 1, "message": f"解析文本块: {i}/{len(block_dict_items) or 1}"},
+                )
 
         # v0.7: layout regions (特征工程 + 轻量ML分类器)
         # 优先使用基于特征的检测器（与开源项目不同的方案）
         if use_feature_based_layout:
             try:
+                if progress_callback:
+                    progress_callback(page_index + 1, total_pages, {"substage": "layout", "step_done": 0, "step_total": 1, "message": "布局检测"})
                 regions = detect_regions_feature_based(
                     blocks,
                     page_width=float(rect.width),
@@ -627,6 +332,8 @@ def parse_pdf_to_structured_json(
         # v0.3: 阅读顺序重排（使用增强模块优化）
         try:
             from .layout_enhancement import optimize_reading_order
+            if progress_callback:
+                progress_callback(page_index + 1, total_pages, {"substage": "order", "step_done": 0, "step_total": 1, "message": "优化阅读顺序"})
 
             optimize_reading_order(blocks, float(rect.width), float(rect.height))
             # 更新全局 reading_order
@@ -650,7 +357,7 @@ def parse_pdf_to_structured_json(
 
         # 每处理完一页，更新进度
         if progress_callback:
-            progress_callback(page_index + 1, total_pages)
+            progress_callback(page_index + 1, total_pages, {"substage": "merge", "step_done": page_index + 1, "step_total": total_pages, "message": f"页面完成: {page_index + 1}/{total_pages}"})
 
         pages.append(
             {
@@ -751,8 +458,6 @@ def parse_pdf_to_structured_json(
                 structured,
                 use_hybrid_parser=use_hybrid_parser,
                 use_feature_based_layout=use_feature_based_layout,
-                enable_ocr=enable_ocr,
-                ocr_engine=ocr_engine,
                 vfont=vfont,
                 vchar=vchar,
             )

@@ -43,6 +43,7 @@ async def websocket_document_progress(
         "parse_job": {
             "id": "...",
             "stage": "...",
+            "substage": "...",
             "progress": 0.0-1.0,
             "done": 0,
             "total": 0,

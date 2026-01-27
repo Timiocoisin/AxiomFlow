@@ -77,6 +77,14 @@ class Job(Base):
     stage = Column(String(STAGE_LEN), default="pending")  # pending, translating, success, failed
     progress = Column(Float, default=0.0)  # 0.0 ~ 1.0
     message = Column(String(MSG_LEN), default="")
+    # 解析/翻译的细粒度进度字段（用于 WebSocket 实时推送）
+    # - done/total: 当前阶段的完成量（页数/块数等）
+    # - eta_s: 预计剩余秒数
+    # - substage: 更细的阶段（layout/ocr/extract/formula/merge/save...）
+    done = Column(Integer, nullable=True)
+    total = Column(Integer, nullable=True)
+    eta_s = Column(Float, nullable=True)
+    substage = Column(String(64), nullable=True)
     created_at = Column(String(TIME_LEN), nullable=False)
     updated_at = Column(String(TIME_LEN), nullable=False)
 
