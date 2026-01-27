@@ -15,7 +15,6 @@ const routes: RouteRecordRaw[] = [
     path: "/project/:id",
     name: "project",
     component: ProjectWorkbenchView,
-    props: true,
   },
   { path: "/settings", name: "settings", component: SettingsView },
 ];

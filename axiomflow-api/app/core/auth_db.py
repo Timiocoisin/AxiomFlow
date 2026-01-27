@@ -10,7 +10,6 @@ from ..db.schema import (
     CaptchaSession,
     EmailCodeSession,
     PasswordResetToken,
-    EmailVerifyToken,
     LoginAuditLog,
     PasswordHistory,
     LoginLock,
@@ -162,37 +161,6 @@ def consume_password_reset_token(token: str) -> None:
             session.commit()
 
 
-# -------------------------
-# Email verify tokens
-# -------------------------
-
-
-def create_email_verify_token(token: str, email: str, *, expires_at: int, ip: str = "") -> None:
-    with get_db_session() as session:
-        obj = EmailVerifyToken(
-            token=token,
-            email=(email or "").lower(),
-            ip=ip or "",
-            expires_at=expires_at,
-            created_at=_now_iso(),
-        )
-        session.add(obj)
-        session.commit()
-
-
-def consume_email_verify_token(token: str, *, now_ts: int) -> Optional[str]:
-    with get_db_session() as session:
-        obj = session.query(EmailVerifyToken).filter(EmailVerifyToken.token == token).first()
-        if not obj:
-            return None
-        if now_ts > int(obj.expires_at):
-            session.delete(obj)
-            session.commit()
-            return None
-        email = obj.email
-        session.delete(obj)
-        session.commit()
-        return email
 
 
 # -------------------------
@@ -270,16 +238,28 @@ def get_recent_password_hashes(user_id: str, *, limit: int = 5) -> List[str]:
 # -------------------------
 
 
-def get_login_lock(ip: str, email: str) -> Optional[LoginLock]:
-    """获取当前 IP + 邮箱 的锁定状态"""
+def get_login_lock(ip: str, email: str) -> Optional[dict]:
+    """
+    获取当前 IP + 邮箱 的锁定状态
+    
+    Returns:
+        dict with keys: lock_until (int), fail_count (int), or None
+    """
     ip_val = (ip or "").strip()
     email_val = (email or "").lower().strip()
     with get_db_session() as session:
-        return (
+        lock_obj = (
             session.query(LoginLock)
             .filter(LoginLock.ip == ip_val, LoginLock.email == email_val)
             .first()
         )
+        if lock_obj:
+            # 在会话关闭前提取所有需要的属性值，返回字典避免 DetachedInstanceError
+            return {
+                "lock_until": int(lock_obj.lock_until) if lock_obj.lock_until else 0,
+                "fail_count": int(lock_obj.fail_count) if lock_obj.fail_count else 0,
+            }
+        return None
 
 
 def set_login_lock(ip: str, email: str, *, fail_count: int, lock_until: int) -> None:

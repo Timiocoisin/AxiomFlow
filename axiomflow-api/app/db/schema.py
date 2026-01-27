@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import JSON, Column, Float, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine, Boolean
+from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 
@@ -56,7 +57,7 @@ class Document(Base):
     lang_out = Column(String(LANG_LEN), default="zh")
     status = Column(String(STATUS_LEN), default="parsed")
     json_path = Column(String(PATH_LEN), default="")  # 保留字段用于兼容，但不再使用
-    json_data = Column(Text, default="")  # 存储完整的 JSON 数据（替代文件系统存储）
+    json_data = Column(LONGTEXT)  # 存储完整的 JSON 数据（替代文件系统存储，使用 LONGTEXT 支持最大 4GB，MySQL 不允许默认值）
     source_pdf_path = Column(String(PATH_LEN))  # 原始 PDF 路径
     created_at = Column(String(TIME_LEN), nullable=False)
     updated_at = Column(String(TIME_LEN), nullable=False)
@@ -149,8 +150,6 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)  # bcrypt hash
     provider = Column(String(32), nullable=False, default="email")  # email, google, github
     avatar = Column(String(PATH_LEN), default="" )  # 头像URL
-    is_email_verified = Column(Boolean, nullable=False, default=False)  # 邮箱是否已验证
-    email_verified_at = Column(String(TIME_LEN), nullable=True)  # 邮箱验证时间
     created_at = Column(String(TIME_LEN), nullable=False)
     updated_at = Column(String(TIME_LEN), nullable=False)
 
@@ -190,18 +189,6 @@ class PasswordResetToken(Base):
     """密码重置 token（用于 reset-password）"""
     __tablename__ = "auth_password_reset_tokens"
     __table_args__ = {"comment": "密码重置 Token：用于三步重置密码流程中的最终重置操作"}
-
-    token = Column(String(128), primary_key=True)
-    email = Column(String(NAME_LEN), nullable=False, index=True)
-    ip = Column(String(64), default="")
-    expires_at = Column(Integer, nullable=False)  # epoch seconds
-    created_at = Column(String(TIME_LEN), nullable=False)
-
-
-class EmailVerifyToken(Base):
-    """注册后邮箱验证 token"""
-    __tablename__ = "auth_email_verify_tokens"
-    __table_args__ = {"comment": "邮箱验证 Token：用于注册后通过邮件链接激活账号"}
 
     token = Column(String(128), primary_key=True)
     email = Column(String(NAME_LEN), nullable=False, index=True)

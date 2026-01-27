@@ -4,11 +4,11 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Depends
 
 from ..models.domain import JobStage
 from ..tasks.batch import run_batch_translate
+from ..tasks.parse import run_parse_job
 from ..core.dependencies import get_current_user
 from ..db.schema import User
 
 from ..repo import repo
-from ..services.pdf_parse import parse_pdf_to_structured_json
 
 router = APIRouter(prefix="/batches", tags=["batch"])
 
@@ -33,6 +33,7 @@ async def batch_upload(
     project_id = repo.create_project(project_name, user_id=current_user.id)
     document_ids: list[str] = []
     items: list[dict] = []
+    parse_job_ids: list[str] = []
 
     for f in files:
         if not f.filename or not f.filename.lower().endswith(".pdf"):
@@ -51,27 +52,36 @@ async def batch_upload(
             user_id=current_user.id,
         )
         
-        structured = parse_pdf_to_structured_json(
-            pdf_path,
+        # 创建解析任务Job，用于跟踪进度
+        parse_job_id = repo.create_job(document_id, stage=JobStage.parsing.value)
+        parse_job_ids.append(parse_job_id)
+        
+        # 异步执行解析任务（不阻塞主进程）
+        task = run_parse_job.delay(
+            parse_job_id=parse_job_id,
             document_id=document_id,
+            pdf_path=str(pdf_path),
             project_id=project_id,
             lang_in=lang_in,
             lang_out=lang_out,
         )
-        structured.setdefault("document", {})["source_pdf_path"] = pdf_path.as_posix()
-        repo.save_document_json(document_id, structured)
+        
+        # 更新Job的Celery任务ID
+        repo.update_job(parse_job_id, celery_task_id=task.id, control="running")
+        
         document_ids.append(document_id)
         items.append(
             {
                 "document_id": document_id,
+                "parse_job_id": parse_job_id,  # 返回解析任务ID，用于查询进度
                 "title": f.filename,
-                "num_pages": structured.get("document", {}).get("num_pages"),
+                "num_pages": 0,  # 解析中，页面数未知
             }
         )
 
     batch_id = repo.create_batch(project_id=project_id, document_ids=document_ids)
 
-    # 如果启用自动翻译，提交 Celery 任务
+    # 如果启用自动翻译，提交 Celery 任务（等待所有解析完成后再翻译）
     if auto_translate:
         task = run_batch_translate.delay(batch_id, lang_in, lang_out, provider)
         # 可以将 celery_task_id 存储到 batch 记录中（可选）

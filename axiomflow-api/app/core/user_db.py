@@ -155,26 +155,6 @@ def update_user_password(email: str, new_password_hash: str) -> bool:
         return True
 
 
-def mark_email_verified(email: str) -> bool:
-    """
-    将用户邮箱标记为已验证
-    """
-    with get_db_session() as session:
-        user = session.query(User).filter(User.email == email.lower()).first()
-        if not user:
-            return False
-
-        # 只有当之前未验证时才更新
-        if not getattr(user, "is_email_verified", False):
-            user.is_email_verified = True
-            # 若模型支持 email_verified_at 字段，则记录时间
-            if hasattr(user, "email_verified_at"):
-                user.email_verified_at = datetime.utcnow().isoformat()
-            user.updated_at = datetime.utcnow().isoformat()
-            session.commit()
-        return True
-
-
 def user_to_dict(user: User) -> Dict[str, Any]:
     """
     将 User 对象转换为字典（排除敏感信息）
@@ -197,7 +177,6 @@ def user_to_dict(user: User) -> Dict[str, Any]:
             "name": user.name,
             "provider": user.provider,
             "avatar": user.avatar or "",
-            "email_verified": getattr(user, "is_email_verified", False),
         }
     except Exception:
         # 如果是 detached，通过 ID 重新查询
@@ -211,7 +190,6 @@ def user_to_dict(user: User) -> Dict[str, Any]:
                         "name": fresh_user.name,
                         "provider": fresh_user.provider,
                         "avatar": fresh_user.avatar or "",
-                        "email_verified": getattr(fresh_user, "is_email_verified", False),
                     }
         # 如果无法获取，返回基本信息
         return {

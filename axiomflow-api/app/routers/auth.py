@@ -269,7 +269,6 @@ async def google_login(request: GoogleTokenRequest):
         email = idinfo.get("email", "").lower()
         name = idinfo.get("name", email.split("@")[0])
         picture = idinfo.get("picture", "")
-        email_verified = bool(idinfo.get("email_verified", False))
 
         # 检查用户是否已存在（通过邮箱）
         user = get_user_by_email(email)
@@ -406,7 +405,6 @@ async def github_oauth_callback(request: Request, code: str = "", state: str = "
 
         # 3) 邮箱（优先取 verified primary）
         email = gh_user.get("email") or ""
-        email_verified = False
         if not email:
             emails_res = await client.get(
                 "https://api.github.com/user/emails", headers=headers
@@ -422,7 +420,6 @@ async def github_oauth_callback(request: Request, code: str = "", state: str = "
                 )
                 chosen = primary_verified or any_verified
                 email = (chosen or {}).get("email") or ""
-                email_verified = bool(chosen and chosen.get("verified"))
 
         github_user_id = str(gh_user.get("id", ""))
         login_name = gh_user.get("login", "") or ""
@@ -612,8 +609,8 @@ async def email_login(request: EmailLoginRequest, http_request: Request):
     # 检查账户是否被临时锁定（持久化）
     now_ts = int(time.time())
     lock_info = get_login_lock(client_ip, email_lower)
-    if lock_info and lock_info.lock_until and now_ts < int(lock_info.lock_until):
-        remaining = int(int(lock_info.lock_until) - now_ts)
+    if lock_info and lock_info.get("lock_until") and now_ts < int(lock_info["lock_until"]):
+        remaining = int(int(lock_info["lock_until"]) - now_ts)
         minutes = max(1, remaining // 60)
         log_login_attempt(
             user_id=None,

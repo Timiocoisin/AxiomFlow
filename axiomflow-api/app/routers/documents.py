@@ -14,8 +14,38 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 @router.get("/{document_id}", response_model=dict)
 async def get_document(document_id: str) -> dict:
+    """
+    获取文档的完整 JSON 数据。
+    如果文档还在解析中（JSON 尚未创建），返回基本信息。
+    """
     try:
         return repo.load_document_json(document_id)
+    except FileNotFoundError:
+        # 文档还在解析中，返回基本信息
+        # 直接从数据库获取文档基本信息
+        if hasattr(repo, "_get_session"):
+            from ..db.schema import Document as DocumentModel
+            with repo._get_session() as session:
+                doc = session.query(DocumentModel).filter(DocumentModel.id == document_id).first()
+                if not doc:
+                    raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
+                
+                # 返回基本信息结构，与完整 JSON 格式兼容
+                return {
+                    "document": {
+                        "document_id": doc.id,
+                        "title": doc.title or "",
+                        "num_pages": doc.num_pages or 0,
+                        "lang_in": doc.lang_in or "en",
+                        "lang_out": doc.lang_out or "zh",
+                        "status": doc.status or "parsing",
+                        "source_pdf_path": doc.source_pdf_path or "",
+                    },
+                    "pages": [],  # 解析中，页面为空
+                }
+        else:
+            # InMemoryRepo 或其他实现，返回 404
+            raise HTTPException(status_code=404, detail=f"Document {document_id} JSON not yet created")
     except KeyError as e:
         if "document_not_found" in str(e):
             raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
@@ -345,4 +375,87 @@ async def delete_document(
         logger.error(f"删除文档失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"删除文档失败: {str(e)}")
 
+
+@router.post("/batch/delete", response_model=dict)
+async def batch_delete_documents(
+    payload: dict,
+    current_user: User = Depends(get_current_user)
+) -> dict:
+    """
+    批量删除文档（只有文档所有者才能删除）
+    
+    Args:
+        payload: 包含 document_ids 列表的字典
+        current_user: 当前登录用户
+        
+    Returns:
+        dict: 删除结果，包含成功和失败的文档ID
+    """
+    document_ids = payload.get("document_ids", [])
+    if not document_ids or not isinstance(document_ids, list):
+        raise HTTPException(status_code=400, detail="document_ids 必须是文档ID列表")
+    
+    if len(document_ids) == 0:
+        raise HTTPException(status_code=400, detail="至少需要提供一个文档ID")
+    
+    if len(document_ids) > 100:
+        raise HTTPException(status_code=400, detail="一次最多只能删除100个文档")
+    
+    success_ids = []
+    failed_ids = []
+    
+    if hasattr(repo, "_get_session"):
+        from ..db.schema import Document as DocumentModel
+        
+        # 批量验证权限
+        with repo._get_session() as session:
+            docs = session.query(DocumentModel).filter(
+                DocumentModel.id.in_(document_ids)
+            ).all()
+            
+            # 检查每个文档的权限
+            for doc in docs:
+                if doc.user_id and doc.user_id != current_user.id:
+                    failed_ids.append({
+                        "document_id": doc.id,
+                        "reason": "无权删除此文档"
+                    })
+                else:
+                    success_ids.append(doc.id)
+            
+            # 检查是否有不存在的文档
+            existing_ids = {doc.id for doc in docs}
+            for doc_id in document_ids:
+                if doc_id not in existing_ids:
+                    failed_ids.append({
+                        "document_id": doc_id,
+                        "reason": "文档不存在"
+                    })
+    
+    # 批量删除文档
+    if hasattr(repo, "delete_document"):
+        for doc_id in success_ids:
+            try:
+                repo.delete_document(doc_id)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"删除文档 {doc_id} 失败: {e}", exc_info=True)
+                failed_ids.append({
+                    "document_id": doc_id,
+                    "reason": f"删除失败: {str(e)}"
+                })
+                # 从成功列表中移除
+                if doc_id in success_ids:
+                    success_ids.remove(doc_id)
+    else:
+        raise HTTPException(status_code=501, detail="当前存储后端不支持删除操作")
+    
+    return {
+        "ok": True,
+        "success_count": len(success_ids),
+        "failed_count": len(failed_ids),
+        "success_ids": success_ids,
+        "failed_ids": failed_ids
+    }
 

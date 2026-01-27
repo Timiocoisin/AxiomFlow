@@ -192,18 +192,6 @@
             </Transition>
           </div>
 
-          <div v-if="isLogin && loginSecurityMessage" class="login-security-message" role="alert">
-            <span>{{ loginSecurityMessage }}</span>
-            <button
-              v-if="loginSecurityMessage.includes('暂时锁定')"
-              type="button"
-              class="login-unlock-link"
-              @click="handleOpenLoginUnlockModal"
-              :disabled="loading"
-            >
-              通过邮箱验证码解锁
-            </button>
-          </div>
 
           <div v-if="!isLogin" class="form-group">
             <label class="form-label">确认密码</label>
@@ -241,9 +229,6 @@
             <div v-if="confirmPasswordError" id="confirm-password-error" class="field-error" role="alert">{{ confirmPasswordError }}</div>
           </div>
 
-          <div v-if="error" class="error-message">
-            {{ error }}
-          </div>
 
           <!-- 验证码（注册和登录时显示） -->
           <div class="form-group">
@@ -729,7 +714,6 @@ const error = ref("");
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 const rememberMe = ref(true); // 默认记住我
-const loginSecurityMessage = ref("");
 
 // 登录解锁相关
 const showLoginUnlockModal = ref(false);
@@ -1285,7 +1269,6 @@ const handleVerifyLoginUnlock = async () => {
       session_id: loginUnlockSessionId.value,
     });
     showToast("success", "解锁成功", "账户已解锁，请重新尝试登录");
-    loginSecurityMessage.value = "";
     showLoginUnlockModal.value = false;
   } catch (err: any) {
     loginUnlockCodeError.value = err.message || "验证失败，请稍后重试";
@@ -1377,7 +1360,6 @@ const initializeGoogleSignIn = () => {
 
 const handleGoogleCredentialResponse = async (response: { credential: string }) => {
   loading.value = true;
-  error.value = "";
 
   try {
     const result = await googleLogin(response.credential);
@@ -1397,8 +1379,32 @@ const handleGoogleCredentialResponse = async (response: { credential: string }) 
         errorMessage = err.message;
       }
     }
-    error.value = errorMessage;
-    showToast("error", "登录失败", errorMessage);
+    // 检查是否是验证码错误或过期（Google登录通常不会有验证码错误，但保留检查以防万一）
+    const isCaptchaError = errorMessage.includes("验证码") && (
+      errorMessage.includes("无效") || 
+      errorMessage.includes("过期") || 
+      errorMessage.includes("错误") ||
+      errorMessage.includes("失效")
+    );
+    
+    if (isCaptchaError) {
+      // 验证码错误或过期，自动刷新验证码并清空输入框
+      captchaCode.value = "";
+      loadCaptcha();
+      showToast("warning", "验证码错误", "验证码已刷新，请重新输入");
+    } else if (errorMessage.includes("剩余尝试次数") || errorMessage.includes("暂时锁定")) {
+      // 登录安全提示（剩余尝试次数或锁定）
+      showToast("warning", "登录安全提示", errorMessage);
+      // 如果被锁定，提示可以通过邮箱验证码解锁
+      if (errorMessage.includes("暂时锁定")) {
+        setTimeout(() => {
+          showToast("info", "账户已锁定", "您可以通过邮箱验证码快速解锁后再登录");
+        }, 3500);
+      }
+    } else {
+      // 普通错误提示
+      showToast("error", "登录失败", errorMessage);
+    }
   } finally {
     loading.value = false;
   }
@@ -1406,7 +1412,6 @@ const handleGoogleCredentialResponse = async (response: { credential: string }) 
 
 const toggleMode = () => {
   isLogin.value = !isLogin.value;
-  error.value = "";
   nameError.value = "";
   emailError.value = "";
   passwordError.value = "";
@@ -1430,8 +1435,6 @@ const toggleMode = () => {
 };
 
 const handleSubmit = async () => {
-  error.value = "";
-  loginSecurityMessage.value = "";
   
   // 验证所有字段
   const nameOk = isLogin.value || validateName();
@@ -1440,17 +1443,16 @@ const handleSubmit = async () => {
   const confirmPasswordOk = isLogin.value || validateConfirmPassword();
   
   if (!nameOk || !emailOk || !passwordOk || !confirmPasswordOk) {
-    error.value = "请检查并修正表单错误";
+    showToast("warning", "表单验证失败", "请检查并修正表单错误");
     return;
   }
   
   if (!isLogin.value) {
     if (formData.value.password !== formData.value.confirmPassword) {
-      error.value = "两次输入的密码不一致";
+      showToast("warning", "密码不一致", "两次输入的密码不一致");
       return;
     }
     if (formData.value.password.length < 8) {
-      error.value = "";
       return;
     }
   }
@@ -1488,7 +1490,7 @@ const handleSubmit = async () => {
       showToast(
         "success",
         "注册成功",
-        "账户创建成功，我们已向您的邮箱发送验证邮件，请完成邮箱验证后再继续使用。"
+        "账户创建成功。"
       );
     }
 
@@ -1499,13 +1501,33 @@ const handleSubmit = async () => {
     console.error("Auth error:", err);
     const errorMessage =
       err.message || (isLogin.value ? "登录失败，请检查邮箱和密码" : "注册失败，请稍后重试");
-    error.value = errorMessage;
-
-    if (isLogin.value && (errorMessage.includes("剩余尝试次数") || errorMessage.includes("暂时锁定"))) {
-      loginSecurityMessage.value = errorMessage;
+    
+    // 检查是否是验证码错误或过期
+    const isCaptchaError = errorMessage.includes("验证码") && (
+      errorMessage.includes("无效") || 
+      errorMessage.includes("过期") || 
+      errorMessage.includes("错误") ||
+      errorMessage.includes("失效")
+    );
+    
+    if (isCaptchaError) {
+      // 验证码错误或过期，自动刷新验证码并清空输入框
+      captchaCode.value = "";
+      loadCaptcha();
+      showToast("warning", "验证码错误", "验证码已刷新，请重新输入");
+    } else if (isLogin.value && (errorMessage.includes("剩余尝试次数") || errorMessage.includes("暂时锁定"))) {
+      // 登录安全提示（剩余尝试次数或锁定）
+      showToast("warning", "登录安全提示", errorMessage);
+      // 如果被锁定，提示可以通过邮箱验证码解锁
+      if (errorMessage.includes("暂时锁定")) {
+        setTimeout(() => {
+          showToast("info", "账户已锁定", "您可以通过邮箱验证码快速解锁后再登录");
+        }, 3500);
+      }
+    } else {
+      // 普通错误提示
+      showToast("error", isLogin.value ? "登录失败" : "注册失败", errorMessage);
     }
-
-    showToast("error", isLogin.value ? "登录失败" : "注册失败", errorMessage);
   } finally {
     loading.value = false;
   }
@@ -1524,7 +1546,6 @@ const handleSocialLogin = async (provider: "google" | "github") => {
     }
 
     loading.value = true;
-    error.value = "";
 
     try {
       const buttonContainer = document.createElement('div');
@@ -1567,7 +1588,6 @@ const handleSocialLogin = async (provider: "google" | "github") => {
         }, 2000);
       }, 200);
     } catch (err: any) {
-      error.value = "Google登录失败，请稍后重试";
       console.error("Google login error:", err);
       loading.value = false;
       showToast("error", "登录失败", "Google登录失败，请稍后重试");

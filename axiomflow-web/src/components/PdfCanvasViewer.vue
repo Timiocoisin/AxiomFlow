@@ -151,16 +151,20 @@ const tooltipText = (b: Block) => {
 
 const renderPage = async () => {
   if (!canvasEl.value || !pdfDoc.value) return;
-  const page = await pdfDoc.value.getPage(pageIndex.value + 1);
-  const vp = page.getViewport({ scale: scale.value });
-  const canvas = canvasEl.value;
-  canvas.width = Math.round(vp.width);
-  canvas.height = Math.round(vp.height);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  await page.render({ canvasContext: ctx, viewport: vp }).promise;
-  emit("page", pageIndex.value);
+  try {
+    const page = await pdfDoc.value.getPage(pageIndex.value + 1);
+    const vp = page.getViewport({ scale: scale.value });
+    const canvas = canvasEl.value;
+    canvas.width = Math.round(vp.width);
+    canvas.height = Math.round(vp.height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    emit("page", pageIndex.value);
+  } catch (err) {
+    console.error("[PdfCanvasViewer] renderPage error", err);
+  }
 };
 
 const ensureLoaded = async () => {

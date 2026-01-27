@@ -3,26 +3,67 @@
     <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
       <h2 style="margin: 0">我的文档</h2>
       <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap">
-        <input
-          class="simple-input"
-          v-model="projectName"
-          placeholder="项目名（可选）"
-          style="width: 220px"
-        />
-        <AppButton primary @click="pickFile">上传PDF（单个）</AppButton>
-        <AppButton @click="pickFiles">批量上传PDF</AppButton>
+        <div class="dashboard-search">
+          <span class="dashboard-search-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="1.8" fill="none" />
+              <line x1="16" y1="16" x2="21" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+          </span>
+          <input
+            class="simple-input dashboard-search-input"
+            v-model="searchQuery"
+            placeholder="搜索文件名…"
+          />
+        </div>
+        <AppButton class="action-btn" @click="pickFile">上传PDF（单个）</AppButton>
+        <AppButton class="action-btn action-btn--gradient" @click="pickFiles">批量上传PDF</AppButton>
+        <AppButton 
+          v-if="selectedDocuments.size > 0"
+          class="action-btn action-btn--danger"
+          @click="handleBatchDelete"
+        >
+          批量删除 ({{ selectedDocuments.size }})
+        </AppButton>
+        <AppButton 
+          v-if="isSelectionMode"
+          @click="exitSelectionMode"
+          class="action-btn action-btn--muted"
+        >
+          取消选择
+        </AppButton>
+        <AppButton 
+          v-else-if="docs.length > 0"
+          @click="enterSelectionMode"
+          class="action-btn action-btn--primary"
+        >
+          批量选择
+        </AppButton>
         <input ref="fileInput" type="file" accept="application/pdf" style="display: none" @change="onFileChange" />
         <input ref="filesInput" type="file" accept="application/pdf" multiple style="display: none" @change="onFilesChange" />
       </div>
     </div>
-    <div class="card-grid" v-if="docs.length > 0">
+    <div class="card-grid" v-if="filteredDocs.length > 0">
       <AppCard
-        v-for="d in docs"
+        v-for="d in filteredDocs"
         :key="d.document_id"
         class="doc-card"
-        :class="{ 'doc-card--parsing': d.status === 'parsing', 'doc-card--ready': d.status === 'ready' }"
-        @click="d.status === 'ready' ? openDoc(d.document_id) : undefined"
+        :class="{ 
+          'doc-card--parsing': d.status === 'parsing', 
+          'doc-card--ready': d.status === 'ready',
+          'doc-card--selected': isSelectionMode && selectedDocuments.has(d.document_id)
+        }"
+        @click="isSelectionMode ? toggleDocumentSelection(d.document_id) : (d.status === 'ready' ? openDoc(d.document_id) : undefined)"
       >
+        <!-- 选择复选框（选择模式下显示） -->
+        <div v-if="isSelectionMode && d.status === 'ready' && !d.document_id.startsWith('temp-')" class="doc-checkbox-container">
+          <input
+            type="checkbox"
+            :checked="selectedDocuments.has(d.document_id)"
+            @click.stop="toggleDocumentSelection(d.document_id)"
+            class="doc-checkbox"
+          />
+        </div>
         <!-- 缩略图区域（所有状态都显示） -->
         <div class="doc-thumbnail-container" :class="{ 'doc-thumbnail-container--processing': d.status !== 'ready' }">
           <img 
@@ -44,9 +85,9 @@
               <span v-else-if="d.status === 'parsing'">解析中</span>
             </div>
           </div>
-          <!-- 删除按钮（右上角） -->
+          <!-- 删除按钮（右上角，非选择模式下显示） -->
           <button
-            v-if="d.status === 'ready' && !d.document_id.startsWith('temp-')"
+            v-if="!isSelectionMode && d.status === 'ready' && !d.document_id.startsWith('temp-')"
             class="doc-delete-button"
             @click.stop="handleDeleteDocument(d.document_id, d.title)"
             :disabled="deletingDocumentId === d.document_id"
@@ -125,12 +166,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch, onUnmounted, nextTick } from "vue";
+import { onMounted, ref, watch, onUnmounted, nextTick, computed } from "vue";
 import AppCard from "@/components/AppCard.vue";
 import AppButton from "@/components/AppButton.vue";
 import LoadingIcon from "@/components/LoadingIcon.vue";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
-import { batchUpload, createProject, uploadPdf, getDocument, getProjectDocuments, getUserDocuments, deleteDocument } from "@/lib/api";
+import { batchUpload, createProject, uploadPdf, getDocument, getProjectDocuments, getUserDocuments, deleteDocument, batchDeleteDocuments } from "@/lib/api";
 import { showToast } from "@/components/Toast";
 import { useRouter, useRoute } from "vue-router";
 import { DocumentProgressWebSocket } from "@/lib/websocket";
@@ -152,6 +193,7 @@ interface Doc {
 }
 
 const docs = ref<Doc[]>([]);
+const searchQuery = ref("");
 const fileInput = ref<HTMLInputElement | null>(null);
 const filesInput = ref<HTMLInputElement | null>(null);
 const projectName = ref("我的项目");
@@ -163,6 +205,15 @@ const deleteDialogTitle = ref(""); // 删除对话框标题
 const deleteDialogMessage = ref(""); // 删除对话框消息
 const pendingDeleteDocumentId = ref<string | null>(null); // 待删除的文档ID
 const pendingDeleteTitle = ref(""); // 待删除的文档标题
+const isSelectionMode = ref(false); // 是否处于选择模式
+const selectedDocuments = ref<Set<string>>(new Set()); // 选中的文档ID集合
+const isBatchDelete = ref(false); // 是否是批量删除
+
+const filteredDocs = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return docs.value;
+  return docs.value.filter((d) => (d.title || "").toLowerCase().includes(q));
+});
 
 // 从 API 加载项目文档列表（合并模式：保留正在处理的临时文档）
 const loadProjectDocuments = async (project_id: string, merge: boolean = false) => {
@@ -181,14 +232,24 @@ const loadProjectDocuments = async (project_id: string, merge: boolean = false) 
     }));
     
     if (merge) {
-      // 合并模式：保留正在处理的临时文档（uploading/parsing状态）
+      // 合并模式：保留正在处理的临时文档（uploading/parsing状态）和已完成的文档（ready状态）
       const tempDocs = docs.value.filter(d => 
-        d.status === "uploading" || d.status === "parsing" || d.document_id.startsWith("temp-")
+        d.status === "uploading" || d.status === "parsing" || d.status === "ready" || d.document_id.startsWith("temp-")
       );
-      // 合并API文档和临时文档，去重（优先保留临时文档）
+      // 合并API文档和临时文档，去重（优先保留本地文档状态）
       const existingIds = new Set(tempDocs.map(d => d.document_id));
       const newDocs = apiDocs.filter(d => !existingIds.has(d.document_id));
-      docs.value = [...tempDocs, ...newDocs];
+      // 对于已存在的文档，如果本地状态是 ready，不要被 API 的 parsing 状态覆盖
+      const mergedDocs = tempDocs.map(localDoc => {
+        const apiDoc = apiDocs.find(api => api.document_id === localDoc.document_id);
+        if (apiDoc && localDoc.status === "ready" && apiDoc.status === "parsing") {
+          // 本地已经是 ready，但 API 还是 parsing，保留本地的 ready 状态
+          return localDoc;
+        }
+        // 其他情况，使用 API 返回的最新状态（但保留本地的 progress 等信息）
+        return apiDoc ? { ...apiDoc, progress: localDoc.progress || apiDoc.progress } : localDoc;
+      });
+      docs.value = [...mergedDocs, ...newDocs];
     } else {
       // 完全替换模式
       docs.value = apiDocs;
@@ -220,14 +281,24 @@ const loadUserDocuments = async (merge: boolean = false) => {
     }));
     
     if (merge) {
-      // 合并模式：保留正在处理的临时文档（uploading/parsing状态）
+      // 合并模式：保留正在处理的临时文档（uploading/parsing状态）和已完成的文档（ready状态）
       const tempDocs = docs.value.filter(d => 
-        d.status === "uploading" || d.status === "parsing" || d.document_id.startsWith("temp-")
+        d.status === "uploading" || d.status === "parsing" || d.status === "ready" || d.document_id.startsWith("temp-")
       );
-      // 合并API文档和临时文档，去重（优先保留临时文档）
+      // 合并API文档和临时文档，去重（优先保留本地文档状态）
       const existingIds = new Set(tempDocs.map(d => d.document_id));
       const newDocs = apiDocs.filter(d => !existingIds.has(d.document_id));
-      docs.value = [...tempDocs, ...newDocs];
+      // 对于已存在的文档，如果本地状态是 ready，不要被 API 的 parsing 状态覆盖
+      const mergedDocs = tempDocs.map(localDoc => {
+        const apiDoc = apiDocs.find(api => api.document_id === localDoc.document_id);
+        if (apiDoc && localDoc.status === "ready" && apiDoc.status === "parsing") {
+          // 本地已经是 ready，但 API 还是 parsing，保留本地的 ready 状态
+          return localDoc;
+        }
+        // 其他情况，使用 API 返回的最新状态（但保留本地的 progress 等信息）
+        return apiDoc ? { ...apiDoc, progress: localDoc.progress || apiDoc.progress } : localDoc;
+      });
+      docs.value = [...mergedDocs, ...newDocs];
     } else {
       // 完全替换模式
       docs.value = apiDocs;
@@ -294,8 +365,57 @@ const handleDeleteDocument = (document_id: string, title: string) => {
   showDeleteDialog.value = true;
 };
 
-// 确认删除文档
+
+// 取消删除
+const cancelDeleteDocument = () => {
+  pendingDeleteDocumentId.value = null;
+  pendingDeleteTitle.value = "";
+  isBatchDelete.value = false;
+};
+
+// 进入选择模式
+const enterSelectionMode = () => {
+  isSelectionMode.value = true;
+  selectedDocuments.value.clear();
+};
+
+// 退出选择模式
+const exitSelectionMode = () => {
+  isSelectionMode.value = false;
+  selectedDocuments.value.clear();
+};
+
+// 切换文档选择状态
+const toggleDocumentSelection = (document_id: string) => {
+  if (selectedDocuments.value.has(document_id)) {
+    selectedDocuments.value.delete(document_id);
+  } else {
+    selectedDocuments.value.add(document_id);
+  }
+};
+
+// 批量删除文档
+const handleBatchDelete = () => {
+  if (selectedDocuments.value.size === 0) return;
+  
+  const count = selectedDocuments.value.size;
+  isBatchDelete.value = true;
+  deleteDialogTitle.value = "确认批量删除";
+  deleteDialogMessage.value = `确定要删除选中的 ${count} 个文档吗？此操作无法撤销，文档及其所有相关数据将被永久删除。`;
+  showDeleteDialog.value = true;
+};
+
+// 确认删除（单个或批量）
 const confirmDeleteDocument = async () => {
+  if (isBatchDelete.value) {
+    await confirmBatchDelete();
+  } else {
+    await confirmSingleDelete();
+  }
+};
+
+// 确认单个删除
+const confirmSingleDelete = async () => {
   if (!pendingDeleteDocumentId.value) return;
   
   const document_id = pendingDeleteDocumentId.value;
@@ -330,10 +450,54 @@ const confirmDeleteDocument = async () => {
   }
 };
 
-// 取消删除
-const cancelDeleteDocument = () => {
-  pendingDeleteDocumentId.value = null;
-  pendingDeleteTitle.value = "";
+// 确认批量删除
+const confirmBatchDelete = async () => {
+  if (selectedDocuments.value.size === 0) return;
+  
+  const documentIds = Array.from(selectedDocuments.value);
+  
+  deletingDocumentId.value = "batch"; // 使用特殊值表示批量删除
+  try {
+    const result = await batchDeleteDocuments(documentIds);
+    
+    if (result.success_count > 0) {
+      showToast("success", "批量删除成功", `成功删除 ${result.success_count} 个文档`);
+      
+      // 从列表中移除成功删除的文档
+      result.success_ids.forEach(docId => {
+        const docIndex = docs.value.findIndex(d => d.document_id === docId);
+        if (docIndex >= 0) {
+          docs.value.splice(docIndex, 1);
+        }
+        
+        // 关闭相关的 WebSocket 连接
+        const ws = activeWebSockets.get(docId);
+        if (ws) {
+          ws.close();
+          activeWebSockets.delete(docId);
+        }
+      });
+      
+      // 显示失败的文档
+      if (result.failed_count > 0) {
+        const failedMessages = result.failed_ids.map(f => `${f.document_id}: ${f.reason}`).join("\n");
+        showToast("error", "部分删除失败", `有 ${result.failed_count} 个文档删除失败`);
+        console.error("删除失败的文档:", result.failed_ids);
+      }
+    } else {
+      showToast("error", "批量删除失败", "没有文档被成功删除");
+    }
+    
+    // 清空选择并退出选择模式
+    selectedDocuments.value.clear();
+    isSelectionMode.value = false;
+    showDeleteDialog.value = false;
+    isBatchDelete.value = false;
+  } catch (error: any) {
+    showToast("error", "批量删除失败", error.message || "请稍后重试");
+  } finally {
+    deletingDocumentId.value = null;
+  }
 };
 
 const onFileChange = async (e: Event) => {
@@ -467,8 +631,10 @@ const onFileChange = async (e: Event) => {
           });
           ws.disconnect();
           activeWebSockets.delete(res.document_id);
-          // 重新加载项目文档列表以获取最新状态
-          if (finalProjectId) await loadProjectDocuments(finalProjectId, true);
+          // 延迟重新加载项目文档列表，给后端一些时间更新状态
+          setTimeout(async () => {
+            if (finalProjectId) await loadProjectDocuments(finalProjectId, true);
+          }, 500);
         } else if (elapsed >= minDisplayTime) {
           // 如果没有 num_pages，等待 minDisplayTime 后再更新
           docs.value.splice(docIndex, 1, {
@@ -479,8 +645,10 @@ const onFileChange = async (e: Event) => {
           });
           ws.disconnect();
           activeWebSockets.delete(res.document_id);
-          // 重新加载项目文档列表以获取最新状态
-          if (finalProjectId) await loadProjectDocuments(finalProjectId);
+          // 延迟重新加载项目文档列表，给后端一些时间更新状态
+          setTimeout(async () => {
+            if (finalProjectId) await loadProjectDocuments(finalProjectId, true);
+          }, 500);
         }
       }
     });
@@ -544,32 +712,117 @@ const onFilesChange = async (e: Event) => {
   // 模拟批量上传进度
   const progressIntervals = tempDocs.map((doc) => {
     return setInterval(() => {
-      if (doc.progress < 40) {
-        doc.progress += 5;
+      if (doc.progress < 30) {
+        doc.progress += 2;
       }
-    }, 150);
+    }, 100);
   });
 
   try {
     const res = await batchUpload({ project_name: projectName.value || "批量项目", files, lang_in: "en", lang_out: "zh" });
     
+    // 设置当前项目ID
+    if (res.project_id) {
+      currentProjectId.value = res.project_id;
+    }
+    
     // 清除进度模拟
     progressIntervals.forEach(clearInterval);
     
-    // 更新临时文档为实际文档
+    // 为每个文档创建 WebSocket 连接并更新状态（类似单个文件上传）
     res.documents?.forEach((d, idx) => {
       if (tempDocs[idx]) {
-        tempDocs[idx].document_id = d.document_id;
-        tempDocs[idx].num_pages = d.num_pages;
-        tempDocs[idx].status = "ready";
-        tempDocs[idx].progress = 100;
+        const tempDoc = tempDocs[idx];
+        tempDoc.document_id = d.document_id;
+        tempDoc.status = "parsing";
+        tempDoc.progress = 30; // 上传完成，开始解析
+        
+        // 创建 WebSocket 连接来跟踪进度（类似单个文件上传）
+        const ws = new DocumentProgressWebSocket(d.document_id);
+        activeWebSockets.set(d.document_id, ws);
+        
+        ws.onMessage((data) => {
+          const docIndex = docs.value.findIndex(doc => doc.document_id === d.document_id);
+          if (docIndex < 0) return;
+          
+          const currentDoc = docs.value[docIndex];
+          
+          if (data.status === "parsing") {
+            let targetProgress = 30;
+            if (data.parse_job) {
+              const parseJob = data.parse_job;
+              if (parseJob.total && parseJob.total > 0) {
+                const parseProgress = (parseJob.done || 0) / parseJob.total;
+                targetProgress = 30 + parseProgress * 70;
+              } else {
+                targetProgress = 30 + (parseJob.progress || 0) * 70;
+              }
+            } else if (data.parse_progress !== undefined) {
+              const parseProgressPercent = Math.min(data.parse_progress, 100) / 100;
+              targetProgress = 30 + parseProgressPercent * 70;
+            }
+            
+            const updatedDoc: Doc = {
+              ...currentDoc,
+              status: "parsing",
+              progress: targetProgress,
+            };
+            if (data.num_pages !== undefined && data.num_pages > 0) {
+              updatedDoc.num_pages = data.num_pages;
+            }
+            docs.value.splice(docIndex, 1, updatedDoc);
+          } else if (data.status === "parsed" || data.status === "ready") {
+            if (currentDoc.status === "ready") return;
+            
+            getDocument(d.document_id).then(async (docData) => {
+              const document = docData.document;
+              const finalDoc = docs.value[docIndex];
+              if (finalDoc && finalDoc.status !== "ready") {
+                docs.value[docIndex] = {
+                  ...finalDoc,
+                  title: document.title || finalDoc.title,
+                  num_pages: document.num_pages,
+                  lang_in: document.lang_in || finalDoc.lang_in,
+                  lang_out: document.lang_out || finalDoc.lang_out,
+                  status: "ready",
+                  progress: 100,
+                };
+                ws.disconnect();
+                activeWebSockets.delete(d.document_id);
+                
+                // 延迟重新加载项目文档列表，给后端一些时间更新状态，并使用合并模式保留正在处理的文档
+                setTimeout(async () => {
+                  if (currentProjectId.value) {
+                    await loadProjectDocuments(currentProjectId.value, true);
+                  } else {
+                    // 如果没有项目ID，重新加载用户文档列表
+                    await loadUserDocuments(true);
+                  }
+                }, 500);
+              }
+            }).catch((error) => {
+              console.error(`获取文档信息失败 (${d.document_id}):`, error);
+            });
+          }
+        });
+        
+        ws.onError((error) => {
+          console.error(`WebSocket 错误 (${d.document_id}):`, error);
+        });
+        
+        ws.onClose(() => {
+          activeWebSockets.delete(d.document_id);
+        });
+        
+        // 连接 WebSocket
+        ws.connect().catch((error) => {
+          console.error(`WebSocket 连接失败 (${d.document_id}):`, error);
+        });
       }
     });
     
-    // 重新加载项目文档列表
-    if (currentProjectId.value) await loadProjectDocuments(currentProjectId.value);
-    // 批量上传默认自动翻译，跳转到批次进度面板
-    router.push(`/batch/${res.batch_id}`);
+    // 不跳转到批次页面，保持在主页面显示所有文档
+    // router.push(`/batch/${res.batch_id}`);
   } catch (error) {
     console.error("Batch upload failed:", error);
     progressIntervals.forEach(clearInterval);

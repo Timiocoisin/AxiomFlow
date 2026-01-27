@@ -151,6 +151,32 @@ export async function deleteDocument(document_id: string): Promise<{ ok: boolean
   return await res.json();
 }
 
+export async function batchDeleteDocuments(document_ids: string[]): Promise<{
+  ok: boolean;
+  success_count: number;
+  failed_count: number;
+  success_ids: string[];
+  failed_ids: Array<{ document_id: string; reason: string }>;
+}> {
+  const res = await authenticatedFetch(`${API_BASE}/documents/batch/delete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ document_ids }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `批量删除文档失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
 export function getSourcePdfUrl(document_id: string): string {
   return `${API_BASE}/documents/${document_id}/source`;
 }
@@ -325,8 +351,16 @@ export async function batchUpload(params: {
   body.set("auto_translate", "true");
   body.set("provider", params.provider ?? "ollama");
   for (const f of params.files) body.append("files", f);
-  const res = await fetch(`${API_BASE}/batches/upload`, { method: "POST", body });
-  if (!res.ok) throw new Error(await res.text());
+  const res = await authenticatedFetch(`${API_BASE}/batches/upload`, { method: "POST", body });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `批量上传失败 (${res.status})`);
+    }
+  }
   return await res.json();
 }
 
@@ -338,7 +372,7 @@ export async function getBatch(params: { batch_id: string }): Promise<any> {
 
 export async function googleLogin(token: string): Promise<{
   token: string;
-  user: { id: string; email: string; name: string; avatar?: string; provider: string; email_verified?: boolean };
+  user: { id: string; email: string; name: string; avatar?: string; provider: string };
 }> {
   const res = await fetch(`${API_BASE}/auth/google`, {
     method: "POST",
@@ -369,7 +403,7 @@ export async function emailRegister(params: {
   captcha_session?: string;
 }): Promise<{
   token: string;
-  user: { id: string; email: string; name: string; provider: string; email_verified?: boolean };
+  user: { id: string; email: string; name: string; provider: string };
 }> {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: "POST",
@@ -395,7 +429,7 @@ export async function emailLogin(params: {
   captcha_session?: string;
 }): Promise<{
   token: string;
-  user: { id: string; email: string; name: string; provider: string; email_verified?: boolean };
+  user: { id: string; email: string; name: string; provider: string };
   last_login?: { time?: string; ip?: string; user_agent?: string } | null;
 }> {
   const res = await fetch(`${API_BASE}/auth/login`, {

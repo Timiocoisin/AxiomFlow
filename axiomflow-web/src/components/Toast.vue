@@ -51,7 +51,7 @@ const addToast = (toast: Omit<Toast, "id">) => {
   const id = `toast-${++toastIdCounter}`;
   const newToast: Toast = {
     id,
-    duration: 4000,
+    duration: 3000, // 默认3秒自动消失
     ...toast,
   };
   toasts.value.push(newToast);
@@ -111,9 +111,9 @@ onUnmounted(() => {
 <style scoped>
 .toast-container {
   position: fixed;
-  top: 24px;
+  top: 80px; /* 避免挡住顶部导航栏（导航栏高度约64px + 16px间距） */
   right: 24px;
-  z-index: 10000;
+  z-index: 9999; /* 低于导航栏的 z-index: 100，但高于其他内容 */
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -124,20 +124,22 @@ onUnmounted(() => {
 .toast {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 16px 20px;
+  gap: 14px;
+  padding: 18px 22px;
   background: white;
-  border-radius: 12px;
+  border-radius: 16px;
   box-shadow: 
-    0 10px 25px rgba(0, 0, 0, 0.1),
-    0 4px 10px rgba(0, 0, 0, 0.05);
+    0 20px 40px rgba(0, 0, 0, 0.12),
+    0 8px 16px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
   pointer-events: auto;
-  min-width: 300px;
-  max-width: 420px;
-  animation: toast-slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  min-width: 320px;
+  max-width: 440px;
+  animation: toast-slide-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes toast-slide-in {
@@ -152,45 +154,49 @@ onUnmounted(() => {
 }
 
 .toast-success {
-  border-left: 4px solid #10b981;
-  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+  border-left: 5px solid #10b981;
+  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 50%, #ecfdf5 100%);
   box-shadow: 
-    0 10px 25px rgba(16, 185, 129, 0.15),
-    0 4px 10px rgba(16, 185, 129, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 20px 40px rgba(16, 185, 129, 0.18),
+    0 8px 16px rgba(16, 185, 129, 0.12),
+    0 0 0 1px rgba(16, 185, 129, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .toast-error {
-  border-left: 4px solid #ef4444;
-  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+  border-left: 5px solid #ef4444;
+  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 50%, #fee2e2 100%);
   box-shadow: 
-    0 10px 25px rgba(239, 68, 68, 0.15),
-    0 4px 10px rgba(239, 68, 68, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 20px 40px rgba(239, 68, 68, 0.18),
+    0 8px 16px rgba(239, 68, 68, 0.12),
+    0 0 0 1px rgba(239, 68, 68, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .toast-warning {
-  border-left: 4px solid #f59e0b;
-  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
+  border-left: 5px solid #f59e0b;
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 50%, #fef3c7 100%);
   box-shadow: 
-    0 10px 25px rgba(245, 158, 11, 0.15),
-    0 4px 10px rgba(245, 158, 11, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 20px 40px rgba(245, 158, 11, 0.18),
+    0 8px 16px rgba(245, 158, 11, 0.12),
+    0 0 0 1px rgba(245, 158, 11, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .toast-info {
-  border-left: 4px solid #3b82f6;
-  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  border-left: 5px solid #3b82f6;
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 50%, #dbeafe 100%);
   box-shadow: 
-    0 10px 25px rgba(59, 130, 246, 0.15),
-    0 4px 10px rgba(59, 130, 246, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 20px 40px rgba(59, 130, 246, 0.18),
+    0 8px 16px rgba(59, 130, 246, 0.12),
+    0 0 0 1px rgba(59, 130, 246, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .toast-icon {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   margin-top: 0;
   display: flex;
   align-items: center;
@@ -205,8 +211,8 @@ onUnmounted(() => {
 }
 
 .toast-success .toast-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .toast-error .toast-icon {
@@ -215,8 +221,8 @@ onUnmounted(() => {
 }
 
 .toast-error .toast-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .toast-warning .toast-icon {
@@ -225,8 +231,8 @@ onUnmounted(() => {
 }
 
 .toast-warning .toast-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .toast-info .toast-icon {
@@ -235,8 +241,8 @@ onUnmounted(() => {
 }
 
 .toast-info .toast-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .toast-content {

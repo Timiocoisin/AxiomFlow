@@ -132,8 +132,11 @@ class CharacterLevelConverter(PDFConverter):
         (x0, y0) = apply_matrix_pt(ctm, (x0, y0))
         (x1, y1) = apply_matrix_pt(ctm, (x1, y1))
         mediabox = (0, 0, abs(x0 - x1), abs(y0 - y1))
-        self.cur_item = LTPage(page.pageno, mediabox)
-        self.page_index = page.pageno
+        # 使用存储的 page_index，因为新版本的 pdfminer 可能没有 page.pageno 属性
+        # 如果 page_index 未设置，尝试从 page 对象获取，否则使用 0
+        page_no = self.page_index if hasattr(self, 'page_index') else (getattr(page, 'pageno', None) or getattr(page, 'pageid', None) or 0)
+        self.cur_item = LTPage(page_no, mediabox)
+        self.page_index = page_no
     
     def render_char(
         self,
@@ -268,6 +271,8 @@ def extract_chars_from_pdf(pdf_path: Path, page_index: int) -> list[CharInfo]:
             if page_index >= len(pages):
                 return []
             
+            # 设置转换器的页面索引（页码从1开始，但索引从0开始）
+            converter.page_index = page_index + 1
             page = pages[page_index]
             interpreter_ex.process_page(page)
             
