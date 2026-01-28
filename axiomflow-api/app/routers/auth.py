@@ -7,7 +7,7 @@ import secrets
 import time
 from urllib.parse import urlencode
 from io import BytesIO
-from typing import Optional, Deque, Dict
+from typing import Optional, Deque, Dict, List
 from collections import deque
 from datetime import datetime
 
@@ -16,12 +16,14 @@ import bcrypt
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
 
-from ..core.jwt_utils import create_access_token, verify_token
+from ..core.jwt_utils import create_access_token, verify_token, create_refresh_token
+from ..core.config import settings
 from ..core.user_db import (
     create_user,
     get_user_by_email,
     get_user_by_id,
     update_user_password,
+    verify_user_email,
     user_to_dict,
     get_db_session,
 )
@@ -34,8 +36,17 @@ from ..core.auth_db import (
     create_password_reset_token,
     get_password_reset_token_email,
     consume_password_reset_token,
+    create_email_verification_token,
+    get_email_verification_token_info,
+    consume_email_verification_token,
+    create_refresh_token_record,
+    rotate_refresh_token,
+    delete_refresh_token,
+    delete_user_refresh_tokens,
+    revoke_active_sessions_for_device,
     log_login_attempt,
     get_last_success_login,
+    has_previous_login_from_ip,
     add_password_history,
     get_recent_password_hashes,
     get_login_lock,
@@ -43,7 +54,27 @@ from ..core.auth_db import (
     increase_login_fail_and_maybe_lock,
     check_and_increase_rate_limit,
 )
+
+
+# 统一登录审计 reason_code 枚举，便于统计/告警/风控
+class LoginReasonCodes:
+    OK = "ok"
+    OK_2FA = "ok_2fa"
+    OK_2FA_PENDING = "ok_2fa_pending"
+    GOOGLE_OAUTH_OK = "google_oauth_ok"
+    GOOGLE_OAUTH_OK_2FA_PENDING = "google_oauth_ok_2fa_pending"
+    GITHUB_OAUTH_OK = "github_oauth_ok"
+    GITHUB_OAUTH_OK_2FA_PENDING = "github_oauth_ok_2fa_pending"
+
+    INVALID_PASSWORD = "invalid_password"
+    USER_NOT_FOUND = "user_not_found"
+    ACCOUNT_TEMP_LOCKED = "account_temporarily_locked"
+    CAPTCHA_INVALID_OR_EXPIRED = "captcha_invalid_or_expired"
+    TWO_FA_INVALID_CODE = "2fa_invalid_code"
+    TWO_FA_RATE_LIMITED = "2fa_rate_limited"
+from ..core.auth_db import _sha256_hex  # for ua_hash in 2FA challenge
 from ..db.schema import User
+from ..core.two_factor_auth import is_2fa_enabled_for_user, verify_2fa_code
 
 # 加载 .env 文件（确保环境变量被读取）
 try:
@@ -87,17 +118,25 @@ _email_users_fallback: dict[str, dict] = {}
 # 注意：验证码/重置token/邮箱验证token 等临时数据已迁移到数据库持久化（见 app/core/auth_db.py）
 
 # 登录相关安全配置
-LOGIN_MAX_FAILED_ATTEMPTS = 5            # 连续失败次数上限
-LOGIN_LOCK_SECONDS = 15 * 60             # 锁定时间：15分钟
-LOGIN_RATE_LIMIT_PER_MINUTE = 20         # 单IP每分钟最大登录尝试次数
+LOGIN_MAX_FAILED_ATTEMPTS = 5                # 连续失败次数上限
+LOGIN_LOCK_SECONDS = 15 * 60                 # 锁定时间：15分钟
+LOGIN_RATE_LIMIT_PER_MINUTE = 20             # 单IP每分钟最大登录尝试次数
+LOGIN_DAILY_LIMIT_PER_IDENTIFIER = 200       # 单账号(标识+IP)每天最大登录尝试次数（防低频撞库）
 
 # 注册速率限制
-REGISTER_RATE_LIMIT_PER_HOUR = 10        # 单IP每小时最大注册尝试次数
+REGISTER_RATE_LIMIT_PER_HOUR = 10            # 单IP每小时最大注册尝试次数
+REGISTER_DAILY_PER_IP = 30                  # 单IP每天最大注册尝试次数
+REGISTER_DAILY_PER_EMAIL = 5                # 单邮箱每天最大注册尝试次数
 
 # 忘记密码 / 验证码发送速率限制
 FORGOT_EMAIL_INTERVAL_SECONDS = 60       # 同一邮箱最小发送间隔：60秒
 FORGOT_EMAIL_MAX_PER_15MIN = 5           # 同一邮箱15分钟内最大发送次数
 FORGOT_IP_MAX_PER_HOUR = 20              # 同一IP每小时最大发送次数
+
+# 邮箱验证邮件发送速率限制（注册后/登录后重新发送）
+EMAIL_VERIFY_INTERVAL_SECONDS = 60       # 同一邮箱最小发送间隔：60秒
+EMAIL_VERIFY_MAX_PER_15MIN = 5           # 同一邮箱15分钟内最大发送次数
+EMAIL_VERIFY_IP_MAX_PER_HOUR = 50        # 同一IP每小时最大发送次数
 
 # 密码历史检查：禁止复用最近 N 次密码
 PASSWORD_HISTORY_LIMIT = 5
@@ -142,6 +181,58 @@ def _get_client_ip(request: Request) -> str:
     if request.client:
         return request.client.host
     return "unknown"
+
+
+def _decode_2fa_challenge(token: str, request: Request) -> tuple[User, dict]:
+    """
+    解析并验证 2FA 挑战 token：
+    - 类型必须为 2fa_challenge
+    - 绑定 IP + User-Agent（hash），防止在不同环境重放
+    - jti 单次使用：同一个 challenge_token 只能验证一次
+    """
+    try:
+        payload = verify_token(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="2FA 会话已失效，请重新登录")
+
+    if payload.get("type") != "2fa_challenge":
+        raise HTTPException(status_code=400, detail="无效的 2FA 挑战令牌")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="无效的 2FA 挑战令牌")
+
+    # 绑定 IP：不一致则拒绝（可按需放宽）
+    token_ip = payload.get("ip")
+    current_ip = _get_client_ip(request)
+    if token_ip and token_ip != current_ip:
+        raise HTTPException(status_code=401, detail="2FA 验证环境已变化，请重新登录")
+
+    # 绑定 User-Agent（hash）：UA 变化过大则拒绝
+    token_ua_hash = (payload.get("ua_hash") or "").strip()
+    current_ua = request.headers.get("user-agent", "") or ""
+    current_ua_hash = _sha256_hex(current_ua)
+    if token_ua_hash and token_ua_hash != current_ua_hash:
+        raise HTTPException(status_code=401, detail="2FA 验证环境已变化，请重新登录")
+
+    # jti 单次使用：同一个 challenge_token 只能验证一次
+    jti = (payload.get("jti") or "").strip()
+    if jti:
+        ok = check_and_increase_rate_limit(
+            scope="2fa_challenge_jti",
+            key=jti,
+            limit=1,
+            window_seconds=24 * 60 * 60,
+            now_ts=int(time.time()),
+        )
+        if not ok:
+            raise HTTPException(status_code=401, detail="2FA 会话已失效，请重新登录")
+
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    return user, payload
 
 
 def _check_rate_limit(
@@ -220,15 +311,154 @@ class LoginUnlockVerifyRequest(BaseModel):
     session_id: str
 
 
-class AuthResponse(BaseModel):
+class SendEmailVerificationRequest(BaseModel):
+    email: str
+
+
+class VerifyEmailRequest(BaseModel):
     token: str
-    user: dict
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class AuthResponse(BaseModel):
+    # 正常登录成功时返回的字段
+    token: Optional[str] = None
+    refresh_token: Optional[str] = None  # refresh token用于刷新access token
+    user: Optional[dict] = None
     # 上次成功登录信息（当前登录之前的一次），仅在登录接口中返回
     last_login: Optional[dict] = None
+    # 开启2FA的用户：第一步登录仅返回 challenge_token，需要前端提交验证码完成登录
+    requires_2fa: bool = False
+    challenge_token: Optional[str] = None
+    two_fa_methods: Optional[List[str]] = None  # 预留：支持 TOTP / backup_codes 等
+
+
+class TwoFAVerifyRequest(BaseModel):
+    """2FA 登录第二步：使用 challenge_token + 验证码完成登录"""
+    challenge_token: str
+    code: str
+
+
+@router.post("/auth/2fa/verify", response_model=AuthResponse)
+async def verify_2fa_login(request: TwoFAVerifyRequest, http_request: Request):
+    """
+    2FA 登录第二步：
+    - 前端提交 challenge_token + TOTP/备用码
+    - 验证通过后签发 access/refresh token，并记录成功登录审计日志
+    """
+    # 解析 challenge token 获取用户与来源信息
+    user, payload = _decode_2fa_challenge(request.challenge_token, http_request)
+    client_ip = _get_client_ip(http_request)
+    user_agent = http_request.headers.get("user-agent", "")
+
+    # 2FA 尝试限流：challenge_token + IP 维度（防暴力猜 TOTP/备份码）
+    subject = payload.get("sub") or ""
+    key = f"{subject}|{client_ip}"
+    ok_2fa_rate = check_and_increase_rate_limit(
+        scope="2fa_verify",
+        key=key,
+        limit=10,  # 每 5 分钟最多 10 次 2FA 尝试
+        window_seconds=5 * 60,
+        now_ts=int(time.time()),
+    )
+    if not ok_2fa_rate:
+        # 审计记录限流事件
+        try:
+            log_login_attempt(
+                user_id=user.id,
+                email=user.email,
+                ip=client_ip,
+                user_agent=user_agent,
+                success=False,
+                reason_code=LoginReasonCodes.TWO_FA_RATE_LIMITED,
+                reason=LoginReasonCodes.TWO_FA_RATE_LIMITED,
+                login_method=payload.get("login_method") or "email",
+            )
+        except Exception:
+            pass
+        raise HTTPException(status_code=429, detail="2FA 验证请求过于频繁，请稍后再试")
+
+    # 确认用户仍然启用 2FA
+    if not is_2fa_enabled_for_user(user.id):
+        raise HTTPException(status_code=400, detail="当前账户未启用 2FA")
+
+    # 校验验证码（TOTP 或备份码）
+    if not verify_2fa_code(user.id, request.code):
+        # 审计记录 2FA 失败
+        try:
+            log_login_attempt(
+                user_id=user.id,
+                email=user.email,
+                ip=client_ip,
+                user_agent=user_agent,
+                success=False,
+                reason_code=LoginReasonCodes.TWO_FA_INVALID_CODE,
+                reason=LoginReasonCodes.TWO_FA_INVALID_CODE,
+                login_method=payload.get("login_method") or "email",
+            )
+        except Exception:
+            pass
+        raise HTTPException(status_code=400, detail="验证码错误或已失效")
+
+    # 查询上一次成功登录记录（当前登录之前）
+    last_success = None
+    try:
+        last_row = get_last_success_login(user.id)
+        if last_row:
+            last_success = {
+                "time": getattr(last_row, "created_at", None),
+                "ip": getattr(last_row, "ip", None),
+                "user_agent": getattr(last_row, "user_agent", None),
+            }
+    except Exception:
+        last_success = None
+
+    # 同设备单会话：按 user_agent_hash 撤销旧会话，并复用 session_id
+    refresh_token = create_refresh_token(user.id)
+    now_ts = int(time.time())
+    existing_sid = revoke_active_sessions_for_device(user.id, user_agent=user_agent)
+    session_id = create_refresh_token_record(
+        token=refresh_token,
+        user_id=user.id,
+        expires_at=now_ts + settings.jwt_refresh_token_expire_days * 24 * 60 * 60,
+        ip=client_ip,
+        user_agent=user_agent,
+        session_id=existing_sid,
+    )
+    token = create_access_token(data={"sub": user.id, "email": user.email, "sid": session_id})
+
+    # 登录成功：写审计日志（带 session_id / refresh_token 标识）
+    try:
+        # login_method 以 challenge_token 的来源为准（email/google/github）
+        login_method = payload.get("login_method") or "email"
+        log_login_attempt(
+            user_id=user.id,
+            email=user.email,
+            ip=client_ip,
+            user_agent=user_agent,
+            success=True,
+            session_id=session_id,
+            refresh_token=refresh_token,
+            reason_code=LoginReasonCodes.OK_2FA,
+            reason=LoginReasonCodes.OK_2FA,
+            login_method=login_method,
+        )
+    except Exception:  # pragma: no cover
+        pass
+
+    return AuthResponse(
+        token=token,
+        refresh_token=refresh_token,
+        user=user_to_dict(user),
+        last_login=last_success,
+    )
 
 
 @router.post("/auth/google", response_model=AuthResponse)
-async def google_login(request: GoogleTokenRequest):
+async def google_login(request: GoogleTokenRequest, http_request: Request):
     """
     验证Google ID Token并返回用户信息
     """
@@ -295,28 +525,114 @@ async def google_login(request: GoogleTokenRequest):
                         status_code=500, detail="创建用户失败"
                     )
         else:
-            # 更新用户信息（如果头像或名称有变化）
-            # 注意：这里需要提交事务以确保 provider / avatar 真正持久化
-            if user.provider != "google" or (picture and not getattr(user, "avatar", None)):
+            # 不要在登录时覆盖 User.provider（provider 仅代表账号创建来源/默认展示）
+            # 这里只在缺失头像且 Google 提供头像时，补齐 avatar
+            if picture and not getattr(user, "avatar", None):
                 with get_db_session() as session:
                     db_user = session.query(User).filter(User.id == user.id).first()
                     if db_user:
-                        # 如果之前是邮箱注册，切换为 google 提供者
-                        if db_user.provider != "google":
-                            db_user.provider = "google"
-                        # 如果数据库中还没有头像，而 Google 提供了头像，则保存
                         if picture and not db_user.avatar:
                             db_user.avatar = picture
                         db_user.updated_at = datetime.utcnow().isoformat()
                         session.commit()
-                # 重新加载最新的用户对象
                 user = get_user_by_id(user.id)
 
-        # 生成 JWT token
-        token = create_access_token(data={"sub": user.id, "email": user.email})
+        # 获取IP和User-Agent用于审计/通知
+        client_ip = _get_client_ip(http_request)
+        user_agent = http_request.headers.get("user-agent", "")
+
+        # 如果用户已启用 2FA，则返回 challenge_token，等待第二步验证
+        if is_2fa_enabled_for_user(user.id):
+            ua_hash = _sha256_hex(user_agent or "")
+            challenge_payload = {
+                "sub": user.id,
+                "email": user.email,
+                "type": "2fa_challenge",
+                "login_method": "google",
+                "ip": client_ip,
+                "ua_hash": ua_hash,
+                "jti": secrets.token_urlsafe(16),
+            }
+            # 使用较短过期时间，例如 5 分钟
+            challenge_token = create_access_token(data=challenge_payload, expires_delta_seconds=5 * 60)
+
+            # 记录“已通过 OAuth，等待 2FA”的审计日志
+            try:
+                log_login_attempt(
+                    user_id=user.id,
+                    email=user.email,
+                    ip=client_ip,
+                    user_agent=user_agent,
+                    success=False,
+                    reason_code=LoginReasonCodes.GOOGLE_OAUTH_OK_2FA_PENDING,
+                    reason=LoginReasonCodes.GOOGLE_OAUTH_OK_2FA_PENDING,
+                    login_method="google",
+                )
+            except Exception:  # pragma: no cover
+                pass
+
+            return AuthResponse(
+                requires_2fa=True,
+                challenge_token=challenge_token,
+                two_fa_methods=["totp", "backup_code"],
+            )
+
+        # 未启用 2FA：直接正常登录流程
+        # 检测异常登录（新IP地址）
+        try:
+            is_new_ip = not has_previous_login_from_ip(user.id, client_ip)
+            if is_new_ip:
+                # 发送异常登录通知邮件
+                email_service = get_email_service()
+                login_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+                email_service.send_login_alert(
+                    to_email=user.email,
+                    user_name=user.name,
+                    ip=client_ip,
+                    user_agent=user_agent,
+                    login_time=login_time,
+                )
+        except Exception as e:
+            # 邮件发送失败不影响登录，但记录日志
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"发送异常登录通知失败: {user.email}, 错误: {str(e)}")
+
+        # 同设备单会话：按 user_agent_hash 撤销旧会话，并复用 session_id
+        refresh_token = create_refresh_token(user.id)
+        now_ts = int(time.time())
+        existing_sid = revoke_active_sessions_for_device(user.id, user_agent=user_agent)
+        session_id = create_refresh_token_record(
+            token=refresh_token,
+            user_id=user.id,
+            expires_at=now_ts + settings.jwt_refresh_token_expire_days * 24 * 60 * 60,
+            ip=client_ip,
+            user_agent=user_agent,
+            session_id=existing_sid,
+        )
+        # 生成 JWT token（带 session_id）
+        token = create_access_token(data={"sub": user.id, "email": user.email, "sid": session_id})
+
+        # 登录成功：写审计日志（带 session_id / refresh_token 标识）
+        try:
+            log_login_attempt(
+                user_id=user.id,
+                email=user.email,
+                ip=client_ip,
+                user_agent=user_agent,
+                success=True,
+                session_id=session_id,
+                refresh_token=refresh_token,
+                reason_code=LoginReasonCodes.GOOGLE_OAUTH_OK,
+                reason=LoginReasonCodes.GOOGLE_OAUTH_OK,
+                login_method="google",
+            )
+        except Exception:  # pragma: no cover
+            pass
 
         return AuthResponse(
             token=token,
+            refresh_token=refresh_token,
             user=user_to_dict(user)
         )
     except ValueError as e:
@@ -457,33 +773,138 @@ async def github_oauth_callback(request: Request, code: str = "", state: str = "
                         status_code=500, detail="创建用户失败"
                     )
         else:
-            # 更新用户信息（如果头像或名称有变化）
-            # 注意：这里需要提交事务以确保 provider / avatar 真正持久化
-            if user.provider != "github" or (avatar and not getattr(user, "avatar", None)):
-                # 如果用户之前是邮箱注册，更新 provider
+            # 不要在登录时覆盖 User.provider（provider 仅代表账号创建来源/默认展示）
+            # 这里只在缺失头像且 GitHub 提供头像时，补齐 avatar
+            if avatar and not getattr(user, "avatar", None):
                 with get_db_session() as session:
                     db_user = session.query(User).filter(User.id == user.id).first()
                     if db_user:
-                        if db_user.provider != "github":
-                            db_user.provider = "github"
                         if avatar and not db_user.avatar:
                             db_user.avatar = avatar
                         db_user.updated_at = datetime.utcnow().isoformat()
                         session.commit()
                 user = get_user_by_id(user.id)
 
-        # 生成 JWT token
-        token = create_access_token(
-            data={"sub": user.id, "email": user.email}
+        # 获取IP和User-Agent用于审计/通知
+        client_ip = _get_client_ip(request)
+        user_agent = request.headers.get("user-agent", "")
+
+        # 如果用户已启用 2FA：回跳到前端 auth 页，由前端弹出 2FA 输入框
+        if is_2fa_enabled_for_user(user.id):
+            ua_hash = _sha256_hex(user_agent or "")
+            challenge_payload = {
+                "sub": user.id,
+                "email": user.email,
+                "type": "2fa_challenge",
+                "login_method": "github",
+                "ip": client_ip,
+                "ua_hash": ua_hash,
+                "jti": secrets.token_urlsafe(16),
+            }
+            challenge_token = create_access_token(
+                data=challenge_payload,
+                expires_delta_seconds=5 * 60,
+            )
+
+            # 记录“GitHub OAuth 成功，等待 2FA”的审计日志
+            try:
+                log_login_attempt(
+                    user_id=user.id,
+                    email=user.email,
+                    ip=client_ip,
+                    user_agent=user_agent,
+                    success=False,
+                    reason_code=LoginReasonCodes.GITHUB_OAUTH_OK_2FA_PENDING,
+                    reason=LoginReasonCodes.GITHUB_OAUTH_OK_2FA_PENDING,
+                    login_method="github",
+                )
+            except Exception:  # pragma: no cover
+                pass
+
+            user_dict = user_to_dict(user)
+            user_b64 = base64.b64encode(
+                json.dumps(user_dict, ensure_ascii=False).encode("utf-8")
+            ).decode("utf-8")
+
+            # 构造仅含 challenge_token 的回跳参数（不直接下发 access/refresh token）
+            query = urlencode({
+                "provider": "github",
+                "challenge_token": challenge_token,
+                "user": user_b64,
+                "redirect": redirect_path,
+            })
+            return RedirectResponse(url=f"{FRONTEND_BASE_URL}/auth?{query}")
+
+        # 未启用 2FA：直接正常登录流程
+
+        # 检测异常登录（新IP地址）
+        try:
+            is_new_ip = not has_previous_login_from_ip(user.id, client_ip)
+            if is_new_ip:
+                # 发送异常登录通知邮件
+                email_service = get_email_service()
+                login_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+                email_service.send_login_alert(
+                    to_email=user.email,
+                    user_name=user.name,
+                    ip=client_ip,
+                    user_agent=user_agent,
+                    login_time=login_time,
+                )
+        except Exception as e:
+            # 邮件发送失败不影响登录，但记录日志
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"发送异常登录通知失败: {user.email}, 错误: {str(e)}")
+
+        # 同设备单会话：按 user_agent_hash 撤销旧会话，并复用 session_id
+        refresh_token = create_refresh_token(user.id)
+        now_ts = int(time.time())
+        existing_sid = revoke_active_sessions_for_device(user.id, user_agent=user_agent)
+        session_id = create_refresh_token_record(
+            token=refresh_token,
+            user_id=user.id,
+            expires_at=now_ts + settings.jwt_refresh_token_expire_days * 24 * 60 * 60,
+            ip=client_ip,
+            user_agent=user_agent,
+            session_id=existing_sid,
         )
+        # 生成 JWT token（带 session_id）
+        token = create_access_token(data={"sub": user.id, "email": user.email, "sid": session_id})
+
+        # 登录成功：写审计日志（带 session_id / refresh_token 标识）
+        try:
+            log_login_attempt(
+                user_id=user.id,
+                email=user.email,
+                ip=client_ip,
+                user_agent=user_agent,
+                success=True,
+                session_id=session_id,
+                refresh_token=refresh_token,
+                reason_code=LoginReasonCodes.GITHUB_OAUTH_OK,
+                reason=LoginReasonCodes.GITHUB_OAUTH_OK,
+                login_method="github",
+            )
+        except Exception:  # pragma: no cover
+            pass
 
         user_dict = user_to_dict(user)
         user_b64 = base64.b64encode(
             json.dumps(user_dict, ensure_ascii=False).encode("utf-8")
         ).decode("utf-8")
+        
+        # 将refresh_token也编码到URL中
+        refresh_token_b64 = base64.b64encode(refresh_token.encode("utf-8")).decode("utf-8")
 
         # 回跳到前端 auth 页：由前端消费 query 后写入 localStorage，并按 redirect 跳转
-        query = urlencode({"provider": "github", "auth_token": token, "user": user_b64, "redirect": redirect_path})
+        query = urlencode({
+            "provider": "github",
+            "auth_token": token,
+            "refresh_token": refresh_token_b64,
+            "user": user_b64,
+            "redirect": redirect_path,
+        })
         return RedirectResponse(url=f"{FRONTEND_BASE_URL}/auth?{query}")
 
 
@@ -492,17 +913,24 @@ async def email_register(request: EmailRegisterRequest, http_request: Request):
     """
     邮箱注册
     """
-    # 速率限制：同一 IP 每小时最多 REGISTER_RATE_LIMIT_PER_HOUR 次注册尝试（持久化）
     client_ip = _get_client_ip(http_request)
-    register_key = f"{client_ip}"
-    ok_register = check_and_increase_rate_limit(
+    # 速率限制：同一 IP 每小时 + 每日上限
+    register_key_ip = f"{client_ip}"
+    ok_register_hour = check_and_increase_rate_limit(
         scope="register",
-        key=register_key,
+        key=register_key_ip,
         limit=REGISTER_RATE_LIMIT_PER_HOUR,
         window_seconds=60 * 60,
         now_ts=int(time.time()),
     )
-    if not ok_register:
+    ok_register_day_ip = check_and_increase_rate_limit(
+        scope="register_ip_day",
+        key=register_key_ip,
+        limit=REGISTER_DAILY_PER_IP,
+        window_seconds=24 * 60 * 60,
+        now_ts=int(time.time()),
+    )
+    if not ok_register_hour or not ok_register_day_ip:
         raise HTTPException(status_code=429, detail="注册请求过于频繁，请稍后再试")
 
     # 验证验证码（如果提供）
@@ -522,6 +950,17 @@ async def email_register(request: EmailRegisterRequest, http_request: Request):
     # 验证密码强度（与前端规则一致）
     _validate_password_strong(request.password)
     
+    # 邮箱维度日级限流：同一邮箱每天注册尝试次数
+    ok_register_day_email = check_and_increase_rate_limit(
+        scope="register_email_day",
+        key=request.email.lower(),
+        limit=REGISTER_DAILY_PER_EMAIL,
+        window_seconds=24 * 60 * 60,
+        now_ts=int(time.time()),
+    )
+    if not ok_register_day_email:
+        raise HTTPException(status_code=429, detail="该邮箱注册尝试过多，请明天再试")
+
     # 验证用户名
     if not request.name or len(request.name.strip()) < 2:
         raise HTTPException(status_code=400, detail="用户名至少为2个字符")
@@ -560,6 +999,34 @@ async def email_register(request: EmailRegisterRequest, http_request: Request):
     except Exception:  # pragma: no cover
         pass
     
+    # 发送邮箱验证邮件
+    try:
+        verification_token = secrets.token_urlsafe(32)
+        now_ts = int(time.time())
+        create_email_verification_token(
+            token=verification_token,
+            user_id=user_id,
+            email=user_email,
+            expires_at=now_ts + 24 * 60 * 60,  # 24小时过期
+            ip=client_ip,
+        )
+        
+        # 构建验证链接
+        verification_url = f"{FRONTEND_BASE_URL}/auth/verify-email?token={verification_token}"
+        
+        # 发送邮件
+        email_service = get_email_service()
+        email_service.send_email_verification(
+            to_email=user_email,
+            verification_url=verification_url,
+            user_name=user_dict.get("name", ""),
+        )
+    except Exception as e:
+        # 邮件发送失败不影响注册，但记录日志
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"注册后发送验证邮件失败: {user_email}, 错误: {str(e)}")
+    
     return AuthResponse(
         token=token,
         user=user_dict
@@ -575,18 +1042,67 @@ async def email_login(request: EmailLoginRequest, http_request: Request):
     client_ip = _get_client_ip(http_request)
     user_agent = http_request.headers.get("user-agent", "")
 
-    # 速率限制：同一 IP 每分钟最多 LOGIN_RATE_LIMIT_PER_MINUTE 次登录尝试（持久化）
-    ok_login_rate = check_and_increase_rate_limit(
+    email_lower = request.email.lower()
+    login_identifier = email_lower  # 未来可扩展为用户名/邮箱统一标识
+
+    # 分级限流：
+    # - 分钟级：同一“标识+IP”组合做限流，减少 NAT 误伤；同时保留 IP 兜底限流
+    # - 日级：同一“标识+IP”组合每天总尝试次数，防低频撞库
+    ok_login_rate_combo = check_and_increase_rate_limit(
+        scope="login_combo",
+        key=f"{login_identifier}|{client_ip}",
+        limit=LOGIN_RATE_LIMIT_PER_MINUTE,
+        window_seconds=60,
+        now_ts=int(time.time()),
+    )
+    ok_login_rate_ip = check_and_increase_rate_limit(
         scope="login",
         key=client_ip,
         limit=LOGIN_RATE_LIMIT_PER_MINUTE,
         window_seconds=60,
         now_ts=int(time.time()),
     )
-    if not ok_login_rate:
+    ok_login_daily_combo = check_and_increase_rate_limit(
+        scope="login_combo_day",
+        key=f"{login_identifier}|{client_ip}",
+        limit=LOGIN_DAILY_LIMIT_PER_IDENTIFIER,
+        window_seconds=24 * 60 * 60,
+        now_ts=int(time.time()),
+    )
+    if not ok_login_daily_combo:
+        raise HTTPException(status_code=429, detail="尝试次数过多，请明天再试")
+    if not ok_login_rate_combo or not ok_login_rate_ip:
         raise HTTPException(status_code=429, detail="登录请求过于频繁，请稍后再试")
 
-    # 验证验证码（如果提供）
+    # 检查账户是否被临时锁定（持久化）
+    now_ts = int(time.time())
+    lock_info = get_login_lock(client_ip, login_identifier)
+    if lock_info and lock_info.get("lock_until") and now_ts < int(lock_info["lock_until"]):
+        log_login_attempt(
+            user_id=None,
+            email=login_identifier,
+            ip=client_ip,
+            user_agent=user_agent,
+            success=False,
+            reason_code=LoginReasonCodes.ACCOUNT_TEMP_LOCKED,
+            reason=LoginReasonCodes.ACCOUNT_TEMP_LOCKED,
+            login_method="email",
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="尝试过多已被暂时锁定，请稍后再试",
+        )
+
+    # 自适应 CAPTCHA：当存在一定失败历史时，强制要求验证码
+    require_captcha = False
+    if lock_info and lock_info.get("fail_count", 0) >= 2:
+        require_captcha = True
+
+    # 如果触发风控但未提供验证码，则拒绝并提示前端显示验证码
+    if require_captcha and not (request.captcha_code and request.captcha_session):
+        raise HTTPException(status_code=400, detail="出于安全考虑，请完成验证码后再尝试登录")
+
+    # 如果提供了验证码（无论是否必需），则进行校验
     if request.captcha_code and request.captcha_session:
         ok = verify_and_consume_captcha(
             request.captcha_session,
@@ -600,33 +1116,14 @@ async def email_login(request: EmailLoginRequest, http_request: Request):
                 ip=client_ip,
                 user_agent=user_agent,
                 success=False,
-                reason="captcha_invalid_or_expired",
+                reason_code=LoginReasonCodes.CAPTCHA_INVALID_OR_EXPIRED,
+                reason=LoginReasonCodes.CAPTCHA_INVALID_OR_EXPIRED,
+                login_method="email",
             )
             raise HTTPException(status_code=400, detail="验证码无效或已过期，请刷新后重试")
     
-    email_lower = request.email.lower()
-
-    # 检查账户是否被临时锁定（持久化）
-    now_ts = int(time.time())
-    lock_info = get_login_lock(client_ip, email_lower)
-    if lock_info and lock_info.get("lock_until") and now_ts < int(lock_info["lock_until"]):
-        remaining = int(int(lock_info["lock_until"]) - now_ts)
-        minutes = max(1, remaining // 60)
-        log_login_attempt(
-            user_id=None,
-            email=email_lower,
-            ip=client_ip,
-            user_agent=user_agent,
-            success=False,
-            reason="account_temporarily_locked",
-        )
-        raise HTTPException(
-            status_code=429,
-            detail=f"账户已暂时锁定，请在约 {minutes} 分钟后再试",
-        )
-    
     # 从数据库查找用户
-    user = get_user_by_email(email_lower)
+    user = get_user_by_email(login_identifier)
     password_ok = bool(
         user
         and bcrypt.checkpw(
@@ -637,16 +1134,18 @@ async def email_login(request: EmailLoginRequest, http_request: Request):
     if not password_ok:
         log_login_attempt(
             user_id=user.id if user else None,
-            email=email_lower,
+            email=login_identifier,
             ip=client_ip,
             user_agent=user_agent,
             success=False,
-            reason="user_not_found" if not user else "invalid_password",
+            reason_code=LoginReasonCodes.USER_NOT_FOUND if not user else LoginReasonCodes.INVALID_PASSWORD,
+            reason=LoginReasonCodes.USER_NOT_FOUND if not user else LoginReasonCodes.INVALID_PASSWORD,
+            login_method="email",
         )
         # 登录失败，记录失败次数（持久化）
         fail_count, lock_until_ts = increase_login_fail_and_maybe_lock(
             ip=client_ip,
-            email=email_lower,
+            email=login_identifier,
             max_failed_attempts=LOGIN_MAX_FAILED_ATTEMPTS,
             lock_seconds=LOGIN_LOCK_SECONDS,
             now_ts=now_ts,
@@ -655,17 +1154,68 @@ async def email_login(request: EmailLoginRequest, http_request: Request):
         if lock_until_ts and now_ts < int(lock_until_ts):
             raise HTTPException(
                 status_code=429,
-                detail="密码错误次数过多，账户已暂时锁定，请稍后再试",
+                detail="尝试过多已被暂时锁定，请稍后再试",
             )
 
-        remaining = max(0, LOGIN_MAX_FAILED_ATTEMPTS - fail_count)
         raise HTTPException(
             status_code=401,
-            detail=f"邮箱或密码错误，剩余尝试次数 {remaining} 次",
+            detail="邮箱或密码错误，请稍后再试",
         )
 
     # 登录成功，清理失败记录（持久化）
-    clear_login_lock(client_ip, email_lower)
+    clear_login_lock(client_ip, login_identifier)
+
+    # 如果用户启用了 2FA，则第一步仅返回 challenge_token，等待验证码验证
+    if is_2fa_enabled_for_user(user.id):
+        # 查询上一次成功登录记录（当前登录之前），用于第二步返回
+        last_success = None
+        try:
+            last_row = get_last_success_login(user.id)
+            if last_row:
+                last_success = {
+                    "time": getattr(last_row, "created_at", None),
+                    "ip": getattr(last_row, "ip", None),
+                    "user_agent": getattr(last_row, "user_agent", None),
+                }
+        except Exception:
+            last_success = None
+
+        # 生成短期 2FA 挑战 token（绑定 IP + UA + 单次 jti）
+        ua_hash = _sha256_hex(user_agent or "")
+        challenge_payload = {
+            "sub": user.id,
+            "email": user.email,
+            "type": "2fa_challenge",
+            "login_method": "email",
+            "ip": client_ip,
+            "ua_hash": ua_hash,
+            "jti": secrets.token_urlsafe(16),
+        }
+        challenge_token = create_access_token(data=challenge_payload, expires_delta_seconds=5 * 60)
+
+        # 记录“密码正确，等待 2FA”的审计日志
+        try:
+            log_login_attempt(
+                user_id=user.id,
+                email=user.email,
+                ip=client_ip,
+                user_agent=user_agent,
+                success=False,
+                reason_code=LoginReasonCodes.OK_2FA_PENDING,
+                reason=LoginReasonCodes.OK_2FA_PENDING,
+                login_method="email",
+            )
+        except Exception:  # pragma: no cover
+            pass
+
+        return AuthResponse(
+            requires_2fa=True,
+            challenge_token=challenge_token,
+            two_fa_methods=["totp", "backup_code"],
+            last_login=last_success,
+        )
+
+    # 未启用 2FA：执行完整的成功登录流程
 
     # 查询上一次成功登录记录（当前登录之前）
     last_success = None
@@ -680,7 +1230,42 @@ async def email_login(request: EmailLoginRequest, http_request: Request):
     except Exception:
         last_success = None
 
-    # 登录成功：写审计日志（当前这次）
+    # 检测异常登录（新IP地址）
+    try:
+        is_new_ip = not has_previous_login_from_ip(user.id, client_ip)
+        if is_new_ip:
+            # 发送异常登录通知邮件
+            email_service = get_email_service()
+            login_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+            email_service.send_login_alert(
+                to_email=user.email,
+                user_name=user.name,
+                ip=client_ip,
+                user_agent=user_agent,
+                login_time=login_time,
+            )
+    except Exception as e:
+        # 邮件发送失败不影响登录，但记录日志
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"发送异常登录通知失败: {user.email}, 错误: {str(e)}")
+    
+    # 同设备单会话：按 user_agent_hash 撤销旧会话，并复用 session_id
+    refresh_token = create_refresh_token(user.id)
+    now_ts = int(time.time())
+    existing_sid = revoke_active_sessions_for_device(user.id, user_agent=user_agent)
+    session_id = create_refresh_token_record(
+        token=refresh_token,
+        user_id=user.id,
+        expires_at=now_ts + settings.jwt_refresh_token_expire_days * 24 * 60 * 60,
+        ip=client_ip,
+        user_agent=user_agent,
+        session_id=existing_sid,
+    )
+    # 生成 JWT token（带 session_id）
+    token = create_access_token(data={"sub": user.id, "email": user.email, "sid": session_id})
+
+    # 登录成功：写审计日志（带 session_id / refresh_token 标识）
     try:
         log_login_attempt(
             user_id=user.id,
@@ -688,16 +1273,18 @@ async def email_login(request: EmailLoginRequest, http_request: Request):
             ip=client_ip,
             user_agent=user_agent,
             success=True,
-            reason="ok",
+            session_id=session_id,
+            refresh_token=refresh_token,
+            reason_code=LoginReasonCodes.OK,
+            reason=LoginReasonCodes.OK,
+            login_method="email",
         )
     except Exception:  # pragma: no cover
         pass
-    
-    # 生成 JWT token
-    token = create_access_token(data={"sub": user.id, "email": user.email})
 
     return AuthResponse(
         token=token,
+        refresh_token=refresh_token,
         user=user_to_dict(user),
         last_login=last_success,
     )
@@ -874,16 +1461,16 @@ async def forgot_password(request: ForgotPasswordRequest, http_request: Request)
     email_service = get_email_service()
     email_sent = email_service.send_verification_code(email_lower, verification_code)
     
-    # 构建返回结果
+    # 构建返回结果（文案保持“安全一致”，不暴露邮箱是否存在）
     result = {
-        "message": "验证码已发送到您的邮箱",
+        "message": "如果该邮箱已注册，验证码已发送到您的邮箱",
         "session_id": session_id,
     }
     
     # 开发环境：如果邮件服务未启用，返回验证码（便于测试）
     if not email_service.enabled:
         result["code"] = verification_code  # 开发环境返回，生产环境应移除
-        result["message"] = "验证码已生成（邮件服务未配置，请查看返回的code字段）"
+        result["message"] = "如果该邮箱已注册，验证码已生成（邮件服务未配置，请查看返回的code字段）"
     
     return result
 
@@ -953,13 +1540,14 @@ async def send_login_unlock_code(request: LoginUnlockSendRequest, http_request: 
     email_service = get_email_service()
     email_service.send_verification_code(email_lower, verification_code)
 
+    # 返回结果文案保持“安全一致”
     result = {
-        "message": "解锁验证码已发送到您的邮箱",
+        "message": "如果该邮箱已注册，解锁验证码已发送到您的邮箱",
         "session_id": session_id,
     }
     if not email_service.enabled:
         result["code"] = verification_code
-        result["message"] = "解锁验证码已生成（邮件服务未配置，请查看返回的code字段）"
+        result["message"] = "如果该邮箱已注册，解锁验证码已生成（邮件服务未配置，请查看返回的code字段）"
 
     return result
 
@@ -1065,3 +1653,169 @@ async def reset_password(request: ResetPasswordRequest):
         pass
     
     return {"message": "密码重置成功"}
+
+
+@router.post("/auth/send-email-verification")
+async def send_email_verification(request: SendEmailVerificationRequest, http_request: Request):
+    """
+    重新发送邮箱验证邮件
+    """
+    email_lower = request.email.lower()
+    client_ip = _get_client_ip(http_request)
+    now_ts = int(time.time())
+    
+    # 频率限制 1：同一邮箱最小发送间隔
+    ok_interval = check_and_increase_rate_limit(
+        scope="email_verification_interval",
+        key=email_lower,
+        limit=1,
+        window_seconds=EMAIL_VERIFY_INTERVAL_SECONDS,
+        now_ts=now_ts,
+    )
+    if not ok_interval:
+        raise HTTPException(status_code=429, detail="验证邮件发送过于频繁，请稍后再试")
+    
+    # 频率限制 2：同一邮箱在 15 分钟内的总发送次数
+    ok_email_window = check_and_increase_rate_limit(
+        scope="email_verification_email_window",
+        key=email_lower,
+        limit=EMAIL_VERIFY_MAX_PER_15MIN,
+        window_seconds=15 * 60,
+        now_ts=now_ts,
+    )
+    if not ok_email_window:
+        raise HTTPException(status_code=429, detail="该邮箱请求验证邮件过于频繁，请稍后再试")
+    
+    # 频率限制 3：同一 IP 每小时最多发送次数
+    ok_ip_window = check_and_increase_rate_limit(
+        scope="email_verification_ip",
+        key=client_ip,
+        limit=EMAIL_VERIFY_IP_MAX_PER_HOUR,
+        window_seconds=60 * 60,
+        now_ts=now_ts,
+    )
+    if not ok_ip_window:
+        raise HTTPException(status_code=429, detail="当前网络环境请求验证邮件过于频繁，请稍后再试")
+    
+    # 检查用户是否存在（文案保持“安全一致”，不暴露邮箱是否存在）
+    user = get_user_by_email(email_lower)
+    if not user:
+        # 为了安全，不透露用户是否存在
+        return {"message": "如果该邮箱已注册，验证邮件已发送到您的邮箱"}
+    
+    # 如果已经验证过，直接返回
+    if getattr(user, "email_verified", False):
+        return {"message": "您的邮箱已验证，无需重复验证"}
+    
+    # 生成验证token
+    verification_token = secrets.token_urlsafe(32)
+    create_email_verification_token(
+        token=verification_token,
+        user_id=user.id,
+        email=email_lower,
+        expires_at=now_ts + 24 * 60 * 60,  # 24小时过期
+        ip=client_ip,
+    )
+    
+    # 构建验证链接
+    verification_url = f"{FRONTEND_BASE_URL}/auth/verify-email?token={verification_token}"
+    
+    # 发送邮件
+    email_service = get_email_service()
+    email_sent = email_service.send_email_verification(
+        to_email=email_lower,
+        verification_url=verification_url,
+        user_name=user.name,
+    )
+    
+    result = {
+        "message": "如果该邮箱已注册，验证邮件已发送到您的邮箱",
+    }
+    
+    # 开发环境：如果邮件服务未启用，返回验证链接（便于测试）
+    if not email_service.enabled:
+        result["verification_url"] = verification_url
+        result["message"] = "如果该邮箱已注册，验证邮件已生成（邮件服务未配置，请查看返回的verification_url字段）"
+    
+    return result
+
+
+@router.post("/auth/verify-email")
+async def verify_email(request: VerifyEmailRequest):
+    """
+    验证邮箱地址
+    """
+    now_ts = int(time.time())
+    
+    # 获取token信息
+    token_info = get_email_verification_token_info(request.token, now_ts=now_ts)
+    if not token_info:
+        raise HTTPException(status_code=400, detail="验证链接无效或已过期，请重新发送验证邮件")
+    
+    user_id = token_info["user_id"]
+    email = token_info["email"]
+    
+    # 验证用户是否存在
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=400, detail="用户不存在")
+    
+    # 检查邮箱是否匹配
+    if user.email.lower() != email.lower():
+        raise HTTPException(status_code=400, detail="验证链接无效")
+    
+    # 如果已经验证过，直接返回成功
+    if getattr(user, "email_verified", False):
+        consume_email_verification_token(request.token)
+        return {"message": "您的邮箱已验证，无需重复验证"}
+    
+    # 验证邮箱
+    success = verify_user_email(user_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="验证失败，请稍后重试")
+    
+    # 删除token（一次性使用）
+    consume_email_verification_token(request.token)
+    
+    return {"message": "邮箱验证成功"}
+
+
+@router.post("/auth/refresh", response_model=AuthResponse)
+async def refresh_token(request: RefreshTokenRequest, http_request: Request):
+    """
+    刷新 access token
+    使用 refresh token 获取新的 access token 和 refresh token
+    """
+    now_ts = int(time.time())
+    client_ip = _get_client_ip(http_request)
+    user_agent = http_request.headers.get("user-agent", "")
+    
+    # 轮换 refresh token（单次可用 + 会话绑定 + 重放检测）
+    new_refresh_token = create_refresh_token("refresh")
+    rotate = rotate_refresh_token(
+        old_token=request.refresh_token,
+        new_token=new_refresh_token,
+        now_ts=now_ts,
+        new_expires_at=now_ts + settings.jwt_refresh_token_expire_days * 24 * 60 * 60,
+        ip=client_ip,
+        user_agent=user_agent,
+    )
+    if not rotate:
+        raise HTTPException(status_code=401, detail="刷新token无效/已过期/会话异常，请重新登录")
+
+    user_id = rotate["user_id"]
+    session_id = rotate.get("session_id", "")
+
+    # 获取用户信息
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="用户不存在")
+    
+    # 生成新的 access token
+    token = create_access_token(data={"sub": user.id, "email": user.email, "sid": session_id})
+    
+    return AuthResponse(
+        token=token,
+        refresh_token=new_refresh_token,
+        user=user_to_dict(user),
+    )

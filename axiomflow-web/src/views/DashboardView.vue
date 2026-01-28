@@ -1,5 +1,69 @@
 <template>
   <section class="dashboard">
+    <!-- 安全向导弹窗：登录后针对未验证邮箱的一次性提示 -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showSecurityGuide"
+          class="modal-overlay"
+          @click.self="closeSecurityGuide"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="security-guide-title"
+        >
+          <div class="modal-content glass-card security-guide-modal">
+            <div class="modal-header">
+              <h2 id="security-guide-title">账户安全建议</h2>
+              <button class="modal-close" @click="closeSecurityGuide" aria-label="关闭">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            </div>
+            <div class="modal-body">
+              <p class="modal-description">
+                当前账户邮箱尚未完成验证，建议先完成邮箱验证，并在设置中开启双因素认证（2FA），以提升账户安全性。
+              </p>
+              <ul class="security-guide-list">
+                <li>1. 前往「设置 &gt; 安全」检查邮箱验证状态，如未收到邮件可重新发送验证邮件。</li>
+                <li>2. 建议开启 2FA（基于验证码的双因素认证），防止密码泄露后被他人登录。</li>
+                <li>3. 定期检查「活跃会话」列表，及时撤销不认识的设备登录。</li>
+              </ul>
+              <div class="security-guide-actions">
+                <button class="security-guide-primary" @click="goToSecuritySettings">
+                  前往安全设置
+                </button>
+                <button class="security-guide-secondary" @click="closeSecurityGuide">
+                  暂时跳过
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- 邮箱验证提示横幅 -->
+    <div v-if="userStore.user && !userStore.user.email_verified" class="email-verification-banner">
+      <div class="email-verification-content">
+        <div class="email-verification-icon">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="22,6 12,13 2,6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="email-verification-text">
+          <strong>请验证您的邮箱地址</strong>
+          <span>未验证账户将限制部分功能，请检查您的邮箱并点击验证链接完成验证。</span>
+        </div>
+        <div class="email-verification-actions">
+          <button class="email-verification-btn" @click="handleResendVerification" :disabled="resendingVerification">
+            <span v-if="resendingVerification" class="loading-spinner-small"></span>
+            <span>{{ resendingVerification ? "发送中..." : "重新发送验证邮件" }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
     <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
       <h2 style="margin: 0">我的文档</h2>
       <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap">
@@ -219,13 +283,15 @@ import AppCard from "@/components/AppCard.vue";
 import AppButton from "@/components/AppButton.vue";
 import LoadingIcon from "@/components/LoadingIcon.vue";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
-import { batchUpload, createProject, uploadPdf, getDocument, getProjectDocuments, getUserDocuments, deleteDocument, batchDeleteDocuments } from "@/lib/api";
+import { batchUpload, createProject, uploadPdf, getDocument, getProjectDocuments, getUserDocuments, deleteDocument, batchDeleteDocuments, sendEmailVerification } from "@/lib/api";
 import { showToast } from "@/components/Toast";
 import { useRouter, useRoute } from "vue-router";
 import { DocumentProgressWebSocket } from "@/lib/websocket";
+import { useUserStore } from "@/stores/user";
 
 const router = useRouter();
 const route = useRoute();
+const userStore = useUserStore();
 
 type DocStatus = "uploading" | "parsing" | "ready";
 
@@ -297,6 +363,27 @@ const selectedDocuments = ref<Set<string>>(new Set()); // 选中的文档ID集�
 const isBatchDelete = ref(false); // 是否是批量删除
 //（已移除卡片内“刷新状态”按钮，仅保留右上角刷新列表 icon）
 const isRefreshingList = ref(false); // 右上角刷新列表按钮状态
+const resendingVerification = ref(false); // 重新发送验证邮件状态
+
+// 安全向导：仅在登录后且邮箱未验证时给出一次性弹窗提示
+const showSecurityGuide = ref(false);
+const SECURITY_GUIDE_SEEN_KEY = "security_guide_seen_v1";
+
+const maybeShowSecurityGuide = () => {
+  if (!userStore.user || userStore.user.email_verified) return;
+  if (localStorage.getItem(SECURITY_GUIDE_SEEN_KEY) === "1") return;
+  showSecurityGuide.value = true;
+};
+
+const closeSecurityGuide = () => {
+  showSecurityGuide.value = false;
+  localStorage.setItem(SECURITY_GUIDE_SEEN_KEY, "1");
+};
+
+const goToSecuritySettings = () => {
+  closeSecurityGuide();
+  router.push({ path: "/settings", query: { from: "dashboard_security_guide" } });
+};
 
 // Dashboard 顶部搜索快捷键处理：/、Ctrl/Cmd+F 聚焦搜索框，Esc 清空搜索与选择
 const keyHandler = (e: KeyboardEvent) => {
@@ -659,8 +746,43 @@ const loadUserDocuments = async (merge: boolean = false) => {
   }
 };
 
-const pickFile = () => fileInput.value?.click();
-const pickFiles = () => filesInput.value?.click();
+const pickFile = () => {
+  // 检查邮箱验证状态
+  if (userStore.user && !userStore.user.email_verified) {
+    showToast("warning", "请先验证邮箱", "未验证账户无法上传文档，请先验证您的邮箱地址。");
+    return;
+  }
+  fileInput.value?.click();
+};
+
+const pickFiles = () => {
+  // 检查邮箱验证状态
+  if (userStore.user && !userStore.user.email_verified) {
+    showToast("warning", "请先验证邮箱", "未验证账户无法上传文档，请先验证您的邮箱地址。");
+    return;
+  }
+  filesInput.value?.click();
+};
+
+const handleResendVerification = async () => {
+  if (!userStore.user?.email) {
+    showToast("error", "错误", "无法获取邮箱地址");
+    return;
+  }
+  
+  resendingVerification.value = true;
+  try {
+    const result = await sendEmailVerification({ email: userStore.user.email });
+    showToast("success", "发送成功", result.message);
+    if (result.verification_url) {
+      showToast("info", "开发环境提示", `验证链接：${result.verification_url}`);
+    }
+  } catch (err: any) {
+    showToast("error", "发送失败", err.message);
+  } finally {
+    resendingVerification.value = false;
+  }
+};
 
 // 获取缩略图URL
 const getThumbnailUrl = (document_id: string) => {
@@ -1125,6 +1247,9 @@ onMounted(async () => {
       }
     });
   }, 5000);
+
+  // 尝试展示一次性安全向导
+  maybeShowSecurityGuide();
 });
 
 onUnmounted(() => {
@@ -1142,6 +1267,93 @@ onUnmounted(() => {
 .dashboard {
   position: relative;
   min-height: calc(100vh - 200px);
+}
+
+.email-verification-banner {
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #f59e0b;
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+}
+
+.email-verification-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.email-verification-icon {
+  width: 32px;
+  height: 32px;
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.email-verification-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.email-verification-text {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.email-verification-text strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.email-verification-text span {
+  font-size: 14px;
+  color: #78350f;
+  line-height: 1.5;
+}
+
+.email-verification-actions {
+  flex-shrink: 0;
+}
+
+.email-verification-btn {
+  padding: 8px 16px;
+  background: #f59e0b;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.email-verification-btn:hover:not(:disabled) {
+  background: #d97706;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
+}
+
+.email-verification-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading-spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 .empty-state {

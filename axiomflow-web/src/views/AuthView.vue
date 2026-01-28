@@ -685,6 +685,73 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- 2FA 验证模态框 -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showTwoFAModal"
+          class="modal-overlay"
+          @click.self="showTwoFAModal = false"
+          role="dialog"
+          aria-labelledby="twofa-title"
+          aria-modal="true"
+        >
+          <div class="modal-content glass-card">
+            <div class="modal-header">
+              <h2 id="twofa-title">双因素认证</h2>
+              <button
+                class="modal-close"
+                @click="showTwoFAModal = false"
+                aria-label="关闭"
+              >
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <div class="modal-body">
+              <p class="modal-description">
+                您的账户已开启双因素认证，请输入认证器中的 6 位验证码，或输入 8 位备份码。
+              </p>
+              <div class="form-group">
+                <label class="form-label" for="twofa-code">验证码</label>
+                <div class="input-wrapper">
+                  <input
+                    id="twofa-code"
+                    v-model="twoFACode"
+                    type="text"
+                    class="form-input"
+                    :class="{ 'input-error': twoFAError }"
+                    placeholder="请输入 6 位 TOTP 或 8 位备份码"
+                    autocomplete="one-time-code"
+                    aria-required="true"
+                    aria-invalid="!!twoFAError"
+                    @keyup.enter="handleVerify2FA"
+                  />
+                  <div v-if="twoFAError" class="input-status-icon input-status-error">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                </div>
+                <div v-if="twoFAError" class="field-error" role="alert">{{ twoFAError }}</div>
+              </div>
+
+              <button
+                class="auth-button"
+                @click="handleVerify2FA"
+                :disabled="twoFALoading || !twoFACode"
+                style="width: 100%; margin-top: 20px;"
+              >
+                <span v-if="twoFALoading" class="loading-spinner"></span>
+                <span>{{ twoFALoading ? "验证中..." : "验证并登录" }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -697,12 +764,14 @@ import {
   googleLogin,
   emailRegister,
   emailLogin,
+  verify2FALogin,
   getCaptcha,
   forgotPassword,
   verifyEmailCode,
   resetPassword,
   sendLoginUnlockCode,
   verifyLoginUnlockCode,
+  sendEmailVerification,
 } from "@/lib/api";
 
 const router = useRouter();
@@ -724,6 +793,14 @@ const loginUnlockSessionId = ref("");
 const loginUnlockCode = ref("");
 const loginUnlockCodeError = ref("");
 const loginUnlockVerifying = ref(false);
+
+// 2FA 登录相关状态
+const showTwoFAModal = ref(false);
+const twoFAChallengeToken = ref<string | null>(null);
+const twoFACode = ref("");
+const twoFALoading = ref(false);
+const twoFAError = ref("");
+const twoFALoginMethod = ref<"email" | "google" | "github" | null>(null);
 
 // 验证码相关
 const captchaImage = ref<string | null>(null);
@@ -1297,15 +1374,42 @@ onMounted(() => {
     try {
       const url = new URL(window.location.href);
       const authToken = url.searchParams.get("auth_token");
+      const challengeToken = url.searchParams.get("challenge_token");
       const userB64 = url.searchParams.get("user");
       const provider = url.searchParams.get("provider");
+      if (provider === "github" && challengeToken && userB64) {
+        // GitHub OAuth + 2FA：不直接登录，进入 2FA 第二步
+        try {
+          // 仅用于保证 userB64 可解析（可选）
+          decodeURIComponent(escape(atob(userB64)));
+        } catch {}
+
+        twoFAChallengeToken.value = challengeToken;
+        twoFALoginMethod.value = "github";
+        twoFACode.value = "";
+        twoFAError.value = "";
+        showTwoFAModal.value = true;
+
+        // 清理 URL（保留 redirect）
+        url.searchParams.delete("challenge_token");
+        url.searchParams.delete("user");
+        url.searchParams.delete("provider");
+        window.history.replaceState({}, "", url.toString());
+
+        showToast("info", "需要二次验证", "已为该账户开启双因素认证，请输入 2FA 验证码完成登录。");
+        return;
+      }
+
       if (provider === "github" && authToken && userB64) {
         const userJson = decodeURIComponent(escape(atob(userB64)));
         const user = JSON.parse(userJson);
-        userStore.login(user, authToken);
+        const refreshTokenB64 = url.searchParams.get("refresh_token");
+        const refreshToken = refreshTokenB64 ? atob(refreshTokenB64) : undefined;
+        userStore.login(user, authToken, refreshToken);
 
         // 清理 URL
         url.searchParams.delete("auth_token");
+        url.searchParams.delete("refresh_token");
         url.searchParams.delete("user");
         url.searchParams.delete("provider");
         window.history.replaceState({}, "", url.toString());
@@ -1363,11 +1467,46 @@ const handleGoogleCredentialResponse = async (response: { credential: string }) 
 
   try {
     const result = await googleLogin(response.credential);
-    userStore.login(result.user, result.token, rememberMe.value);
-    const redirect = router.currentRoute.value.query.redirect as string || "/";
-    // Google 登录：如果后端返回 last_login，目前接口未提供此字段，保持与邮箱登录体验一致
-    showToast("success", "登录成功", `欢迎回来，${result.user.name || result.user.email}！`);
-    router.push(redirect);
+    if (result.requires_2fa && result.challenge_token) {
+      // 需要进入 2FA 第二步
+      twoFAChallengeToken.value = result.challenge_token;
+      twoFALoginMethod.value = "google";
+      twoFACode.value = "";
+      twoFAError.value = "";
+      showTwoFAModal.value = true;
+      showToast("info", "需要二次验证", "已为该账户开启双因素认证，请输入 2FA 验证码完成登录。");
+    } else {
+      if (!result.user || !result.token) {
+        throw new Error("登录返回数据不完整");
+      }
+      userStore.login(result.user, result.token, result.refresh_token || "", rememberMe.value);
+      const redirect = (router.currentRoute.value.query.redirect as string) || "/";
+      showToast("success", "登录成功", `欢迎回来，${result.user.name || result.user.email}！`);
+
+      // 未验证邮箱：允许登录，但提示 + 自动尝试重发验证邮件
+      if (!result.user.email_verified) {
+        showToast(
+          "warning",
+          "邮箱未验证",
+          "当前账户邮箱尚未完成验证，部分安全功能（修改邮箱、开启 2FA 等）将受到限制。已为您自动尝试重发验证邮件。"
+        );
+        try {
+          const resend = await sendEmailVerification({ email: result.user.email });
+          showToast("success", "验证邮件已发送", resend.message);
+          if (resend.verification_url) {
+            showToast("info", "开发环境提示", `验证链接：${resend.verification_url}`);
+          }
+        } catch (err: any) {
+          showToast(
+            "warning",
+            "验证邮件未发送",
+            err.message || "发送频率受限，请稍后在「设置 - 安全」中再次尝试发送验证邮件。"
+          );
+        }
+      }
+
+      router.push(redirect);
+    }
   } catch (err: any) {
     console.error("Google login error:", err);
     let errorMessage = "Google登录失败，请稍后重试";
@@ -1410,6 +1549,82 @@ const handleGoogleCredentialResponse = async (response: { credential: string }) 
   }
 };
 
+const handleVerify2FA = async () => {
+  if (!twoFAChallengeToken.value) {
+    twoFAError.value = "2FA 会话已失效，请重新登录";
+    return;
+  }
+  if (!twoFACode.value.trim()) {
+    twoFAError.value = "请输入 2FA 验证码";
+    return;
+  }
+  twoFALoading.value = true;
+  twoFAError.value = "";
+  try {
+    const result = await verify2FALogin({
+      challenge_token: twoFAChallengeToken.value,
+      code: twoFACode.value.trim(),
+    });
+    if (!result.user || !result.token) {
+      throw new Error("2FA 验证返回数据不完整");
+    }
+    userStore.login(result.user, result.token, result.refresh_token || "", rememberMe.value);
+    showTwoFAModal.value = false;
+    twoFAChallengeToken.value = null;
+    twoFACode.value = "";
+
+    const loginMethodText =
+      twoFALoginMethod.value === "google"
+        ? "Google 登录"
+        : twoFALoginMethod.value === "github"
+        ? "GitHub 登录"
+        : "邮箱登录";
+
+    showToast(
+      "success",
+      "登录成功",
+      `已通过 ${loginMethodText} + 双因素认证，欢迎回来，${result.user.name || result.user.email}！`
+    );
+
+    // 未验证邮箱：2FA 成功后也给出提示 + 自动尝试重发验证邮件
+    if (!result.user.email_verified) {
+      showToast(
+        "warning",
+        "邮箱未验证",
+        "当前账户邮箱尚未完成验证，部分安全功能（修改邮箱、开启 2FA 等）将受到限制。已为您自动尝试重发验证邮件。"
+      );
+      try {
+        const resend = await sendEmailVerification({ email: result.user.email });
+        showToast("success", "验证邮件已发送", resend.message);
+        if (resend.verification_url) {
+          showToast("info", "开发环境提示", `验证链接：${resend.verification_url}`);
+        }
+      } catch (err: any) {
+        showToast(
+          "warning",
+          "验证邮件未发送",
+          err.message || "发送频率受限，请稍后在「设置 - 安全」中再次尝试发送验证邮件。"
+        );
+      }
+    }
+
+    if (result.last_login && result.last_login.time) {
+      const time = result.last_login.time;
+      const ip = result.last_login.ip || "";
+      const display = ip ? `${time}，IP：${ip}` : time;
+      showToast("info", "上次登录信息", `上次成功登录时间：${display}`);
+    }
+
+    const redirect = (router.currentRoute.value.query.redirect as string) || "/";
+    router.push(redirect);
+  } catch (err: any) {
+    console.error("2FA verify error:", err);
+    twoFAError.value = err.message || "验证失败，请稍后重试";
+  } finally {
+    twoFALoading.value = false;
+  }
+};
+
 const toggleMode = () => {
   isLogin.value = !isLogin.value;
   nameError.value = "";
@@ -1434,8 +1649,40 @@ const toggleMode = () => {
   }
 };
 
+// 统一登录/注册错误文案映射（便于后续做多语言）
+const normalizeAuthError = (raw: any, isLoginFlow: boolean): string => {
+  const msg = (raw && typeof raw.message === "string" && raw.message.trim()) || "";
+  if (!msg) {
+    return isLoginFlow ? "登录失败，请稍后重试。" : "注册失败，请稍后重试。";
+  }
+
+  // 登录相关常见错误
+  if (msg.includes("邮箱或密码错误")) {
+    return "邮箱或密码错误，请检查后重试。";
+  }
+  if (msg.includes("暂时锁定") || msg.includes("账户已被暂时锁定")) {
+    return "由于多次密码错误，账户已被暂时锁定，请稍后重试或通过邮箱验证码解锁。";
+  }
+  if (msg.includes("登录请求过于频繁") || msg.includes("尝试次数过多")) {
+    return "登录请求过于频繁，请稍后再试。";
+  }
+  if (msg.includes("验证码无效") || msg.includes("验证码已过期") || msg.includes("验证码错误")) {
+    return "验证码无效或已过期，请刷新后重新输入。";
+  }
+
+  // 注册相关常见错误
+  if (msg.includes("邮箱已被注册") || msg.includes("已存在同名邮箱")) {
+    return "该邮箱已注册，如忘记密码可使用“忘记密码”功能找回。";
+  }
+  if (msg.includes("注册请求过于频繁") || msg.includes("当前网络环境注册请求过于频繁")) {
+    return "注册请求过于频繁，请稍后再试。";
+  }
+
+  // 兜底：直接返回后端文案
+  return msg;
+};
+
 const handleSubmit = async () => {
-  
   // 验证所有字段
   const nameOk = isLogin.value || validateName();
   const emailOk = validateEmail();
@@ -1468,14 +1715,49 @@ const handleSubmit = async () => {
         captcha_code: captchaCode.value.trim(),
         captcha_session: captchaSession.value,
       });
-      userStore.login(result.user, result.token, rememberMe.value);
-      showToast("success", "登录成功", `欢迎回来，${result.user.name || result.user.email}！`);
-      // 轻量提示上次登录信息（如果有）
-      if (result.last_login && result.last_login.time) {
-        const time = result.last_login.time;
-        const ip = result.last_login.ip || "";
-        const display = ip ? `${time}，IP：${ip}` : time;
-        showToast("info", "上次登录信息", `上次成功登录时间：${display}`);
+      if (result.requires_2fa && result.challenge_token) {
+        // 需要 2FA 第二步，不直接登录
+        twoFAChallengeToken.value = result.challenge_token;
+        twoFALoginMethod.value = "email";
+        twoFACode.value = "";
+        twoFAError.value = "";
+        showTwoFAModal.value = true;
+        showToast("info", "需要二次验证", "已为该账户开启双因素认证，请输入 2FA 验证码完成登录。");
+      } else {
+        if (!result.user || !result.token) {
+          throw new Error("登录返回数据不完整");
+        }
+        userStore.login(result.user, result.token, result.refresh_token || "", rememberMe.value);
+        showToast("success", "登录成功", `欢迎回来，${result.user.name || result.user.email}！`);
+
+        // 未验证邮箱：允许登录，但强提示 + 自动尝试重发验证邮件
+        if (!result.user.email_verified) {
+          showToast(
+            "warning",
+            "邮箱未验证",
+            "当前账户邮箱尚未完成验证，部分安全功能（修改邮箱、开启 2FA 等）将受到限制。已为您自动尝试重发验证邮件。"
+          );
+          try {
+            const resend = await sendEmailVerification({ email: result.user.email });
+            showToast("success", "验证邮件已发送", resend.message);
+            if (resend.verification_url) {
+              showToast("info", "开发环境提示", `验证链接：${resend.verification_url}`);
+            }
+          } catch (err: any) {
+            showToast(
+              "warning",
+              "验证邮件未发送",
+              err.message || "发送频率受限，请稍后在「设置 - 安全」中再次尝试发送验证邮件。"
+            );
+          }
+        }
+        // 轻量提示上次登录信息（如果有）
+        if (result.last_login && result.last_login.time) {
+          const time = result.last_login.time;
+          const ip = result.last_login.ip || "";
+          const display = ip ? `${time}，IP：${ip}` : time;
+          showToast("info", "上次登录信息", `上次成功登录时间：${display}`);
+        }
       }
     } else {
       // 邮箱注册
@@ -1486,21 +1768,45 @@ const handleSubmit = async () => {
         captcha_code: captchaCode.value.trim(),
         captcha_session: captchaSession.value,
       });
-      userStore.login(result.user, result.token, true); // 注册时默认记住
-      showToast(
-        "success",
-        "注册成功",
-        "账户创建成功。"
-      );
+      if (!result.user || !result.token) {
+        throw new Error("注册返回数据不完整");
+      }
+      userStore.login(result.user, result.token, result.refresh_token || "", true); // 注册时默认记住
+      
+      // 检查邮箱是否已验证
+      if (!result.user.email_verified) {
+        showToast(
+          "warning",
+          "注册成功",
+          "请检查您的邮箱并完成验证，未验证账户将限制部分功能。"
+        );
+        // 延迟显示详细提示
+        setTimeout(() => {
+          showToast(
+            "info",
+            "邮箱验证",
+            "验证邮件已发送到您的邮箱，请点击邮件中的链接完成验证。"
+          );
+        }, 2000);
+      } else {
+        showToast(
+          "success",
+          "注册成功",
+          "账户创建成功。"
+        );
+      }
+
+      // 注册完成后，引导用户进入设置页做安全配置（邮箱验证 / 2FA 等）
+      router.push({ path: "/settings", query: { onboard: "security" } });
+      return;
     }
 
-    // 跳转到首页或之前的页面
+    // 登录场景：跳转到首页或之前的页面
     const redirect = (router.currentRoute.value.query.redirect as string) || "/";
     router.push(redirect);
   } catch (err: any) {
     console.error("Auth error:", err);
-    const errorMessage =
-      err.message || (isLogin.value ? "登录失败，请检查邮箱和密码" : "注册失败，请稍后重试");
+    const errorMessage = normalizeAuthError(err, isLogin.value);
     
     // 检查是否是验证码错误或过期
     const isCaptchaError = errorMessage.includes("验证码") && (
@@ -1525,7 +1831,7 @@ const handleSubmit = async () => {
         }, 3500);
       }
     } else {
-      // 普通错误提示
+      // 普通错误提示（已通过 normalizeAuthError 做过统一文案处理）
       showToast("error", isLogin.value ? "登录失败" : "注册失败", errorMessage);
     }
   } finally {

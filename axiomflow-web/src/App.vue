@@ -90,7 +90,7 @@
         </div>
       </nav>
     </header>
-    <main class="app-main" :class="{ 'landing-page': isLandingPage }">
+    <main class="app-main" :class="{ 'landing-page': isLandingPage, scrollable: isSettingsPage }">
       <RouterView />
     </main>
     <Toast />
@@ -107,6 +107,7 @@ const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 const isLandingPage = computed(() => route.path === "/");
+const isSettingsPage = computed(() => route.path === "/settings" || route.path.startsWith("/settings/"));
 const showMenu = ref(false);
 
 const goToLogin = () => {

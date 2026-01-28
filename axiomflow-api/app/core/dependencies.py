@@ -7,7 +7,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from ..core.jwt_utils import verify_token
+from ..core.auth_db import is_session_active
 from ..core.user_db import get_user_by_id, get_db_session
+import os
 from ..db.schema import User
 
 security = HTTPBearer()
@@ -32,6 +34,12 @@ async def get_current_user(
     token = credentials.credentials
     try:
         payload = verify_token(token)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="无效的token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(
@@ -47,6 +55,18 @@ async def get_current_user(
                 detail="用户不存在",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
+        # access token 短期撤销策略（会话级）：
+        # 若该 access token 携带 sid，则检查该会话是否仍活跃。
+        sid = str(payload.get("sid") or "").strip()
+        if sid:
+            now_ts = int(__import__("time").time())
+            if not is_session_active(user_id=str(user_id), session_id=sid, now_ts=now_ts):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="会话已失效，请重新登录",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
         
         return user
     except Exception as e:
@@ -77,4 +97,23 @@ async def get_current_user_optional(
         return await get_current_user(credentials)
     except HTTPException:
         return None
+
+
+async def require_verified_email(current_user: User = Depends(get_current_user)) -> User:
+    """
+    要求用户邮箱已验证（用于敏感操作）。
+    默认策略：未验证允许登录，但禁止敏感操作（可通过配置关闭该限制）。
+    """
+    enabled_raw = os.getenv("REQUIRE_EMAIL_VERIFIED_FOR_SENSITIVE_OPS", "true").strip().lower()
+    enabled = enabled_raw not in ("0", "false", "no", "off")
+    if not enabled:
+        return current_user
+
+    if getattr(current_user, "email_verified", False):
+        return current_user
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="邮箱未验证：请先完成邮箱验证后再执行该操作",
+    )
 

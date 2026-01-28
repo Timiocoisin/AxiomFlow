@@ -16,7 +16,7 @@ celery_app = Celery(
     "axiomflow",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.tasks.translate", "app.tasks.batch", "app.tasks.observability", "app.tasks.parse"],
+    include=["app.tasks.translate", "app.tasks.batch", "app.tasks.parse"],
 )
 
 # 显式导入任务模块以确保在 Windows 上正确注册
@@ -26,7 +26,6 @@ try:
     from .tasks import parse  # noqa: F401
     from .tasks import translate  # noqa: F401
     from .tasks import batch  # noqa: F401
-    from .tasks import observability  # noqa: F401
 except ImportError:
     pass
 
@@ -69,14 +68,4 @@ celery_app.conf.update(
     task_always_eager=settings.celery_task_always_eager,
     task_eager_propagates=True,
 )
-
-# Periodic tasks (requires running celery beat)
-if getattr(settings, "obs_health_check_enabled", True):
-    celery_app.conf.beat_schedule = {
-        "axiomflow_observability_health_check": {
-            "task": "app.tasks.observability.observability_health_check",
-            # default every 60s
-            "schedule": float(getattr(settings, "obs_health_check_interval_s", 60.0)),
-        }
-    }
 

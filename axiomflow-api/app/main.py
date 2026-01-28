@@ -1,11 +1,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# 尽早加载 .env（将其注入到 os.environ，便于直接使用 os.getenv）
+try:
+    from dotenv import load_dotenv  # type: ignore
+    load_dotenv()
+except Exception:
+    pass
+
 from .core.config import settings
 from .core.observability import setup_logging
 from .routers import (
     health,
     auth,
+    users,
     projects,
     jobs,
     documents,
@@ -15,9 +23,6 @@ from .routers import (
     downloads,
     assets,
     batch,
-    health_observability,
-    metrics,
-    settings as settings_router,
     websocket as websocket_router,
 )
 
@@ -33,6 +38,8 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allow_origins,
+        # 开发环境允许任意端口的 localhost/127.0.0.1（避免端口变化导致 CORS 被拒）
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -41,6 +48,7 @@ def create_app() -> FastAPI:
     # Routers
     app.include_router(health.router, prefix="/v1")
     app.include_router(auth.router, prefix="/v1")
+    app.include_router(users.router, prefix="/v1")
     app.include_router(projects.router, prefix="/v1")
     app.include_router(glossary.router, prefix="/v1")
     app.include_router(jobs.router, prefix="/v1")
@@ -51,9 +59,6 @@ def create_app() -> FastAPI:
     app.include_router(export.router, prefix="/v1")
     app.include_router(downloads.router, prefix="/v1")
     app.include_router(batch.router, prefix="/v1")
-    app.include_router(settings_router.router, prefix="/v1")
-    app.include_router(health_observability.router, prefix="/v1")
-    app.include_router(metrics.router, prefix="/v1")
     app.include_router(websocket_router.router, prefix="/v1")
 
     return app

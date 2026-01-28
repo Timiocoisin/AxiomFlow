@@ -67,285 +67,111 @@ class EmailService:
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                * {{
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }}
-                body {{
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-                    line-height: 1.7;
-                    color: #1e293b;
-                    background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 50%, #f3e8ff 100%);
-                    padding: 40px 20px;
-                    min-height: 100vh;
-                }}
-                .email-wrapper {{
-                    max-width: 600px;
-                    margin: 0 auto;
-                    background: #ffffff;
-                    border-radius: 24px;
-                    box-shadow: 
-                        0 20px 60px rgba(99, 102, 241, 0.15),
-                        0 8px 24px rgba(99, 102, 241, 0.1),
-                        0 0 0 1px rgba(255, 255, 255, 0.5) inset;
-                    overflow: hidden;
-                }}
-                .header {{
-                    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-                    padding: 40px 32px;
-                    text-align: center;
-                    position: relative;
-                    overflow: hidden;
-                }}
-                .header::before {{
-                    content: '';
-                    position: absolute;
-                    top: -50%;
-                    left: -50%;
-                    width: 200%;
-                    height: 200%;
-                    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-                    animation: shimmer 3s ease-in-out infinite;
-                }}
-                @keyframes shimmer {{
-                    0%, 100% {{ transform: translate(-50%, -50%) rotate(0deg); }}
-                    50% {{ transform: translate(-50%, -50%) rotate(180deg); }}
-                }}
-                .logo {{
-                    font-size: 32px;
-                    font-weight: 800;
-                    color: #ffffff;
-                    letter-spacing: -0.02em;
-                    margin-bottom: 8px;
-                    position: relative;
-                    z-index: 1;
-                    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-                }}
-                .header-subtitle {{
-                    font-size: 16px;
-                    color: rgba(255, 255, 255, 0.95);
-                    font-weight: 500;
-                    position: relative;
-                    z-index: 1;
-                }}
-                .content {{
-                    padding: 48px 40px;
-                    background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
-                }}
-                .greeting {{
-                    font-size: 18px;
-                    font-weight: 600;
-                    color: #1e293b;
-                    margin-bottom: 16px;
-                    letter-spacing: -0.01em;
-                }}
-                .description {{
-                    font-size: 15px;
-                    color: #64748b;
-                    line-height: 1.8;
-                    margin-bottom: 32px;
-                }}
-                .code-container {{
-                    background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
-                    border: 2px solid rgba(99, 102, 241, 0.15);
-                    border-radius: 20px;
-                    padding: 32px 24px;
-                    text-align: center;
-                    margin: 32px 0;
-                    box-shadow: 
-                        0 8px 24px rgba(99, 102, 241, 0.1),
-                        0 0 0 1px rgba(255, 255, 255, 0.5) inset;
-                    position: relative;
-                    overflow: hidden;
-                }}
-                .code-container::before {{
-                    content: '';
-                    position: absolute;
-                    top: 0;
-                    left: -100%;
-                    width: 100%;
-                    height: 100%;
-                    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-                    animation: slide 3s ease-in-out infinite;
-                }}
-                @keyframes slide {{
-                    0% {{ left: -100%; }}
-                    50%, 100% {{ left: 100%; }}
-                }}
-                .code-label {{
-                    font-size: 13px;
-                    color: #8b5cf6;
-                    font-weight: 600;
-                    text-transform: uppercase;
-                    letter-spacing: 0.1em;
-                    margin-bottom: 16px;
-                }}
-                .code {{
-                    font-size: 42px;
-                    font-weight: 800;
-                    letter-spacing: 0.3em;
-                    font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
-                    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                    background-clip: text;
-                    margin: 8px 0;
-                    position: relative;
-                    z-index: 1;
-                    text-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
-                }}
-                .warning-box {{
-                    background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.08) 100%);
-                    border: 1.5px solid rgba(251, 191, 36, 0.3);
-                    border-radius: 16px;
-                    padding: 20px 24px;
-                    margin: 32px 0;
-                    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.1);
-                }}
-                .warning-title {{
-                    font-size: 14px;
-                    font-weight: 700;
-                    color: #d97706;
-                    margin-bottom: 8px;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }}
-                .warning-text {{
-                    font-size: 14px;
-                    color: #92400e;
-                    line-height: 1.7;
-                }}
-                .info-section {{
-                    margin-top: 40px;
-                    padding-top: 32px;
-                    border-top: 1px solid rgba(226, 232, 240, 0.8);
-                }}
-                .info-title {{
-                    font-size: 15px;
-                    font-weight: 600;
-                    color: #334155;
-                    margin-bottom: 16px;
-                }}
-                .info-list {{
-                    list-style: none;
-                    padding: 0;
-                }}
-                .info-item {{
-                    font-size: 14px;
-                    color: #64748b;
-                    line-height: 1.8;
-                    margin-bottom: 12px;
-                    padding-left: 24px;
-                    position: relative;
-                }}
-                .info-item::before {{
-                    content: '✓';
-                    position: absolute;
-                    left: 0;
-                    color: #10b981;
-                    font-weight: bold;
-                    font-size: 16px;
-                }}
-                .footer {{
-                    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-                    padding: 32px 40px;
-                    text-align: center;
-                    border-top: 1px solid rgba(226, 232, 240, 0.5);
-                }}
-                .footer-text {{
-                    font-size: 13px;
-                    color: #94a3b8;
-                    line-height: 1.7;
-                    margin-bottom: 12px;
-                }}
-                .footer-copyright {{
-                    font-size: 12px;
-                    color: #cbd5e1;
-                    margin-top: 16px;
-                    font-weight: 500;
-                }}
-                .divider {{
-                    height: 1px;
-                    background: linear-gradient(90deg, transparent, rgba(226, 232, 240, 0.8), transparent);
-                    margin: 24px 0;
-                }}
-                @media only screen and (max-width: 600px) {{
-                    .content {{
-                        padding: 32px 24px;
-                    }}
-                    .code {{
-                        font-size: 36px;
-                        letter-spacing: 0.2em;
-                    }}
-                    .header {{
-                        padding: 32px 24px;
-                    }}
-                }}
-            </style>
         </head>
-        <body>
-            <div class="email-wrapper">
-                <div class="header">
-                    <div class="logo">AxiomFlow</div>
-                    <div class="header-subtitle">安全验证码</div>
-                </div>
-                
-                <div class="content">
-                    <div class="greeting">您好！</div>
-                    
-                    <div class="description">
-                        我们收到了您的密码重置请求。为了确保账户安全，请使用以下验证码完成身份验证。
-                    </div>
-                    
-                    <div class="code-container">
-                        <div class="code-label">验证码</div>
-                        <div class="code">{code}</div>
-                        <div style="font-size: 12px; color: #94a3b8; margin-top: 12px; font-weight: 500;">
-                            包含字母和数字，不区分大小写
-                        </div>
-                    </div>
-                    
-                    <div class="warning-box">
-                        <div class="warning-title">
-                            <span>⚠️</span>
-                            <span>安全提示</span>
-                        </div>
-                        <div class="warning-text">
-                            • 验证码有效期为 <strong>5分钟</strong>，请及时使用<br>
-                            • 请勿将验证码泄露给他人，包括客服人员<br>
-                            • 如非本人操作，请立即修改密码并联系客服
-                        </div>
-                    </div>
-                    
-                    <div class="info-section">
-                        <div class="info-title">💡 使用说明</div>
-                        <ul class="info-list">
-                            <li class="info-item">在密码重置页面输入上述6位验证码（字母+数字）</li>
-                            <li class="info-item">验证码不区分大小写，可直接输入</li>
-                            <li class="info-item">验证通过后即可设置新密码</li>
-                            <li class="info-item">验证码仅可使用一次，使用后立即失效</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="divider"></div>
-                    
-                    <div class="description" style="font-size: 13px; color: #94a3b8; margin-bottom: 0;">
-                        如果您没有请求此验证码，请忽略此邮件。您的账户仍然安全，无需采取任何操作。
-                    </div>
-                </div>
-                
-                <div class="footer">
-                    <div class="footer-text">
-                        此邮件由 AxiomFlow 系统自动发送，请勿回复。
-                    </div>
-                    <div class="footer-copyright">
-                        © 2024 AxiomFlow Team. All rights reserved.
-                    </div>
-                </div>
-            </div>
+        <body style="margin: 0; padding: 0; background-color: #f0f9ff; font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', Arial, sans-serif;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f0f9ff; padding: 40px 20px;">
+                <tr>
+                    <td align="center">
+                        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; max-width: 600px;">
+                            <!-- Header -->
+                            <tr>
+                                <td style="background-color: #6366f1; padding: 40px 32px; text-align: center;">
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                        <tr>
+                                            <td align="center" style="padding-bottom: 8px;">
+                                                <div style="font-size: 32px; font-weight: bold; color: #ffffff; letter-spacing: -0.02em;">AxiomFlow</div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td align="center">
+                                                <div style="font-size: 16px; color: #ffffff; font-weight: 500;">安全验证码</div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            <!-- Content -->
+                            <tr>
+                                <td style="padding: 48px 40px; background-color: #ffffff;">
+                                    <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 16px;">您好！</div>
+                                    <div style="font-size: 15px; color: #64748b; line-height: 1.8; margin-bottom: 32px;">
+                                        我们收到了您的密码重置请求。为了确保账户安全，请使用以下验证码完成身份验证。
+                                    </div>
+                                    
+                                    <!-- Code Container -->
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; border: 2px solid #e0e7ff; border-radius: 12px; margin: 32px 0;">
+                                        <tr>
+                                            <td style="padding: 32px 24px; text-align: center;">
+                                                <div style="font-size: 13px; color: #8b5cf6; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px;">验证码</div>
+                                                <div style="font-size: 42px; font-weight: bold; letter-spacing: 0.3em; font-family: 'Courier New', monospace; color: #6366f1; margin: 8px 0;">{code}</div>
+                                                <div style="font-size: 12px; color: #94a3b8; margin-top: 12px; font-weight: 500;">包含字母和数字，不区分大小写</div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    
+                                    <!-- Warning Box -->
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fef3c7; border: 1px solid #fbbf24; border-radius: 12px; margin: 32px 0;">
+                                        <tr>
+                                            <td style="padding: 20px 24px;">
+                                                <div style="font-size: 14px; font-weight: 700; color: #d97706; margin-bottom: 8px;">⚠️ 安全提示</div>
+                                                <div style="font-size: 14px; color: #92400e; line-height: 1.7;">
+                                                    • 验证码有效期为 <strong>5分钟</strong>，请及时使用<br>
+                                                    • 请勿将验证码泄露给他人，包括客服人员<br>
+                                                    • 如非本人操作，请立即修改密码并联系客服
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    
+                                    <!-- Info Section -->
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 40px; padding-top: 32px; border-top: 1px solid #e2e8f0;">
+                                        <tr>
+                                            <td>
+                                                <div style="font-size: 15px; font-weight: 600; color: #334155; margin-bottom: 16px;">💡 使用说明</div>
+                                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                    <tr>
+                                                        <td style="padding-bottom: 12px; font-size: 14px; color: #64748b; line-height: 1.8;">
+                                                            <span style="color: #10b981; font-weight: bold; margin-right: 8px;">✓</span>在密码重置页面输入上述6位验证码（字母+数字）
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="padding-bottom: 12px; font-size: 14px; color: #64748b; line-height: 1.8;">
+                                                            <span style="color: #10b981; font-weight: bold; margin-right: 8px;">✓</span>验证码不区分大小写，可直接输入
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="padding-bottom: 12px; font-size: 14px; color: #64748b; line-height: 1.8;">
+                                                            <span style="color: #10b981; font-weight: bold; margin-right: 8px;">✓</span>验证通过后即可设置新密码
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="font-size: 14px; color: #64748b; line-height: 1.8;">
+                                                            <span style="color: #10b981; font-weight: bold; margin-right: 8px;">✓</span>验证码仅可使用一次，使用后立即失效
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    
+                                    <div style="height: 1px; background-color: #e2e8f0; margin: 24px 0;"></div>
+                                    
+                                    <div style="font-size: 13px; color: #94a3b8; line-height: 1.8; margin-bottom: 0;">
+                                        如果您没有请求此验证码，请忽略此邮件。您的账户仍然安全，无需采取任何操作。
+                                    </div>
+                                </td>
+                            </tr>
+                            <!-- Footer -->
+                            <tr>
+                                <td style="padding: 32px 40px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
+                                    <p style="font-size: 13px; color: #94a3b8; margin: 0; line-height: 1.7;">此邮件由 AxiomFlow 系统自动发送，请勿回复。</p>
+                                    <p style="font-size: 12px; color: #cbd5e1; margin: 16px 0 0 0; font-weight: 500;">© 2024 AxiomFlow Team. All rights reserved.</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
         </body>
         </html>
         """
@@ -378,6 +204,299 @@ AxiomFlow 安全验证码
         """
         
         return self._send_email(to_email, subject, text_content, html_content)
+    
+    def send_email_verification(self, to_email: str, verification_url: str, user_name: str = "") -> bool:
+        """
+        发送邮箱验证邮件
+        
+        Args:
+            to_email: 收件人邮箱
+            verification_url: 验证链接URL
+            user_name: 用户名称（可选）
+            
+        Returns:
+            是否发送成功
+        """
+        subject = "AxiomFlow 邮箱验证 | 请验证您的邮箱地址"
+        display_name = user_name or to_email.split("@")[0]
+        
+        text_content = f"""
+亲爱的 {display_name}，
+
+欢迎注册 AxiomFlow！
+
+请点击以下链接验证您的邮箱地址：
+{verification_url}
+
+此链接将在24小时内有效。
+
+如果您没有注册 AxiomFlow，请忽略此邮件。
+
+祝好，
+AxiomFlow 团队
+        """
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f0f9ff; font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', Arial, sans-serif;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f0f9ff; padding: 40px 20px;">
+                <tr>
+                    <td align="center">
+                        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; max-width: 600px;">
+                            <!-- Header -->
+                            <tr>
+                                <td style="background-color: #6366f1; padding: 40px 32px; text-align: center;">
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                        <tr>
+                                            <td align="center" style="padding-bottom: 8px;">
+                                                <div style="font-size: 32px; font-weight: bold; color: #ffffff; letter-spacing: -0.02em;">AxiomFlow</div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td align="center">
+                                                <div style="font-size: 16px; color: #ffffff; font-weight: 500;">邮箱验证</div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            <!-- Content -->
+                            <tr>
+                                <td style="padding: 48px 40px; background-color: #ffffff;">
+                                    <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 16px;">亲爱的 {display_name}，</div>
+                                    <div style="font-size: 15px; color: #64748b; line-height: 1.8; margin-bottom: 32px;">
+                                        欢迎注册 AxiomFlow！<br>
+                                        为了确保账户安全，请验证您的邮箱地址。验证后您将可以正常使用所有功能。
+                                    </div>
+                                    
+                                    <!-- Button -->
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 40px 0;">
+                                        <tr>
+                                            <td align="center">
+                                                <a href="{verification_url}" style="display: inline-block; padding: 16px 40px; background-color: #6366f1; color: #ffffff; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px;">验证邮箱地址</a>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    
+                                    <!-- Link Fallback -->
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; border-left: 4px solid #6366f1; border-radius: 8px; margin-top: 24px;">
+                                        <tr>
+                                            <td style="padding: 20px;">
+                                                <div style="font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 8px;">如果按钮无法点击，请复制以下链接到浏览器：</div>
+                                                <div style="font-size: 13px; color: #6366f1; word-break: break-all; font-family: monospace;">{verification_url}</div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    
+                                    <!-- Warning -->
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 24px;">
+                                        <tr>
+                                            <td style="padding: 16px; background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px;">
+                                                <div style="font-size: 14px; color: #92400e;">⚠️ 此链接将在24小时内有效。如果您没有注册 AxiomFlow，请忽略此邮件。</div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            <!-- Footer -->
+                            <tr>
+                                <td style="padding: 32px 40px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
+                                    <p style="font-size: 13px; color: #64748b; margin: 0; line-height: 1.7;">此邮件由 AxiomFlow 系统自动发送，请勿回复。</p>
+                                    <p style="font-size: 13px; color: #64748b; margin: 8px 0 0 0; line-height: 1.7;">© 2024 AxiomFlow. All rights reserved.</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+        
+        return self._send_email(to_email, subject, text_content, html_content)
+    
+    def send_login_alert(self, to_email: str, user_name: str, ip: str, user_agent: str, login_time: str, location: str = "") -> bool:
+        """
+        发送异常登录通知邮件
+        
+        Args:
+            to_email: 收件人邮箱
+            user_name: 用户名称
+            ip: 登录IP地址
+            user_agent: 用户代理字符串
+            login_time: 登录时间
+            location: IP地理位置（可选）
+            
+        Returns:
+            是否发送成功
+        """
+        subject = "AxiomFlow 安全提醒 | 检测到新设备登录"
+        display_name = user_name or to_email.split("@")[0]
+        device_info = self._parse_user_agent(user_agent)
+        
+        text_content = f"""
+亲爱的 {display_name}，
+
+我们检测到您的账户在以下位置登录：
+
+登录时间：{login_time}
+IP地址：{ip}
+设备信息：{device_info}
+{f'地理位置：{location}' if location else ''}
+
+如果您确认这是您的操作，可以忽略此邮件。
+
+如果您不认识此次登录，请立即：
+1. 修改您的账户密码
+2. 检查账户安全设置
+3. 撤销所有活跃会话
+
+祝好，
+AxiomFlow 安全团队
+        """
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #fef3c7; font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', Arial, sans-serif;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fef3c7; padding: 40px 20px;">
+                <tr>
+                    <td align="center">
+                        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; max-width: 600px;">
+                            <!-- Header -->
+                            <tr>
+                                <td style="background-color: #f59e0b; padding: 40px 32px; text-align: center;">
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                        <tr>
+                                            <td align="center" style="padding-bottom: 16px;">
+                                                <div style="width: 64px; height: 64px; background-color: rgba(255, 255, 255, 0.2); border-radius: 50%; margin: 0 auto; display: inline-block; line-height: 64px; text-align: center; font-size: 36px; color: #ffffff;">⚠️</div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td align="center" style="padding-bottom: 8px;">
+                                                <div style="font-size: 28px; font-weight: bold; color: #ffffff; letter-spacing: -0.02em;">AxiomFlow</div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td align="center">
+                                                <div style="font-size: 16px; color: #ffffff; font-weight: 500;">安全提醒</div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            <!-- Content -->
+                            <tr>
+                                <td style="padding: 48px 40px; background-color: #ffffff;">
+                                    <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 24px;">亲爱的 {display_name}，</div>
+                                    
+                                    <!-- Alert Box -->
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; margin-bottom: 32px;">
+                                        <tr>
+                                            <td style="padding: 20px;">
+                                                <div style="font-size: 16px; font-weight: 600; color: #92400e; margin-bottom: 12px;">⚠️ 检测到新设备登录</div>
+                                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                    <tr>
+                                                        <td style="padding-bottom: 12px;">
+                                                            <span style="font-weight: 600; color: #78350f; display: inline-block; width: 80px;">登录时间：</span>
+                                                            <span style="color: #92400e;">{login_time}</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="padding-bottom: 12px;">
+                                                            <span style="font-weight: 600; color: #78350f; display: inline-block; width: 80px;">IP地址：</span>
+                                                            <span style="color: #92400e;">{ip}</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="padding-bottom: 12px;">
+                                                            <span style="font-weight: 600; color: #78350f; display: inline-block; width: 80px;">设备信息：</span>
+                                                            <span style="color: #92400e;">{device_info}</span>
+                                                        </td>
+                                                    </tr>
+                                                    {f'<tr><td><span style="font-weight: 600; color: #78350f; display: inline-block; width: 80px;">地理位置：</span><span style="color: #92400e;">{location}</span></td></tr>' if location else ''}
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    
+                                    <p style="color: #64748b; margin-bottom: 24px; line-height: 1.7;">
+                                        如果您确认这是您的操作，可以忽略此邮件。
+                                    </p>
+                                    
+                                    <!-- Warning Box -->
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fee2e2; border-left: 4px solid #ef4444; border-radius: 8px; margin-top: 32px;">
+                                        <tr>
+                                            <td style="padding: 20px;">
+                                                <div style="font-size: 16px; font-weight: 600; color: #991b1b; margin-bottom: 12px;">如果您不认识此次登录，请立即：</div>
+                                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                    <tr>
+                                                        <td style="padding-bottom: 8px; color: #7f1d1d;">
+                                                            <span style="color: #ef4444; font-weight: bold; margin-right: 8px;">•</span>修改您的账户密码
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="padding-bottom: 8px; color: #7f1d1d;">
+                                                            <span style="color: #ef4444; font-weight: bold; margin-right: 8px;">•</span>检查账户安全设置
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="color: #7f1d1d;">
+                                                            <span style="color: #ef4444; font-weight: bold; margin-right: 8px;">•</span>撤销所有活跃会话
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            <!-- Footer -->
+                            <tr>
+                                <td style="padding: 32px 40px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
+                                    <p style="font-size: 13px; color: #64748b; margin: 0; line-height: 1.7;">此邮件由 AxiomFlow 系统自动发送，请勿回复。</p>
+                                    <p style="font-size: 13px; color: #64748b; margin: 8px 0 0 0; line-height: 1.7;">© 2024 AxiomFlow. All rights reserved.</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+        
+        return self._send_email(to_email, subject, text_content, html_content)
+    
+    def _parse_user_agent(self, user_agent: str) -> str:
+        """解析User-Agent，返回简化的设备信息"""
+        if not user_agent:
+            return "未知设备"
+        ua_lower = user_agent.lower()
+        if "mobile" in ua_lower or "android" in ua_lower or "iphone" in ua_lower:
+            if "android" in ua_lower:
+                return "Android 设备"
+            if "iphone" in ua_lower or "ipad" in ua_lower:
+                return "iOS 设备"
+            return "移动设备"
+        if "chrome" in ua_lower and "edg" not in ua_lower:
+            return "Chrome 浏览器"
+        if "firefox" in ua_lower:
+            return "Firefox 浏览器"
+        if "safari" in ua_lower and "chrome" not in ua_lower:
+            return "Safari 浏览器"
+        if "edg" in ua_lower:
+            return "Edge 浏览器"
+        return "未知设备"
     
     def _send_email(self, to_email: str, subject: str, text_content: str, html_content: str) -> bool:
         """

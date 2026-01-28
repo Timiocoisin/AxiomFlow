@@ -155,6 +155,28 @@ def update_user_password(email: str, new_password_hash: str) -> bool:
         return True
 
 
+def verify_user_email(user_id: str) -> bool:
+    """
+    验证用户邮箱
+    
+    Args:
+        user_id: 用户ID
+    
+    Returns:
+        是否验证成功
+    """
+    with get_db_session() as session:
+        user = session.query(User).filter(User.id == user_id).first()
+        if not user:
+            return False
+        
+        user.email_verified = True
+        user.email_verified_at = datetime.utcnow().isoformat()
+        user.updated_at = datetime.utcnow().isoformat()
+        session.commit()
+        return True
+
+
 def user_to_dict(user: User) -> Dict[str, Any]:
     """
     将 User 对象转换为字典（排除敏感信息）
@@ -177,6 +199,9 @@ def user_to_dict(user: User) -> Dict[str, Any]:
             "name": user.name,
             "provider": user.provider,
             "avatar": user.avatar or "",
+            "has_password": bool(getattr(user, "password_hash", "") or ""),
+            "email_verified": getattr(user, "email_verified", False),
+            "email_verified_at": getattr(user, "email_verified_at", None),
         }
     except Exception:
         # 如果是 detached，通过 ID 重新查询
@@ -190,6 +215,9 @@ def user_to_dict(user: User) -> Dict[str, Any]:
                         "name": fresh_user.name,
                         "provider": fresh_user.provider,
                         "avatar": fresh_user.avatar or "",
+                        "has_password": bool(getattr(fresh_user, "password_hash", "") or ""),
+                        "email_verified": getattr(fresh_user, "email_verified", False),
+                        "email_verified_at": getattr(fresh_user, "email_verified_at", None),
                     }
         # 如果无法获取，返回基本信息
         return {
@@ -198,5 +226,8 @@ def user_to_dict(user: User) -> Dict[str, Any]:
             "name": getattr(user, 'name', ''),
             "provider": getattr(user, 'provider', 'email'),
             "avatar": getattr(user, 'avatar', '') or "",
+            "has_password": bool(getattr(user, "password_hash", "") or ""),
+            "email_verified": getattr(user, 'email_verified', False),
+            "email_verified_at": getattr(user, 'email_verified_at', None),
         }
 

@@ -5,10 +5,12 @@ import ProjectWorkbenchView from "@/views/ProjectWorkbenchView.vue";
 import SettingsView from "@/views/SettingsView.vue";
 import BatchProgressView from "@/views/BatchProgressView.vue";
 import AuthView from "@/views/AuthView.vue";
+import VerifyEmailView from "@/views/VerifyEmailView.vue";
 
 const routes: RouteRecordRaw[] = [
   { path: "/", name: "landing", component: LandingView },
   { path: "/auth", name: "auth", component: AuthView },
+  { path: "/auth/verify-email", name: "verify-email", component: VerifyEmailView },
   { path: "/app", name: "dashboard", component: DashboardView },
   { path: "/batch/:id", name: "batch", component: BatchProgressView, props: true },
   {

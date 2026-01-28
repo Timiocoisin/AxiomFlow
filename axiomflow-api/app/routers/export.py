@@ -1,14 +1,15 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from ..repo import repo
 from ..services.pdf_export import export_pdf, export_docx
 from ..services.html_export import build_high_fidelity_html
+from ..core.dependencies import require_verified_email
 
 router = APIRouter(prefix="/export", tags=["export"])
 
 
 @router.post("")
-async def export_document(payload: dict) -> dict:
+async def export_document(payload: dict, _: object = Depends(require_verified_email)) -> dict:
     """
     v0.7+：导出 Markdown/HTML/PDF（增强版）
     输入：

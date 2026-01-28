@@ -158,6 +158,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)  # bcrypt hash
     provider = Column(String(32), nullable=False, default="email")  # email, google, github
     avatar = Column(String(PATH_LEN), default="" )  # 头像URL
+    email_verified = Column(Boolean, nullable=False, default=False)  # 邮箱是否已验证
+    email_verified_at = Column(String(TIME_LEN), nullable=True)  # 邮箱验证时间（ISO格式）
     created_at = Column(String(TIME_LEN), nullable=False)
     updated_at = Column(String(TIME_LEN), nullable=False)
 
@@ -205,19 +207,110 @@ class PasswordResetToken(Base):
     created_at = Column(String(TIME_LEN), nullable=False)
 
 
+class EmailVerificationToken(Base):
+    """邮箱验证 token（用于注册后验证邮箱）"""
+    __tablename__ = "auth_email_verification_tokens"
+    __table_args__ = {"comment": "邮箱验证 Token：用于注册后验证邮箱地址"}
+
+    token = Column(String(128), primary_key=True)
+    user_id = Column(String(ID_LEN), nullable=False, index=True)
+    email = Column(String(NAME_LEN), nullable=False, index=True)
+    ip = Column(String(64), default="")
+    expires_at = Column(Integer, nullable=False)  # epoch seconds
+    created_at = Column(String(TIME_LEN), nullable=False)
+
+
+class RefreshToken(Base):
+    """刷新 token（用于刷新 access token）"""
+    __tablename__ = "auth_refresh_tokens"
+    __table_args__ = {"comment": "刷新 Token：用于刷新 access token，支持长期登录"}
+
+    token = Column(String(128), primary_key=True)
+    # 稳定会话ID：同一设备/浏览器下的 refresh token 轮换应保持不变，便于“当前会话”与精准远程登出
+    session_id = Column(String(64), nullable=False, default="", index=True)
+    user_id = Column(String(ID_LEN), nullable=False, index=True)
+    ip = Column(String(64), default="")
+    user_agent = Column(String(512), default="")
+    # 绑定会话属性（哈希存储，避免泄露明文指纹）
+    user_agent_hash = Column(String(64), default="")  # sha256 hex
+    ip_hash = Column(String(64), default="")  # sha256 hex（可存 /24 或全量）
+    # 轮换与重放检测
+    replaced_by = Column(String(128), nullable=True)  # 被哪一个新 token 替换（若已替换则该 token 失效）
+    revoked_at = Column(String(TIME_LEN), nullable=True)  # 吊销时间
+    expires_at = Column(Integer, nullable=False)  # epoch seconds
+    created_at = Column(String(TIME_LEN), nullable=False)
+    last_used_at = Column(String(TIME_LEN), nullable=True)  # 最后使用时间
+
+
 class LoginAuditLog(Base):
     """登录审计日志"""
     __tablename__ = "auth_login_audit_logs"
     __table_args__ = {"comment": "登录审计日志：记录登录成功/失败、IP、UA 及原因"}
 
     id = Column(String(ID_LEN), primary_key=True)
+    session_id = Column(String(64), default="", index=True)
+    refresh_token_hash = Column(String(128), default="")  # 仅存 hash，避免泄露
+    refresh_token_prefix = Column(String(32), default="")  # 仅存前缀，便于排障对齐
     user_id = Column(String(ID_LEN), nullable=True, index=True)
     email = Column(String(NAME_LEN), nullable=True, index=True)
     ip = Column(String(64), default="", index=True)
     user_agent = Column(String(512), default="")
     success = Column(Boolean, nullable=False, default=False)
+    # 失败原因规范化（枚举化），用于统计/风控；reason 保留为可读备注/文案
+    reason_code = Column(String(64), default="", index=True)
     reason = Column(String(MSG_LEN), default="")  # 失败原因/备注
     created_at = Column(String(TIME_LEN), nullable=False)
+    # 新增详细字段
+    login_method = Column(String(32), default="")  # 登录方式：email, google, github
+    device_type = Column(String(32), default="")  # 设备类型：Desktop, Mobile, Tablet
+    browser = Column(String(64), default="")  # 浏览器：Chrome, Firefox, Safari, Edge等
+    os = Column(String(64), default="")  # 操作系统：Windows, macOS, Linux, iOS, Android等
+
+
+class TwoFactorAuth(Base):
+    """双因素认证表（TOTP）"""
+    __tablename__ = "auth_two_factor_auth"
+    __table_args__ = {"comment": "双因素认证表：存储用户的TOTP密钥和启用状态"}
+
+    user_id = Column(String(ID_LEN), primary_key=True)
+    secret = Column(String(255), nullable=False)  # TOTP密钥（加密存储）
+    enabled = Column(Boolean, nullable=False, default=False)  # 是否已启用
+    backup_codes = Column(Text, nullable=True)  # 备份码（JSON数组，加密存储）
+    created_at = Column(String(TIME_LEN), nullable=False)
+    updated_at = Column(String(TIME_LEN), nullable=False)
+
+
+class SocialAccountBinding(Base):
+    """社交账号绑定表"""
+    __tablename__ = "auth_social_account_bindings"
+    __table_args__ = {"comment": "社交账号绑定表：存储用户绑定的多个社交账号"}
+
+    id = Column(String(ID_LEN), primary_key=True)
+    user_id = Column(String(ID_LEN), nullable=False, index=True)
+    provider = Column(String(32), nullable=False)  # google, github
+    provider_user_id = Column(String(255), nullable=False)  # 社交平台用户ID
+    email = Column(String(NAME_LEN), nullable=True)  # 社交账号邮箱
+    name = Column(String(NAME_LEN), nullable=True)  # 社交账号名称
+    avatar = Column(String(PATH_LEN), nullable=True)  # 社交账号头像
+    created_at = Column(String(TIME_LEN), nullable=False)
+    
+    # 唯一约束：同一用户不能重复绑定同一社交账号
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider", "provider_user_id", name="uq_user_provider_account"),
+        {"comment": "社交账号绑定表：存储用户绑定的多个社交账号"},
+    )
+
+
+class PasswordBreachCheck(Base):
+    """密码泄露检测记录表"""
+    __tablename__ = "auth_password_breach_checks"
+    __table_args__ = {"comment": "密码泄露检测记录表：记录密码泄露检测结果"}
+
+    id = Column(String(ID_LEN), primary_key=True)
+    user_id = Column(String(ID_LEN), nullable=False, index=True)
+    password_hash_prefix = Column(String(10), nullable=False)  # 密码哈希前5位（用于Have I Been Pwned API）
+    breach_count = Column(Integer, nullable=False, default=0)  # 泄露次数
+    checked_at = Column(String(TIME_LEN), nullable=False)  # 检测时间
 
 
 class PasswordHistory(Base):
@@ -302,9 +395,6 @@ def init_db(database_url: str) -> tuple[Any, Any]:
         engine_kwargs["max_overflow"] = 10
     
     engine = create_engine(database_url, connect_args=connect_args, **engine_kwargs)
-    
-    # 创建所有表（如果不存在）
-    Base.metadata.create_all(engine)
     
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     

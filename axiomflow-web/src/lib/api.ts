@@ -6,19 +6,102 @@ function getAuthToken(): string | null {
   return localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
 }
 
+function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("refresh_token") || sessionStorage.getItem("refresh_token");
+}
+
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshTokenIfNeeded(): Promise<string | null> {
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
+  }
+  
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    return null;
+  }
+  
+  isRefreshing = true;
+  refreshPromise = (async () => {
+    try {
+      const result = await refreshAccessToken({ refresh_token: refreshToken });
+      
+      // 更新存储的token
+      const storage = localStorage.getItem("auth_token") ? localStorage : sessionStorage;
+      storage.setItem("auth_token", result.token);
+      storage.setItem("refresh_token", result.refresh_token);
+      
+      // 更新user store
+      const { useUserStore } = await import("../stores/user");
+      const userStore = useUserStore();
+      userStore.updateTokens(result.token, result.refresh_token);
+      
+      return result.token;
+    } catch (error) {
+      // 刷新失败，清除token并跳转到登录页
+      const { useUserStore } = await import("../stores/user");
+      const userStore = useUserStore();
+      userStore.logout();
+      
+      // 延迟跳转，避免在请求中间跳转
+      if (typeof window !== "undefined") {
+        setTimeout(() => {
+          window.location.href = "/auth";
+        }, 100);
+      }
+      
+      return null;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+  
+  return refreshPromise;
+}
+
 // 创建带认证的fetch请求
 async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const token = getAuthToken();
+  let token = getAuthToken();
   const headers = new Headers(options.headers);
   
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
   
-  return fetch(url, {
+  let response = await fetch(url, {
     ...options,
     headers,
   });
+  
+  // 如果收到401错误，尝试刷新token
+  if (response.status === 401 && token) {
+    const newToken = await refreshTokenIfNeeded();
+    if (newToken) {
+      // 使用新token重试请求
+      headers.set("Authorization", `Bearer ${newToken}`);
+      response = await fetch(url, {
+        ...options,
+        headers,
+      });
+    }
+  }
+
+  // 统一处理 403（如邮箱未验证导致敏感操作被禁止）
+  if (response.status === 403) {
+    const text = await response.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || "无权限执行该操作");
+    }
+  }
+  
+  return response;
 }
 
 export type StructuredDoc = {
@@ -370,10 +453,17 @@ export async function getBatch(params: { batch_id: string }): Promise<any> {
   return await res.json();
 }
 
-export async function googleLogin(token: string): Promise<{
-  token: string;
-  user: { id: string; email: string; name: string; avatar?: string; provider: string };
-}> {
+export interface AuthResponse {
+  token?: string;
+  refresh_token?: string;
+  user?: { id: string; email: string; name: string; avatar?: string; provider: string; has_password?: boolean; email_verified?: boolean };
+  last_login?: { time?: string; ip?: string; user_agent?: string } | null;
+  requires_2fa?: boolean;
+  challenge_token?: string;
+  two_fa_methods?: string[];
+}
+
+export async function googleLogin(token: string): Promise<AuthResponse> {
   const res = await fetch(`${API_BASE}/auth/google`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -401,10 +491,7 @@ export async function emailRegister(params: {
   password: string;
   captcha_code?: string;
   captcha_session?: string;
-}): Promise<{
-  token: string;
-  user: { id: string; email: string; name: string; provider: string };
-}> {
+}): Promise<AuthResponse> {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -427,11 +514,7 @@ export async function emailLogin(params: {
   password: string;
   captcha_code?: string;
   captcha_session?: string;
-}): Promise<{
-  token: string;
-  user: { id: string; email: string; name: string; provider: string };
-  last_login?: { time?: string; ip?: string; user_agent?: string } | null;
-}> {
+}): Promise<AuthResponse> {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -444,6 +527,27 @@ export async function emailLogin(params: {
       throw new Error(errorData.detail || text);
     } catch {
       throw new Error(text || `登录失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+export async function verify2FALogin(params: {
+  challenge_token: string;
+  code: string;
+}): Promise<AuthResponse> {
+  const res = await fetch(`${API_BASE}/auth/2fa/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `2FA 验证失败 (${res.status})`);
     }
   }
   return await res.json();
@@ -503,6 +607,166 @@ export async function resetPassword(params: { token: string; new_password: strin
   return await res.json();
 }
 
+export async function sendEmailVerification(params: { email: string }): Promise<{ message: string; verification_url?: string }> {
+  const res = await fetch(`${API_BASE}/auth/send-email-verification`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `发送失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+export async function verifyEmail(params: { token: string }): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE}/auth/verify-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `验证失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+export async function refreshAccessToken(params: { refresh_token: string }): Promise<{
+  token: string;
+  refresh_token: string;
+  user: { id: string; email: string; name: string; provider: string; email_verified?: boolean };
+}> {
+  const res = await fetch(`${API_BASE}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `刷新失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+// 用户账户管理API
+export async function changePassword(params: { current_password: string; new_password: string }): Promise<{ message: string }> {
+  const res = await authenticatedFetch(`${API_BASE}/users/change-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `修改失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+export interface LoginHistoryItem {
+  id: string;
+  ip: string;
+  user_agent: string;
+  success: boolean;
+  reason: string;
+  created_at: string;
+  login_method: string;  // 登录方式：email, google, github
+  device_type: string;   // 设备类型：Desktop, Mobile, Tablet
+  browser: string;       // 浏览器
+  os: string;            // 操作系统
+}
+
+export async function getLoginHistory(limit: number = 20): Promise<LoginHistoryItem[]> {
+  const res = await authenticatedFetch(`${API_BASE}/users/login-history?limit=${limit}`);
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `获取失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+export interface SessionInfo {
+  session_id: string;
+  token: string;
+  ip: string;
+  user_agent: string;
+  created_at: string;
+  last_used_at: string | null;
+  is_current: boolean;
+}
+
+export async function getSessions(): Promise<SessionInfo[]> {
+  const res = await authenticatedFetch(`${API_BASE}/users/sessions`);
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `获取失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+export async function revokeSession(sessionIdOrTokenPrefix: string): Promise<{ message: string }> {
+  const res = await authenticatedFetch(`${API_BASE}/users/sessions/${encodeURIComponent(sessionIdOrTokenPrefix)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `撤销失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+export async function revokeAllSessions(): Promise<{ message: string }> {
+  const res = await authenticatedFetch(`${API_BASE}/users/sessions/revoke-all`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `撤销失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
 export async function sendLoginUnlockCode(params: { email: string }): Promise<{ message: string; session_id: string; code?: string }> {
   const res = await fetch(`${API_BASE}/auth/login-unlock/send`, {
     method: "POST",
@@ -542,6 +806,8 @@ export async function verifyLoginUnlockCode(params: {
   }
   return await res.json();
 }
+
+// 2FA / 社交账号绑定 / 密码泄露检测相关前端 API 已移除
 
 
 

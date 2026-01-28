@@ -21,6 +21,7 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
     Returns:
         JWT token 字符串
     """
+    import secrets
     to_encode = data.copy()
     
     if expires_delta:
@@ -28,6 +29,11 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.jwt_access_token_expire_minutes)
     
+    # 给 access token 增加 jti：便于后续做黑名单/撤销策略（以及审计对齐）
+    # 若调用方已显式传入 jti，则尊重调用方
+    if "jti" not in to_encode:
+        to_encode["jti"] = secrets.token_urlsafe(16)
+
     to_encode.update({"exp": expire, "iat": datetime.utcnow()})
     
     encoded_jwt = jwt.encode(
@@ -60,4 +66,18 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
         return None
     except jwt.InvalidTokenError:
         return None
+
+
+def create_refresh_token(user_id: str) -> str:
+    """
+    创建 refresh token（不存储在JWT中，而是存储在数据库中）
+    
+    Args:
+        user_id: 用户ID
+    
+    Returns:
+        refresh token 字符串（随机生成，不包含JWT）
+    """
+    import secrets
+    return secrets.token_urlsafe(64)
 

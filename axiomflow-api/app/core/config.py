@@ -29,33 +29,16 @@ class Settings(BaseSettings):
     translation_max_concurrent: int = 5
 
     # Observability
-    # 是否启用 /metrics（Prometheus 格式，若未安装 prometheus_client 会输出简化格式）
-    metrics_enabled: bool = True
     # 是否输出 JSON 结构化日志
     log_json: bool = False
     # 失败告警 webhook（可选，如飞书/钉钉/自建 webhook）
     alert_webhook_url: str = ""
-    # 是否启用周期性 obs-health 检查（需要 celery beat）
-    obs_health_check_enabled: bool = True
-    # 周期性检查间隔（秒）
-    obs_health_check_interval_s: float = 60.0
-    # 告警抖动过滤：连续 N 次 degraded 才告警
-    obs_health_debounce_count: int = 3
-    # 告警冷却时间（秒）：避免同一类问题频繁刷屏
-    obs_health_alert_cooldown_s: float = 600.0
-    # 是否在恢复到 ok 时发送 recovery 通知
-    obs_health_recovery_alert: bool = True
     # 批处理自适应调优：目标平均响应时间（秒）
     batch_target_avg_latency_s: float = 1.2
     # 批处理自适应调优：允许的失败率（0~1）
     batch_target_error_rate: float = 0.05
     # 批处理大小上限（避免极端情况）
     batch_max_size: int = 32
-    # 健康检查阈值
-    cache_hit_min_ratio: float = 0.5
-    batch_error_max_ratio: float = 0.1
-    celery_fail_max_ratio: float = 0.05
-
     # Local cache
     # 通用缓存根目录（可选）
     cache_dir: str = ""
@@ -78,6 +61,7 @@ class Settings(BaseSettings):
     )
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60 * 24 * 7  # 7天
+    jwt_refresh_token_expire_days: int = Field(default=30, validation_alias="JWT_REFRESH_TOKEN_EXPIRE_DAYS")  # 30天
 
     # 邮件服务配置（用于发送验证码、密码重置等）
     smtp_host: str = Field(default="", validation_alias="SMTP_HOST")
@@ -87,6 +71,7 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = Field(default=True, validation_alias="SMTP_USE_TLS")  # True使用TLS(587端口)，False使用SSL(465端口)
     smtp_from_email: str = Field(default="", validation_alias="SMTP_FROM_EMAIL")  # 发件人邮箱（为空则使用smtp_user）
     smtp_from_name: str = Field(default="AxiomFlow", validation_alias="SMTP_FROM_NAME")  # 发件人名称
+
 
 
 @lru_cache(maxsize=1)
