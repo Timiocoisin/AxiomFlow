@@ -767,6 +767,43 @@ export async function revokeAllSessions(): Promise<{ message: string }> {
   return await res.json();
 }
 
+export async function updateProfile(params: { name: string }): Promise<{ message: string; name: string }> {
+  const res = await authenticatedFetch(`${API_BASE}/users/me`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `更新失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
+export async function uploadAvatar(file: File): Promise<{ message: string; avatar: string }> {
+  const body = new FormData();
+  body.set("file", file);
+  const res = await authenticatedFetch(`${API_BASE}/users/avatar`, {
+    method: "POST",
+    body,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || text);
+    } catch {
+      throw new Error(text || `上传头像失败 (${res.status})`);
+    }
+  }
+  return await res.json();
+}
+
 export async function sendLoginUnlockCode(params: { email: string }): Promise<{ message: string; session_id: string; code?: string }> {
   const res = await fetch(`${API_BASE}/auth/login-unlock/send`, {
     method: "POST",

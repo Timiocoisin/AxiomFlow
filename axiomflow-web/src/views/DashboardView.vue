@@ -21,13 +21,12 @@
               </button>
             </div>
             <div class="modal-body">
-              <p class="modal-description">
-                当前账户邮箱尚未完成验证，建议先完成邮箱验证，并在设置中开启双因素认证（2FA），以提升账户安全性。
-              </p>
+        <p class="modal-description">
+          当前邮箱未验证，部分安全操作将受限，建议尽快完成验证。
+        </p>
               <ul class="security-guide-list">
-                <li>1. 前往「设置 &gt; 安全」检查邮箱验证状态，如未收到邮件可重新发送验证邮件。</li>
-                <li>2. 建议开启 2FA（基于验证码的双因素认证），防止密码泄露后被他人登录。</li>
-                <li>3. 定期检查「活跃会话」列表，及时撤销不认识的设备登录。</li>
+                <li>1. 前往「设置 &gt; 安全设置」检查邮箱验证状态，如未收到邮件可重新发送验证邮件。</li>
+                <li>2. 定期检查「活跃会话」列表，及时撤销不认识的设备登录。</li>
               </ul>
               <div class="security-guide-actions">
                 <button class="security-guide-primary" @click="goToSecuritySettings">
@@ -53,8 +52,8 @@
           </svg>
         </div>
         <div class="email-verification-text">
-          <strong>请验证您的邮箱地址</strong>
-          <span>未验证账户将限制部分功能，请检查您的邮箱并点击验证链接完成验证。</span>
+          <strong>当前邮箱未验证</strong>
+          <span>当前邮箱未验证，部分安全操作将受限，建议尽快完成验证。</span>
         </div>
         <div class="email-verification-actions">
           <button class="email-verification-btn" @click="handleResendVerification" :disabled="resendingVerification">

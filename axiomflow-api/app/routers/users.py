@@ -3,13 +3,15 @@
 提供修改密码、查看登录历史、管理会话等功能
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File
 from fastapi import Request as FastAPIRequest
 from pydantic import BaseModel
 import bcrypt
 import time
 from typing import List, Optional
 from datetime import datetime
+from pathlib import Path
+from typing import Literal
 
 from ..core.dependencies import get_current_user, require_verified_email
 from ..core.user_db import (
@@ -32,6 +34,10 @@ from ..core.user_db import get_db_session
 router = APIRouter(prefix="/users", tags=["users"])
 
 
+AVATAR_DIR = Path(__file__).resolve().parents[2] / "static" / "avatars"
+AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+
+
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
@@ -39,6 +45,20 @@ class ChangePasswordRequest(BaseModel):
 
 class ChangePasswordResponse(BaseModel):
     message: str
+
+
+class AvatarUploadResponse(BaseModel):
+    message: str
+    avatar: str
+
+
+class UpdateProfileRequest(BaseModel):
+    name: str
+
+
+class UpdateProfileResponse(BaseModel):
+    message: str
+    name: str
 
 
 @router.post("/change-password", response_model=ChangePasswordResponse)
@@ -238,4 +258,76 @@ async def revoke_all_sessions(
     """
     delete_user_refresh_tokens(current_user.id)
     return {"message": "所有会话已撤销，请重新登录"}
+
+
+@router.post("/avatar", response_model=AvatarUploadResponse)
+async def upload_avatar(
+    request: FastAPIRequest,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    上传并更新用户头像（裁剪后的正方形头像）
+    """
+    content_type: Literal["image/jpeg", "image/png"] | str = file.content_type or ""
+    if content_type not in ("image/jpeg", "image/png"):
+        raise HTTPException(status_code=400, detail="仅支持 JPG / PNG 格式的图片")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="上传的文件为空")
+    # 简单限制大小：2MB 以内
+    if len(data) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="头像图片大小不能超过 2MB")
+
+    ext = ".jpg" if content_type == "image/jpeg" else ".png"
+    # 使用用户ID作为文件名，避免泄露过多信息；重复上传会覆盖旧头像
+    filename = f"{current_user.id}{ext}"
+    avatar_path = AVATAR_DIR / filename
+
+    try:
+        with avatar_path.open("wb") as f:
+            f.write(data)
+    except Exception:
+        raise HTTPException(status_code=500, detail="保存头像失败，请稍后重试")
+
+    # 构造完整可访问 URL，避免前端在不同域名下相对路径解析错误
+    base_url = str(request.base_url).rstrip("/")
+    avatar_url = f"{base_url}/static/avatars/{filename}"
+
+    # 更新数据库中的头像字段
+    with get_db_session() as session:
+        db_user = session.query(User).filter(User.id == current_user.id).first()
+        if not db_user:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        db_user.avatar = avatar_url
+        db_user.updated_at = datetime.utcnow().isoformat()
+        session.add(db_user)
+
+    return AvatarUploadResponse(message="头像已更新", avatar=avatar_url)
+
+
+@router.patch("/me", response_model=UpdateProfileResponse)
+async def update_profile(
+    payload: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    更新当前用户的基础资料（目前仅支持 name）
+    """
+    name = (payload.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="昵称不能为空")
+    if len(name) > 50:
+        raise HTTPException(status_code=400, detail="昵称长度不能超过 50 个字符")
+
+    with get_db_session() as session:
+        user = session.query(User).filter(User.id == current_user.id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        user.name = name
+        user.updated_at = datetime.utcnow().isoformat()
+        session.add(user)
+
+    return UpdateProfileResponse(message="资料已更新", name=name)
 

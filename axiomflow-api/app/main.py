@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 # 尽早加载 .env（将其注入到 os.environ，便于直接使用 os.getenv）
 try:
@@ -44,6 +46,11 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Static files for user-uploaded content (e.g., avatars)
+    static_dir = Path(__file__).resolve().parents[1] / "static"
+    static_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
     # Routers
     app.include_router(health.router, prefix="/v1")
