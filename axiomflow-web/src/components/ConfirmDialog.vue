@@ -3,13 +3,13 @@
     <Transition name="modal">
       <div
         v-if="visible"
-        class="confirm-dialog-overlay"
+        class="modal-overlay confirm-dialog-overlay"
         @click.self="handleCancel"
         role="dialog"
         aria-labelledby="confirm-dialog-title"
         aria-modal="true"
       >
-        <div class="confirm-dialog-content glass-card">
+        <div class="modal-content confirm-dialog-content">
           <!-- 图标 -->
           <div class="confirm-dialog-icon" :class="`confirm-dialog-icon--${type}`">
             <svg v-if="type === 'danger'" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -103,42 +103,25 @@ watch(() => props.visible, (newVal) => {
       }
     };
     document.addEventListener("keydown", escHandler);
-    // 防止背景滚动
-    document.body.style.overflow = "hidden";
   } else {
     if (escHandler) {
       document.removeEventListener("keydown", escHandler);
       escHandler = null;
     }
-    document.body.style.overflow = "";
   }
 });
 </script>
 
 <style scoped>
 .confirm-dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.65) 0%, rgba(30, 41, 59, 0.75) 100%);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  /* 复用全局 .modal-overlay 的布局和视觉，仅轻微提升层级以确保在普通模态框之上 */
   z-index: 10001;
-  padding: 20px;
 }
 
 .confirm-dialog-content {
-  width: 100%;
   max-width: 440px;
-  padding: 32px;
+  padding: 32px 32px 28px;
   text-align: center;
-  position: relative;
-  transform-origin: center center;
 }
 
 .confirm-dialog-icon {
@@ -200,7 +183,7 @@ watch(() => props.visible, (newVal) => {
 .confirm-dialog-title {
   font-size: 22px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--app-text-strong, #0f172a);
   margin: 0 0 12px 0;
   letter-spacing: -0.02em;
   line-height: 1.3;
@@ -208,7 +191,7 @@ watch(() => props.visible, (newVal) => {
 
 .confirm-dialog-message {
   font-size: 15px;
-  color: #64748b;
+  color: var(--app-muted, #64748b);
   line-height: 1.6;
   margin: 0 0 28px 0;
   word-break: break-word;
@@ -348,81 +331,6 @@ watch(() => props.visible, (newVal) => {
   box-shadow: 
     0 2px 8px rgba(59, 130, 246, 0.25),
     0 1px 4px rgba(59, 130, 246, 0.15);
-}
-
-/* 过渡动画 - 更流畅的弹簧效果 */
-.modal-enter-active {
-  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.modal-leave-active {
-  transition: opacity 0.25s cubic-bezier(0.4, 0, 1, 1);
-}
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-
-.modal-enter-active .confirm-dialog-content {
-  animation: dialog-enter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-.modal-leave-active .confirm-dialog-content {
-  animation: dialog-leave 0.25s cubic-bezier(0.4, 0, 1, 1) both;
-}
-
-@keyframes dialog-enter {
-  0% {
-    opacity: 0;
-    transform: translateY(-30px) scale(0.9) rotateX(10deg);
-    filter: blur(4px);
-  }
-  50% {
-    transform: translateY(5px) scale(1.02) rotateX(-2deg);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1) rotateX(0deg);
-    filter: blur(0);
-  }
-}
-
-@keyframes dialog-leave {
-  0% {
-    opacity: 1;
-    transform: translateY(0) scale(1) rotateX(0deg);
-    filter: blur(0);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-20px) scale(0.95) rotateX(5deg);
-    filter: blur(2px);
-  }
-}
-
-/* 标题和消息的渐入动画 */
-.modal-enter-active .confirm-dialog-title {
-  animation: fade-in-up 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
-}
-
-.modal-enter-active .confirm-dialog-message {
-  animation: fade-in-up 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.25s both;
-}
-
-.modal-enter-active .confirm-dialog-actions {
-  animation: fade-in-up 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.35s both;
-}
-
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 </style>
 

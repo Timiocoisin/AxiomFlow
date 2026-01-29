@@ -1,0 +1,76 @@
+:root {
+  /* =========================================================
+   * Global Design Tokens (single source of truth)
+   * - Colors / Gradients / Shadows live here
+   * - Components should reference these vars (or aliases)
+   * ========================================================= */
+
+  /* ---------- Base (semantic) colors ---------- */
+  --color-text-strong: #0f172a;
+  --color-text: #1e293b;
+  --color-text-muted: #64748b;
+  --color-text-subtle: rgba(30, 41, 59, 0.82);
+
+  --color-surface-0: #ffffff;
+  --color-surface-1: rgba(255, 255, 255, 0.95);
+  --color-surface-2: rgba(255, 255, 255, 0.75);
+  --color-border: rgba(226, 232, 240, 0.8);
+  --color-border-soft: rgba(203, 213, 225, 0.7);
+
+  /* Brand / status */
+  --color-primary: #6366f1;
+  --color-primary-2: #8b5cf6;
+  --color-info: #3b82f6;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+
+  /* ---------- Gradients ---------- */
+  --gradient-primary: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-2) 100%);
+  --gradient-settings-bg: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 50%, #f3e8ff 100%);
+
+  /* App background (same as current visual, but centralized) */
+  --app-bg:
+    radial-gradient(ellipse 120% 100% at 50% 0%, rgba(99, 102, 241, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 100% 80% at 50% 100%, rgba(139, 92, 246, 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 60% at 20% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 60%),
+    linear-gradient(180deg, #f0f4ff 0%, #f5f3ff 20%, #f0f9ff 40%, #f5f3ff 60%, #f0f4ff 80%, #f0f9ff 100%);
+
+  /* ---------- Shadows ---------- */
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.30);
+
+  /* ---------- Backdrop filter (performance-sensitive) ---------- */
+  --blur-sm: 8px;
+  --blur-md: 12px;
+  --blur-lg: 20px;
+  --sat-md: 160%;
+  --sat-lg: 180%;
+  --sat-xl: 200%;
+
+  /* ---------- Aliases for existing code (compat layer) ---------- */
+  --app-text: var(--color-text);
+  --app-text-strong: var(--color-text-strong);
+  --app-muted: var(--color-text-muted);
+  --app-border: var(--color-border);
+  --app-surface: var(--color-surface-1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Keep it conservative: define dark tokens without forcing the app to use them yet */
+    --color-text-strong: #f8fafc;
+    --color-text: rgba(248, 250, 252, 0.92);
+    --color-text-muted: rgba(148, 163, 184, 0.92);
+
+    --color-surface-0: #0b1220;
+    --color-surface-1: rgba(15, 23, 42, 0.92);
+    --color-surface-2: rgba(15, 23, 42, 0.72);
+    --color-border: rgba(51, 65, 85, 0.7);
+    --color-border-soft: rgba(51, 65, 85, 0.55);
+  }
+}
+
+

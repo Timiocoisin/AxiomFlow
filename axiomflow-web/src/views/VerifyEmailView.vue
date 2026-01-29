@@ -13,22 +13,26 @@
           <p class="verify-email-subtitle">正在验证您的邮箱地址...</p>
         </div>
         <div v-if="loading" class="verify-email-loading">
-          <div class="loading-spinner"></div>
+          <div class="loading-spinner loading-spinner--lg"></div>
           <p>验证中，请稍候...</p>
         </div>
-        <div v-if="error" class="verify-email-error">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-            <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <h3>验证失败</h3>
-          <p>{{ error }}</p>
-          <div class="verify-email-actions">
-            <button class="auth-button" @click="handleResend">
-              <span v-if="resending" class="loading-spinner"></span>
-              <span>{{ resending ? "发送中..." : "重新发送验证邮件" }}</span>
-            </button>
-            <button class="auth-link" @click="goToDashboard">返回首页</button>
+        <div v-if="error" class="app-alert app-alert--error" role="alert" aria-live="assertive">
+          <div class="app-alert-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+              <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="app-alert-content">
+            <p class="app-alert-title">验证失败</p>
+            <p class="app-alert-message">{{ error }}</p>
+            <div class="app-alert-actions">
+              <button class="auth-button ripple" @click="handleResend">
+                <span v-if="resending" class="loading-spinner"></span>
+                <span>{{ resending ? "发送中..." : "重新发送验证邮件" }}</span>
+              </button>
+              <button class="auth-link" @click="goToDashboard">返回首页</button>
+            </div>
           </div>
         </div>
       </div>
@@ -41,7 +45,7 @@
         </div>
         <h1 class="verify-email-title">验证成功！</h1>
         <p class="verify-email-subtitle">您的邮箱地址已验证，现在可以正常使用所有功能了。</p>
-        <button class="auth-button" @click="goToDashboard">前往首页</button>
+        <button class="auth-button ripple" @click="goToDashboard">前往首页</button>
       </div>
     </div>
   </div>
@@ -180,41 +184,14 @@ onMounted(() => {
   padding: 40px 0;
 }
 
-.verify-email-loading .loading-spinner {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 24px;
-}
+/* spinner sizes are unified in global styles.css */
 
 .verify-email-loading p {
   color: #64748b;
   font-size: 15px;
 }
 
-.verify-email-error {
-  padding: 24px 0;
-}
-
-.verify-email-error svg {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 24px;
-  color: #ef4444;
-}
-
-.verify-email-error h3 {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 12px;
-}
-
-.verify-email-error p {
-  color: #64748b;
-  font-size: 15px;
-  margin-bottom: 32px;
-  line-height: 1.6;
-}
+/* verify-email-error replaced by global .app-alert */
 
 .verify-email-actions {
   display: flex;
@@ -281,19 +258,6 @@ onMounted(() => {
   color: #8b5cf6;
 }
 
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #ffffff;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+/* loading-spinner is unified in global styles.css */
 </style>
 

@@ -1,7 +1,63 @@
+@import "./styles/tokens.css";
+
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+/* =========================================================
+ * A11y: Global focus ring (keyboard only via :focus-visible)
+ * - Keep specificity low so component styles can override.
+ * - Uses global tokens from ./styles/tokens.css
+ * ========================================================= */
+:where(
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  summary,
+  [role="button"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-primary, #6366f1) 55%, transparent);
+  outline-offset: 2px;
+}
+
+:where(button, [role="button"], input, textarea, select, summary):focus-visible {
+  border-radius: 12px;
+}
+
+/* =========================================================
+ * Interaction: ripple effect (CSS-only)
+ * - Add class "ripple" to buttons you want to have ripple.
+ * - Uses currentColor-based accent via tokens.
+ * ========================================================= */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), rgba(255, 255, 255, 0.55), transparent 40%);
+  opacity: 0;
+  transform: scale(1.1);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+  pointer-events: none;
+}
+
+.ripple:active::after {
+  opacity: 1;
+  transform: scale(0.92);
+  transition: opacity 0s, transform 0s;
+}
+
+.ripple.ripple--dark::after {
+  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), rgba(15, 23, 42, 0.18), transparent 45%);
 }
 
 html {
@@ -32,17 +88,13 @@ body {
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
-  background: 
-    radial-gradient(ellipse 120% 100% at 50% 0%, rgba(99, 102, 241, 0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 100% 80% at 50% 100%, rgba(139, 92, 246, 0.04) 0%, transparent 60%),
-    radial-gradient(ellipse 80% 60% at 20% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 60%),
-    linear-gradient(180deg, #f0f4ff 0%, #f5f3ff 20%, #f0f9ff 40%, #f5f3ff 60%, #f0f4ff 80%, #f0f9ff 100%);
+  background: var(--app-bg);
   background-size: 100% 100%, 100% 100%, 100% 100%, 100% 200%;
   background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%;
   background-attachment: fixed;
   background-repeat: no-repeat;
   animation: gradient-shift-bg 25s ease infinite;
-  color: #1e293b;
+  color: var(--app-text, #1e293b);
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
@@ -211,8 +263,8 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 16px 32px;
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(var(--blur-lg, 20px)) saturate(var(--sat-lg, 180%));
+  -webkit-backdrop-filter: blur(var(--blur-lg, 20px)) saturate(var(--sat-lg, 180%));
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(248, 250, 255, 0.9) 100%);
   border-bottom: none; /* 移除底部边框，消除横线 */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -297,8 +349,8 @@ body {
   font-weight: 500;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(var(--blur-md, 12px)) saturate(var(--sat-lg, 180%));
+  -webkit-backdrop-filter: blur(var(--blur-md, 12px)) saturate(var(--sat-lg, 180%));
   border: 1px solid rgba(226, 232, 240, 0.6);
   box-shadow: 
     0 2px 8px rgba(0, 0, 0, 0.04),
@@ -386,8 +438,8 @@ body {
   border-radius: 50%;
   border: none;
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(139, 92, 246, 0.1));
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(var(--blur-md, 12px)) saturate(var(--sat-lg, 180%));
+  -webkit-backdrop-filter: blur(var(--blur-md, 12px)) saturate(var(--sat-lg, 180%));
   border: 1.5px solid rgba(59, 130, 246, 0.25);
   color: #3b82f6;
   cursor: pointer;
@@ -497,8 +549,8 @@ body {
   right: 0;
   min-width: 240px;
   background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(var(--blur-lg, 20px)) saturate(var(--sat-lg, 180%));
+  -webkit-backdrop-filter: blur(var(--blur-lg, 20px)) saturate(var(--sat-lg, 180%));
   border-radius: 16px;
   box-shadow: 
     0 10px 40px rgba(0, 0, 0, 0.1),
@@ -1220,14 +1272,7 @@ body {
   stroke-width: 2.5;
 }
 
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
+/* spin keyframes are defined once globally below */
 
 /* 密码强度指示器 */
 .password-strength {
@@ -1883,18 +1928,223 @@ body {
 }
 
 .loading-spinner {
-  width: 18px;
-  height: 18px;
+  --spinner-size: 18px;
+  width: var(--spinner-size);
+  height: var(--spinner-size);
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
+  border-top-color: #ffffff;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+}
+
+.loading-spinner-small {
+  --spinner-size: 14px;
+  width: var(--spinner-size);
+  height: var(--spinner-size);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-spinner--lg {
+  --spinner-size: 48px;
+  border-width: 3px;
+  border-color: rgba(148, 163, 184, 0.22);
+  border-top-color: rgba(99, 102, 241, 0.95);
+  animation-duration: 0.9s;
 }
 
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* =========================================================
+ * Empty state (global, reusable)
+ * - Individual pages can still override layout/positioning.
+ * ========================================================= */
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 60px 32px;
+}
+
+.empty-state-content {
+  text-align: center;
+  max-width: 480px;
+}
+
+.empty-state-icon {
+  margin: 0 auto 24px;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(250, 245, 255, 0.92) 25%,
+    rgba(240, 249, 255, 0.92) 50%,
+    rgba(255, 250, 240, 0.92) 75%,
+    rgba(255, 255, 255, 0.95) 100%
+  );
+  border-radius: 24px;
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  box-shadow:
+    0 8px 24px rgba(99, 102, 241, 0.08),
+    0 4px 12px rgba(139, 92, 246, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.empty-state-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--app-text, #1e293b);
+  margin: 0 0 12px;
+  background: var(--gradient-primary, linear-gradient(135deg, #3b82f6, #8b5cf6));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.empty-state-description,
+.empty-state-subtitle {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--app-muted, #64748b);
+  margin: 0;
+  padding: 0 20px;
+}
+
+@media (max-width: 640px) {
+  .empty-state {
+    padding: 40px 24px;
+  }
+
+  .empty-state-icon {
+    width: 100px;
+    height: 100px;
+    margin-bottom: 20px;
+  }
+
+  .empty-state-title {
+    font-size: 20px;
+  }
+
+  .empty-state-description,
+  .empty-state-subtitle {
+    font-size: 14px;
+    padding: 0;
+  }
+}
+
+/* =========================================================
+ * App Alerts (global)
+ * Usage:
+ *  - <div class="app-alert app-alert--error|warning|info|success">...</div>
+ *  - Optional blocks: .app-alert-icon .app-alert-title .app-alert-message .app-alert-actions
+ * ========================================================= */
+.app-alert {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--app-border, rgba(226, 232, 240, 0.8));
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  box-shadow: var(--shadow-sm, 0 4px 16px rgba(0, 0, 0, 0.05));
+}
+
+.app-alert-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(99, 102, 241, 0.10);
+  color: var(--color-primary, #6366f1);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+}
+
+.app-alert-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.app-alert-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-alert-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--app-text, #1e293b);
+  letter-spacing: -0.01em;
+}
+
+.app-alert-message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--app-muted, #64748b);
+  word-break: break-word;
+}
+
+.app-alert-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.app-alert--info {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.10), rgba(255, 255, 255, 0.78));
+  border-color: rgba(99, 102, 241, 0.22);
+}
+.app-alert--info .app-alert-icon {
+  background: rgba(99, 102, 241, 0.14);
+  color: var(--color-primary, #6366f1);
+}
+
+.app-alert--success {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.10), rgba(255, 255, 255, 0.78));
+  border-color: rgba(16, 185, 129, 0.22);
+}
+.app-alert--success .app-alert-icon {
+  background: rgba(16, 185, 129, 0.14);
+  color: var(--color-success, #10b981);
+}
+
+.app-alert--warning {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(255, 255, 255, 0.78));
+  border-color: rgba(245, 158, 11, 0.24);
+}
+.app-alert--warning .app-alert-icon {
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--color-warning, #f59e0b);
+}
+
+.app-alert--error {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.10), rgba(255, 255, 255, 0.78));
+  border-color: rgba(239, 68, 68, 0.22);
+}
+.app-alert--error .app-alert-icon {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--color-danger, #ef4444);
 }
 
 .auth-divider {
@@ -2044,11 +2294,32 @@ body {
     0 12px 32px rgba(139, 92, 246, 0.06),
     0 4px 12px rgba(0, 0, 0, 0.03);
   border: none; /* 移除边框，消除横线 */
-  backdrop-filter: blur(60px) saturate(200%);
-  -webkit-backdrop-filter: blur(60px) saturate(200%);
+  backdrop-filter: blur(var(--blur-lg, 20px)) saturate(var(--sat-xl, 200%));
+  -webkit-backdrop-filter: blur(var(--blur-lg, 20px)) saturate(var(--sat-xl, 200%));
   position: relative;
   overflow: hidden;
   transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Backdrop-filter fallback and mobile reduction (performance) */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .app-header,
+  .nav-link-item,
+  .user-avatar-button,
+  .user-menu,
+  .glass-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-header,
+  .user-menu,
+  .glass-card {
+    backdrop-filter: blur(var(--blur-sm, 8px)) saturate(var(--sat-md, 160%));
+    -webkit-backdrop-filter: blur(var(--blur-sm, 8px)) saturate(var(--sat-md, 160%));
+  }
 }
 
 @keyframes gradient-shift-card {
@@ -2535,11 +2806,7 @@ body {
   box-shadow: 0 0 24px rgba(59, 130, 246, 0.2);
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+/* (deduped) */
 
 .dashboard h2 {
   margin-bottom: 16px;
@@ -3575,18 +3842,24 @@ body {
   }
 
   .app-header {
-    flex-wrap: wrap;
-    gap: 12px;
+    /* 保持顶部导航单行：避免移动端“换行变样” */
+    flex-wrap: nowrap;
+    gap: 8px;
   }
 
   .nav-links {
-    width: 100%;
-    display: flex;
-    justify-content: center;
+    /* 让导航在一行内自适应收缩；必要时可横向滚动（全局已隐藏滚动条） */
+    width: auto;
+    min-width: 0;
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 
   .nav-links a {
-    margin: 0 8px;
+    margin: 0;
   }
 }
 

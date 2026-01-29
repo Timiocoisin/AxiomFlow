@@ -1,10 +1,11 @@
 /* SecuritySection design tokens (UI/UX Pro-ish, lightweight) */
 :root {
-  --sec-surface: rgba(255, 255, 255, 0.75);
-  --sec-border: rgba(203, 213, 225, 0.7);
-  --sec-text: #334155;
-  --sec-text-strong: #0f172a;
-  --sec-muted: #64748b;
+  /* Prefer global tokens; keep sec-* aliases for local styling */
+  --sec-surface: var(--color-surface-2, rgba(255, 255, 255, 0.75));
+  --sec-border: var(--color-border-soft, rgba(203, 213, 225, 0.7));
+  --sec-text: var(--color-text-subtle, #334155);
+  --sec-text-strong: var(--color-text-strong, #0f172a);
+  --sec-muted: var(--color-text-muted, #64748b);
 
   --sec-radius-pill: 999px;
   --sec-radius-md: 12px;
@@ -12,27 +13,27 @@
 
   --sec-info-bg: rgba(99, 102, 241, 0.08);
   --sec-info-border: rgba(99, 102, 241, 0.25);
-  --sec-info-text: #3730a3;
+  --sec-info-text: color-mix(in srgb, var(--color-primary, #6366f1) 65%, #111827 35%);
 
   --sec-warn-bg: rgba(245, 158, 11, 0.10);
   --sec-warn-border: rgba(245, 158, 11, 0.25);
-  --sec-warn-text: #92400e;
+  --sec-warn-text: color-mix(in srgb, var(--color-warning, #f59e0b) 55%, #111827 45%);
 
-  --sec-danger-text: #ef4444;
+  --sec-danger-text: var(--color-danger, #ef4444);
 
   /* Badge & dot tokens – values来自当前实现，不改视觉，仅抽象常量 */
   --sec-badge-neutral-bg: rgba(219, 234, 254, 0.9);
-  --sec-badge-neutral-text: #1d4ed8;
+  --sec-badge-neutral-text: color-mix(in srgb, var(--color-info, #3b82f6) 55%, #111827 45%);
   --sec-badge-neutral-shadow: 0 4px 14px rgba(59, 130, 246, 0.28);
 
   --sec-badge-warning-bg: rgba(254, 226, 226, 0.9);
-  --sec-badge-warning-text: #b91c1c;
+  --sec-badge-warning-text: color-mix(in srgb, var(--color-danger, #ef4444) 55%, #111827 45%);
   --sec-badge-warning-shadow: 0 4px 14px rgba(248, 113, 113, 0.4);
 
-  --sec-dot-neutral-bg: #3b82f6;
+  --sec-dot-neutral-bg: var(--color-info, #3b82f6);
   --sec-dot-neutral-shadow: 0 0 0 4px rgba(59, 130, 246, 0.22);
 
-  --sec-dot-warning-bg: #ef4444;
+  --sec-dot-warning-bg: var(--color-danger, #ef4444);
   --sec-dot-warning-shadow: 0 0 0 4px rgba(248, 113, 113, 0.3);
 
   --sec-tooltip-bg: rgba(15, 23, 42, 0.95);

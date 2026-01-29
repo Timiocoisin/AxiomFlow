@@ -126,7 +126,7 @@ onUnmounted(() => {
   align-items: flex-start;
   gap: 14px;
   padding: 18px 22px;
-  background: white;
+  background: rgba(255, 255, 255, 0.92);
   border-radius: 16px;
   box-shadow: 
     0 20px 40px rgba(0, 0, 0, 0.12),
@@ -142,6 +142,12 @@ onUnmounted(() => {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.toast {
+  /* Default accent for fallback; overwritten per type below */
+  --toast-accent: var(--color-primary, #6366f1);
+  --toast-accent-soft: color-mix(in srgb, var(--toast-accent) 12%, transparent);
+}
+
 @keyframes toast-slide-in {
   from {
     transform: translateX(100%);
@@ -154,8 +160,14 @@ onUnmounted(() => {
 }
 
 .toast-success {
-  border-left: 5px solid #10b981;
-  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 50%, #ecfdf5 100%);
+  --toast-accent: var(--color-success, #10b981);
+  border-left: 5px solid var(--toast-accent);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    color-mix(in srgb, var(--toast-accent) 10%, #ffffff) 60%,
+    rgba(255, 255, 255, 0.92) 100%
+  );
   box-shadow: 
     0 20px 40px rgba(16, 185, 129, 0.18),
     0 8px 16px rgba(16, 185, 129, 0.12),
@@ -164,8 +176,14 @@ onUnmounted(() => {
 }
 
 .toast-error {
-  border-left: 5px solid #ef4444;
-  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 50%, #fee2e2 100%);
+  --toast-accent: var(--color-danger, #ef4444);
+  border-left: 5px solid var(--toast-accent);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    color-mix(in srgb, var(--toast-accent) 10%, #ffffff) 60%,
+    rgba(255, 255, 255, 0.92) 100%
+  );
   box-shadow: 
     0 20px 40px rgba(239, 68, 68, 0.18),
     0 8px 16px rgba(239, 68, 68, 0.12),
@@ -174,8 +192,14 @@ onUnmounted(() => {
 }
 
 .toast-warning {
-  border-left: 5px solid #f59e0b;
-  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 50%, #fef3c7 100%);
+  --toast-accent: var(--color-warning, #f59e0b);
+  border-left: 5px solid var(--toast-accent);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    color-mix(in srgb, var(--toast-accent) 12%, #ffffff) 60%,
+    rgba(255, 255, 255, 0.92) 100%
+  );
   box-shadow: 
     0 20px 40px rgba(245, 158, 11, 0.18),
     0 8px 16px rgba(245, 158, 11, 0.12),
@@ -184,8 +208,14 @@ onUnmounted(() => {
 }
 
 .toast-info {
-  border-left: 5px solid #3b82f6;
-  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 50%, #dbeafe 100%);
+  --toast-accent: var(--color-info, #3b82f6);
+  border-left: 5px solid var(--toast-accent);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    color-mix(in srgb, var(--toast-accent) 10%, #ffffff) 60%,
+    rgba(255, 255, 255, 0.92) 100%
+  );
   box-shadow: 
     0 20px 40px rgba(59, 130, 246, 0.18),
     0 8px 16px rgba(59, 130, 246, 0.12),
@@ -203,11 +233,18 @@ onUnmounted(() => {
   justify-content: center;
   border-radius: 50%;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: toast-icon-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes toast-icon-pop {
+  0% { transform: scale(0.7); opacity: 0.6; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .toast-success .toast-icon {
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
+  color: var(--toast-accent);
+  background: var(--toast-accent-soft);
 }
 
 .toast-success .toast-icon svg {
@@ -216,8 +253,8 @@ onUnmounted(() => {
 }
 
 .toast-error .toast-icon {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  color: var(--toast-accent);
+  background: var(--toast-accent-soft);
 }
 
 .toast-error .toast-icon svg {
@@ -226,8 +263,8 @@ onUnmounted(() => {
 }
 
 .toast-warning .toast-icon {
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
+  color: var(--toast-accent);
+  background: var(--toast-accent-soft);
 }
 
 .toast-warning .toast-icon svg {
@@ -236,8 +273,8 @@ onUnmounted(() => {
 }
 
 .toast-info .toast-icon {
-  color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
+  color: var(--toast-accent);
+  background: var(--toast-accent-soft);
 }
 
 .toast-info .toast-icon svg {
@@ -253,14 +290,14 @@ onUnmounted(() => {
 .toast-title {
   font-size: 14px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--app-text-strong, #0f172a);
   margin-bottom: 4px;
   line-height: 1.4;
 }
 
 .toast-message {
   font-size: 13px;
-  color: #64748b;
+  color: var(--app-muted, #64748b);
   line-height: 1.5;
 }
 
@@ -272,7 +309,7 @@ onUnmounted(() => {
   background: none;
   border: none;
   cursor: pointer;
-  color: #94a3b8;
+  color: color-mix(in srgb, var(--app-muted, #64748b) 70%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -281,7 +318,7 @@ onUnmounted(() => {
 }
 
 .toast-close:hover {
-  color: #64748b;
+  color: var(--app-muted, #64748b);
 }
 
 .toast-enter-active,

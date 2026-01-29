@@ -42,24 +42,24 @@
       </Transition>
     </Teleport>
 
-    <!-- 邮箱验证提示横幅 -->
+    <!-- 邮箱验证提示横幅（统一为 app-alert） -->
     <div v-if="userStore.user && !userStore.user.email_verified" class="email-verification-banner">
-      <div class="email-verification-content">
-        <div class="email-verification-icon">
+      <div class="app-alert app-alert--warning" role="status" aria-live="polite">
+        <div class="app-alert-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             <polyline points="22,6 12,13 2,6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <div class="email-verification-text">
-          <strong>当前邮箱未验证</strong>
-          <span>当前邮箱未验证，部分安全操作将受限，建议尽快完成验证。</span>
-        </div>
-        <div class="email-verification-actions">
-          <button class="email-verification-btn" @click="handleResendVerification" :disabled="resendingVerification">
-            <span v-if="resendingVerification" class="loading-spinner-small"></span>
-            <span>{{ resendingVerification ? "发送中..." : "重新发送验证邮件" }}</span>
-          </button>
+        <div class="app-alert-content">
+          <p class="app-alert-title">当前邮箱未验证</p>
+          <p class="app-alert-message">当前邮箱未验证，部分安全操作将受限，建议尽快完成验证。</p>
+          <div class="app-alert-actions">
+            <button class="email-verification-btn ripple" @click="handleResendVerification" :disabled="resendingVerification">
+              <span v-if="resendingVerification" class="loading-spinner-small"></span>
+              <span>{{ resendingVerification ? "发送中..." : "重新发送验证邮件" }}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1270,55 +1270,10 @@ onUnmounted(() => {
 
 .email-verification-banner {
   margin-bottom: 24px;
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border: 1px solid #f59e0b;
-  border-radius: 12px;
-  padding: 16px 20px;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+  /* visuals are handled by global .app-alert */
 }
 
-.email-verification-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.email-verification-icon {
-  width: 32px;
-  height: 32px;
-  color: #d97706;
-  flex-shrink: 0;
-}
-
-.email-verification-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.email-verification-text {
-  flex: 1;
-  min-width: 200px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.email-verification-text strong {
-  font-size: 15px;
-  font-weight: 600;
-  color: #92400e;
-}
-
-.email-verification-text span {
-  font-size: 14px;
-  color: #78350f;
-  line-height: 1.5;
-}
-
-.email-verification-actions {
-  flex-shrink: 0;
-}
+/* email-verification-* replaced by global .app-alert */
 
 .email-verification-btn {
   padding: 8px 16px;
@@ -1347,12 +1302,7 @@ onUnmounted(() => {
 }
 
 .loading-spinner-small {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #ffffff;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  /* unified in global styles.css */
 }
 
 .empty-state {
@@ -1360,70 +1310,23 @@ onUnmounted(() => {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 60px 32px;
+  /* layout/visuals unified in global styles.css; dashboard only sets centering */
 }
 
 .empty-state-content {
-  text-align: center;
-  max-width: 480px;
-  animation: fadeInUp 0.6s ease-out;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  /* unified in global styles.css */
 }
 
 .empty-state-icon {
-  margin: 0 auto 24px;
-  width: 120px;
-  height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.95) 0%, 
-    rgba(250, 245, 255, 0.92) 25%,
-    rgba(240, 249, 255, 0.92) 50%,
-    rgba(255, 250, 240, 0.92) 75%,
-    rgba(255, 255, 255, 0.95) 100%);
-  border-radius: 24px;
-  border: 1px solid rgba(226, 232, 240, 0.6);
-  box-shadow: 
-    0 8px 24px rgba(99, 102, 241, 0.08),
-    0 4px 12px rgba(139, 92, 246, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* unified in global styles.css */
 }
 
 .empty-state-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0 0 12px;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  /* unified in global styles.css */
 }
 
 .empty-state-description {
-  font-size: 15px;
-  line-height: 1.6;
-  color: #64748b;
-  margin: 0;
-  padding: 0 20px;
+  /* unified in global styles.css */
 }
 
 /* Dashboard 右上角“刷新列表” icon 按钮（UI/UX Pro：胶囊、柔和阴影、旋转动效） */
@@ -1487,22 +1390,19 @@ onUnmounted(() => {
 
 @media (max-width: 640px) {
   .empty-state {
-    padding: 40px 24px;
+    /* unified in global styles.css */
   }
 
   .empty-state-icon {
-    width: 100px;
-    height: 100px;
-    margin-bottom: 20px;
+    /* unified in global styles.css */
   }
 
   .empty-state-title {
-    font-size: 20px;
+    /* unified in global styles.css */
   }
 
   .empty-state-description {
-    font-size: 14px;
-    padding: 0;
+    /* unified in global styles.css */
   }
 }
 </style>

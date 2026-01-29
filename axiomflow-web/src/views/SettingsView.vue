@@ -61,7 +61,7 @@
                 </p>
                 <button
                   v-if="!userStore.user?.email_verified"
-                  class="settings-action-btn"
+                  class="settings-action-btn ripple"
                   @click="handleResendVerification"
                   :disabled="resendingVerification"
                 >
@@ -73,10 +73,12 @@
 
             <div class="setting-card user-card">
               <div class="card-icon-wrapper">
-                <div
+                <button
+                  type="button"
                   class="user-avatar-wrapper"
                   @click="(e) => openAvatarModalFromTrigger(e)"
                   ref="avatarTriggerRef"
+                  aria-label="编辑头像"
                 >
                   <div class="user-avatar" v-if="userStore.user?.avatar">
                     <img :src="userStore.user.avatar" :alt="userStore.user?.name || '用户头像'" />
@@ -87,75 +89,79 @@
                       <circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2"/>
                     </svg>
                   </div>
-                  <button
-                    type="button"
-                    class="avatar-edit-icon"
-                    aria-label="编辑头像"
-                    @click.stop="(e) => openAvatarModalFromTrigger(e)"
-                  >
+                  <span class="avatar-edit-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                       <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L10 16l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                  </button>
-                </div>
+                  </span>
+                </button>
               </div>
               <div class="setting-card-header">
                 <span class="setting-label">用户名</span>
               </div>
               <div class="setting-card-content">
                 <div class="name-display name-editable">
-                  <template v-if="editingName">
-                    <input
-                      ref="nameInputRef"
-                      v-model="nameInput"
-                      class="name-input"
-                      type="text"
-                      maxlength="50"
-                      placeholder="请输入昵称"
-                      @keyup.enter="saveName"
-                      @keyup.esc="cancelEditName"
-                      :aria-invalid="nameError ? 'true' : 'false'"
-                      :aria-describedby="nameError ? 'name-error' : undefined"
-                    />
-                    <div v-if="nameError" id="name-error" class="field-error">{{ nameError }}</div>
-                    <div class="name-edit-actions">
-                      <button
-                        type="button"
-                        class="name-save-btn"
-                        @click="saveName"
-                        :disabled="savingName"
-                      >
-                        <span v-if="savingName" class="loading-spinner-small"></span>
-                        <span>{{ savingName ? "保存中..." : "保存" }}</span>
-                      </button>
-                      <button
-                        type="button"
-                        class="name-cancel-btn"
-                        @click="cancelEditName"
-                        :disabled="savingName"
-                      >
-                        取消
-                      </button>
+                  <Transition name="fade-slide" mode="out-in">
+                    <div :key="editingName ? 'edit' : 'view'" class="name-edit-pane">
+                      <template v-if="editingName">
+                        <input
+                          ref="nameInputRef"
+                          v-model="nameInput"
+                          class="name-input"
+                          :class="{ 'input-error': !!nameError, 'input-valid': nameTouched && !nameError && nameInput.trim().length > 0 }"
+                          type="text"
+                          maxlength="50"
+                          placeholder="请输入昵称"
+                          @keyup.enter="saveName"
+                          @keyup.esc="cancelEditName"
+                          @input="validateNameLive"
+                          @blur="onNameBlur"
+                          :aria-invalid="nameError ? 'true' : 'false'"
+                          :aria-describedby="nameError ? 'name-error' : undefined"
+                        />
+                        <Transition name="field-pop">
+                          <div v-if="nameError" id="name-error" class="field-error" role="alert">{{ nameError }}</div>
+                        </Transition>
+                        <div class="name-edit-actions">
+                          <button
+                            type="button"
+                            class="name-save-btn"
+                            @click="saveName"
+                            :disabled="savingName"
+                          >
+                            <span v-if="savingName" class="loading-spinner-small"></span>
+                            <span>{{ savingName ? "保存中..." : "保存" }}</span>
+                          </button>
+                          <button
+                            type="button"
+                            class="name-cancel-btn"
+                            @click="cancelEditName"
+                            :disabled="savingName"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <button
+                          type="button"
+                          class="name-text-button"
+                          @click="startEditName"
+                          ref="nameTriggerRef"
+                          aria-label="编辑昵称"
+                        >
+                          <span class="name-text">{{ userStore.user?.name || "未设置" }}</span>
+                          <span class="name-edit-icon">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M12 20h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L10 16l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                          </span>
+                        </button>
+                      </template>
                     </div>
-                  </template>
-                  <template v-else>
-                    <button
-                      type="button"
-                      class="name-text-button"
-                      @click="startEditName"
-                      ref="nameTriggerRef"
-                      aria-label="编辑昵称"
-                    >
-                      <span class="name-text">{{ userStore.user?.name || "未设置" }}</span>
-                      <span class="name-edit-icon">
-                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 20h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L10 16l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                      </span>
-                    </button>
-                  </template>
+                  </Transition>
                 </div>
               </div>
             </div>
@@ -188,40 +194,45 @@
           <!-- 顶部邮箱未验证提醒条 -->
           <div
             v-if="!isEmailVerified"
-            class="security-warning-banner"
+            class="app-alert app-alert--warning"
+            role="status"
+            aria-live="polite"
           >
-            <div class="security-warning-dot"></div>
-            <div class="security-warning-text">
-              <div class="security-warning-title">邮箱尚未验证</div>
-              <div class="security-warning-desc">
+            <div class="app-alert-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <polyline points="22,6 12,13 2,6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="app-alert-content">
+              <p class="app-alert-title">邮箱尚未验证</p>
+              <p class="app-alert-message">
                 为了保障账户安全，请先完成邮箱验证，部分安全操作在验证前将被限制。
+              </p>
+              <div class="app-alert-actions">
+                <span
+                  class="restricted-help sec-tooltip-trigger"
+                  tabindex="0"
+                  role="button"
+                  aria-label="为何受限？"
+                  aria-describedby="security-warning-tooltip"
+                >
+                  为什么？
+                  <span id="security-warning-tooltip" class="restricted-tooltip sec-tooltip" role="tooltip">
+                    {{ emailRestrictionMessage }}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  class="settings-action-btn"
+                  @click="handleResendVerification"
+                  :disabled="resendingVerification"
+                >
+                  <span v-if="resendingVerification" class="loading-spinner-small"></span>
+                  {{ resendingVerification ? "发送中..." : "重新发送验证邮件" }}
+                </button>
               </div>
             </div>
-            <div class="security-warning-help">
-              <button
-                type="button"
-                class="security-warning-help-btn"
-                aria-label="为何受限？"
-                aria-describedby="security-warning-tooltip"
-              >
-                ?
-              </button>
-              <div
-                id="security-warning-tooltip"
-                class="security-warning-tooltip"
-                role="tooltip"
-              >
-                未验证邮箱时，将限制修改密码、会话撤销等敏感操作，以降低账户被盗用风险。
-              </div>
-            </div>
-            <button
-              type="button"
-              class="security-warning-action"
-              @click="handleResendVerification"
-              :disabled="resendingVerification"
-            >
-              {{ resendingVerification ? "发送中..." : "重新发送验证邮件" }}
-            </button>
           </div>
 
           <div class="subsection-header">
@@ -255,7 +266,7 @@
               <div class="setting-card-content">
                 <div class="restricted-action">
                   <button
-                    class="settings-action-btn"
+                    class="settings-action-btn ripple"
                     @click="(e) => openChangePasswordModalFromTrigger(e)"
                     :disabled="!canChangePassword || !isEmailVerified"
                     ref="changePasswordTriggerRef"
@@ -263,7 +274,14 @@
                   >
                     修改密码
                   </button>
-                  <span v-if="!isEmailVerified && canChangePassword" class="restricted-help sec-tooltip-trigger" tabindex="0" aria-describedby="email-restrict-tip-password">
+                  <span
+                    v-if="!isEmailVerified && canChangePassword"
+                    class="restricted-help sec-tooltip-trigger"
+                    tabindex="0"
+                    role="button"
+                    aria-label="为什么修改密码被限制？"
+                    aria-describedby="email-restrict-tip-password"
+                  >
                     为什么？
                     <span id="email-restrict-tip-password" class="restricted-tooltip sec-tooltip" role="tooltip">
                       {{ emailRestrictionMessage }}
@@ -295,7 +313,7 @@
               <div class="setting-card-content">
                 <div class="restricted-action">
                   <button
-                    class="settings-action-btn"
+                    class="settings-action-btn ripple"
                     @click="(e) => openLoginHistoryModalFromTrigger(e)"
                     :disabled="!isEmailVerified"
                     ref="loginHistoryTriggerRef"
@@ -303,7 +321,14 @@
                   >
                     查看登录历史
                   </button>
-                  <span v-if="!isEmailVerified" class="restricted-help sec-tooltip-trigger" tabindex="0" aria-describedby="email-restrict-tip-history">
+                  <span
+                    v-if="!isEmailVerified"
+                    class="restricted-help sec-tooltip-trigger"
+                    tabindex="0"
+                    role="button"
+                    aria-label="为什么登录历史查看被限制？"
+                    aria-describedby="email-restrict-tip-history"
+                  >
                     为什么？
                     <span id="email-restrict-tip-history" class="restricted-tooltip sec-tooltip" role="tooltip">
                       {{ emailRestrictionMessage }}
@@ -342,7 +367,7 @@
               <div class="setting-card-content">
                 <div class="restricted-action">
                   <button
-                    class="settings-action-btn"
+                    class="settings-action-btn ripple"
                     @click="(e) => openSessionsModalFromTrigger(e)"
                     :disabled="!isEmailVerified"
                     ref="sessionsTriggerRef"
@@ -350,7 +375,14 @@
                   >
                     管理会话
                   </button>
-                  <span v-if="!isEmailVerified" class="restricted-help sec-tooltip-trigger" tabindex="0" aria-describedby="email-restrict-tip-sessions">
+                  <span
+                    v-if="!isEmailVerified"
+                    class="restricted-help sec-tooltip-trigger"
+                    tabindex="0"
+                    role="button"
+                    aria-label="为什么会话管理被限制？"
+                    aria-describedby="email-restrict-tip-sessions"
+                  >
                     为什么？
                     <span id="email-restrict-tip-sessions" class="restricted-tooltip sec-tooltip" role="tooltip">
                       {{ emailRestrictionMessage }}
@@ -404,10 +436,16 @@
                     v-model="changePasswordData.currentPassword"
                     :type="showCurrentPassword ? 'text' : 'password'"
                     class="form-input"
+                    :class="{
+                      'input-error': changePasswordTouched.current && !!changePasswordFieldError.current,
+                      'input-valid': changePasswordTouched.current && !changePasswordFieldError.current && !!changePasswordData.currentPassword
+                    }"
                     placeholder="请输入当前密码"
                     autocomplete="current-password"
                     aria-required="true"
                     @keyup.enter="handleChangePassword"
+                    @input="validateChangePasswordLive"
+                    @blur="() => (changePasswordTouched.current = true, validateChangePasswordLive())"
                   />
                   <button
                     type="button"
@@ -433,11 +471,17 @@
                     v-model="changePasswordData.newPassword"
                     :type="showNewPassword ? 'text' : 'password'"
                     class="form-input"
+                    :class="{
+                      'input-error': changePasswordTouched.new && !!changePasswordFieldError.new,
+                      'input-valid': changePasswordTouched.new && !changePasswordFieldError.new && !!changePasswordData.newPassword
+                    }"
                     placeholder="请输入新密码（至少8位）"
                     autocomplete="new-password"
                     aria-required="true"
                     minlength="8"
                     @keyup.enter="handleChangePassword"
+                    @input="validateChangePasswordLive"
+                    @blur="() => (changePasswordTouched.new = true, validateChangePasswordLive())"
                   />
                   <button
                     type="button"
@@ -463,10 +507,16 @@
                     v-model="changePasswordData.confirmPassword"
                     :type="showConfirmPassword ? 'text' : 'password'"
                     class="form-input"
+                    :class="{
+                      'input-error': changePasswordTouched.confirm && !!changePasswordFieldError.confirm,
+                      'input-valid': changePasswordTouched.confirm && !changePasswordFieldError.confirm && !!changePasswordData.confirmPassword
+                    }"
                     placeholder="请再次输入新密码"
                     autocomplete="new-password"
                     aria-required="true"
                     @keyup.enter="handleChangePassword"
+                    @input="validateChangePasswordLive"
+                    @blur="() => (changePasswordTouched.confirm = true, validateChangePasswordLive())"
                   />
                   <button
                     type="button"
@@ -484,7 +534,9 @@
                   </button>
                 </div>
               </div>
-              <div v-if="changePasswordError" class="field-error">{{ changePasswordError }}</div>
+              <Transition name="field-pop">
+                <div v-if="changePasswordError" class="field-error" role="alert">{{ changePasswordError }}</div>
+              </Transition>
               <button
                 class="auth-button"
                 @click="handleChangePassword"
@@ -621,36 +673,48 @@
 
               <div
                 v-else-if="loginHistoryErrorType === 'permission'"
-                class="empty-state empty-state-warning"
+                class="app-alert app-alert--warning"
+                role="status"
+                aria-live="polite"
               >
-                <div class="empty-state-icon">
+                <div class="app-alert-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
                   </svg>
                 </div>
-                <p class="empty-state-title">操作受限</p>
-                <p class="empty-state-subtitle">{{ loginHistoryErrorMessage }}</p>
-                <button class="auth-button" type="button" @click="loadLoginHistory({ force: true })">
-                  重试
-                </button>
+                <div class="app-alert-content">
+                  <p class="app-alert-title">操作受限</p>
+                  <p class="app-alert-message">{{ loginHistoryErrorMessage }}</p>
+                  <div class="app-alert-actions">
+                    <button class="auth-button" type="button" @click="loadLoginHistory({ force: true })">
+                      重试
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div
                 v-else-if="loginHistoryErrorType === 'network'"
-                class="empty-state empty-state-danger"
+                class="app-alert app-alert--error"
+                role="alert"
+                aria-live="assertive"
               >
-                <div class="empty-state-icon">
+                <div class="app-alert-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
                     <path d="M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                   </svg>
                 </div>
-                <p class="empty-state-title">加载失败</p>
-                <p class="empty-state-subtitle">{{ loginHistoryErrorMessage }}</p>
-                <button class="auth-button" type="button" @click="loadLoginHistory({ force: true })">
-                  重试
-                </button>
+                <div class="app-alert-content">
+                  <p class="app-alert-title">加载失败</p>
+                  <p class="app-alert-message">{{ loginHistoryErrorMessage }}</p>
+                  <div class="app-alert-actions">
+                    <button class="auth-button" type="button" @click="loadLoginHistory({ force: true })">
+                      重试
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div v-else-if="filteredLoginHistory.length === 0" class="empty-state">
@@ -688,7 +752,18 @@
                   <div class="history-item-content">
                     <div class="history-item-header">
                       <span class="history-item-status">{{ item.success ? "登录成功" : "登录失败" }}</span>
-                      <span class="history-item-time">{{ formatTime(item.created_at) }}</span>
+                      <div class="history-item-header-right">
+                        <span class="history-item-time">{{ formatTime(item.created_at) }}</span>
+                        <button
+                          class="accordion-toggle"
+                          type="button"
+                          :aria-expanded="expandedLoginHistoryDetailsKey === item.id ? 'true' : 'false'"
+                          :aria-controls="`login-history-details-${item.id}`"
+                          @click="toggleLoginHistoryDetails(item.id)"
+                        >
+                          {{ expandedLoginHistoryDetailsKey === item.id ? "收起详情" : "展开详情" }}
+                        </button>
+                      </div>
                     </div>
                     <!-- 设备 + IP 优先的一行摘要 -->
                     <div class="history-item-primary-meta">
@@ -701,27 +776,38 @@
                       </span>
                     </div>
                     <!-- 其它信息折行为次级 -->
-                    <div class="history-item-details">
-                      <div class="history-item-detail history-item-detail-secondary">
-                        <span class="detail-label">登录方式：</span>
-                        <span class="detail-value">{{ formatLoginMethod(item.login_method) }}</span>
-                      </div>
-                      <div class="history-item-detail history-item-detail-secondary">
-                        <span class="detail-label">浏览器：</span>
-                        <span class="detail-value">{{ item.browser || "未知" }}</span>
-                      </div>
-                      <div class="history-item-detail history-item-detail-secondary">
-                        <span class="detail-label">操作系统：</span>
-                        <span class="detail-value">{{ item.os || "未知" }}</span>
-                      </div>
+                    <Transition
+                      name="collapse"
+                      @enter="collapseEnter"
+                      @after-enter="collapseAfterEnter"
+                      @leave="collapseLeave"
+                    >
                       <div
-                        v-if="item.reason && !item.success"
-                        class="history-item-detail history-item-detail-secondary"
+                        v-if="expandedLoginHistoryDetailsKey === item.id"
+                        class="history-item-details"
+                        :id="`login-history-details-${item.id}`"
                       >
-                        <span class="detail-label">失败原因：</span>
-                        <span class="detail-value error-text">{{ formatFailureReason(item.reason) }}</span>
+                        <div class="history-item-detail history-item-detail-secondary">
+                          <span class="detail-label">登录方式：</span>
+                          <span class="detail-value">{{ formatLoginMethod(item.login_method) }}</span>
+                        </div>
+                        <div class="history-item-detail history-item-detail-secondary">
+                          <span class="detail-label">浏览器：</span>
+                          <span class="detail-value">{{ item.browser || "未知" }}</span>
+                        </div>
+                        <div class="history-item-detail history-item-detail-secondary">
+                          <span class="detail-label">操作系统：</span>
+                          <span class="detail-value">{{ item.os || "未知" }}</span>
+                        </div>
+                        <div
+                          v-if="item.reason && !item.success"
+                          class="history-item-detail history-item-detail-secondary"
+                        >
+                          <span class="detail-label">失败原因：</span>
+                          <span class="detail-value error-text">{{ formatFailureReason(item.reason) }}</span>
+                        </div>
                       </div>
-                    </div>
+                    </Transition>
                   </div>
                 </div>
                 </div>
@@ -898,36 +984,48 @@
 
               <div
                 v-else-if="sessionsErrorType === 'permission'"
-                class="empty-state empty-state-warning"
+                class="app-alert app-alert--warning"
+                role="status"
+                aria-live="polite"
               >
-                <div class="empty-state-icon">
+                <div class="app-alert-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
                   </svg>
                 </div>
-                <p class="empty-state-title">操作受限</p>
-                <p class="empty-state-subtitle">{{ sessionsErrorMessage }}</p>
-                <button class="auth-button" type="button" @click="loadSessions({ force: true })">
-                  重试
-                </button>
+                <div class="app-alert-content">
+                  <p class="app-alert-title">操作受限</p>
+                  <p class="app-alert-message">{{ sessionsErrorMessage }}</p>
+                  <div class="app-alert-actions">
+                    <button class="auth-button" type="button" @click="loadSessions({ force: true })">
+                      重试
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div
                 v-else-if="sessionsErrorType === 'network'"
-                class="empty-state empty-state-danger"
+                class="app-alert app-alert--error"
+                role="alert"
+                aria-live="assertive"
               >
-                <div class="empty-state-icon">
+                <div class="app-alert-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
                     <path d="M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                   </svg>
                 </div>
-                <p class="empty-state-title">加载失败</p>
-                <p class="empty-state-subtitle">{{ sessionsErrorMessage }}</p>
-                <button class="auth-button" type="button" @click="loadSessions({ force: true })">
-                  重试
-                </button>
+                <div class="app-alert-content">
+                  <p class="app-alert-title">加载失败</p>
+                  <p class="app-alert-message">{{ sessionsErrorMessage }}</p>
+                  <div class="app-alert-actions">
+                    <button class="auth-button" type="button" @click="loadSessions({ force: true })">
+                      重试
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div v-else-if="filteredSessions.length === 0" class="empty-state">
@@ -958,9 +1056,14 @@
                       <div class="session-item-header">
                         <div class="session-item-token-row">
                           <span class="session-item-token-label">Token</span>
-                          <span class="session-item-token-mono">
-                            {{ expandedSessionTokens.has(session.session_id || session.token) ? (session.token || "未知") : shortToken(session.token) }}
-                          </span>
+                          <Transition name="fade-slide" mode="out-in">
+                            <span
+                              :key="expandedSessionTokens.has(session.session_id || session.token) ? 'full' : 'short'"
+                              class="session-item-token-mono"
+                            >
+                              {{ expandedSessionTokens.has(session.session_id || session.token) ? (session.token || "未知") : shortToken(session.token) }}
+                            </span>
+                          </Transition>
                           <button
                             class="session-copy-btn"
                             type="button"
@@ -985,29 +1088,49 @@
                             {{ expandedSessionTokens.has(session.session_id || session.token) ? "收起" : "展开" }}
                           </button>
                         </div>
+                        <button
+                          class="accordion-toggle"
+                          type="button"
+                          :aria-expanded="expandedSessionDetailsKey === (session.session_id || session.token) ? 'true' : 'false'"
+                          :aria-controls="`session-details-${session.session_id || session.token}`"
+                          @click="toggleSessionDetails(session.session_id || session.token)"
+                        >
+                          {{ expandedSessionDetailsKey === (session.session_id || session.token) ? "收起详情" : "展开详情" }}
+                        </button>
                         <span v-if="session.is_current" class="session-item-badge">当前会话</span>
                       </div>
-                      <div class="session-item-details">
-                        <div class="session-item-detail">
-                          <span class="detail-label">IP地址：</span>
-                          <span class="detail-value">{{ session.ip || "未知" }}</span>
+                      <Transition
+                        name="collapse"
+                        @enter="collapseEnter"
+                        @after-enter="collapseAfterEnter"
+                        @leave="collapseLeave"
+                      >
+                        <div
+                          v-if="expandedSessionDetailsKey === (session.session_id || session.token)"
+                          class="session-item-details"
+                          :id="`session-details-${session.session_id || session.token}`"
+                        >
+                          <div class="session-item-detail">
+                            <span class="detail-label">IP地址：</span>
+                            <span class="detail-value">{{ session.ip || "未知" }}</span>
+                          </div>
+                          <div class="session-item-detail">
+                            <span class="detail-label">设备：</span>
+                            <span class="detail-value">{{ parseUserAgent(session.user_agent) }}</span>
+                          </div>
+                          <div class="session-item-detail">
+                            <span class="detail-label">创建时间：</span>
+                            <span class="detail-value">{{ formatTime(session.created_at) }}</span>
+                          </div>
+                          <div v-if="session.last_used_at" class="session-item-detail">
+                            <span class="detail-label">最后使用：</span>
+                            <span class="detail-value">
+                              {{ formatRelativeTime(session.last_used_at) }}
+                              <span class="detail-subtle">（{{ formatTime(session.last_used_at) }}）</span>
+                            </span>
+                          </div>
                         </div>
-                        <div class="session-item-detail">
-                          <span class="detail-label">设备：</span>
-                          <span class="detail-value">{{ parseUserAgent(session.user_agent) }}</span>
-                        </div>
-                        <div class="session-item-detail">
-                          <span class="detail-label">创建时间：</span>
-                          <span class="detail-value">{{ formatTime(session.created_at) }}</span>
-                        </div>
-                        <div v-if="session.last_used_at" class="session-item-detail">
-                          <span class="detail-label">最后使用：</span>
-                          <span class="detail-value">
-                            {{ formatRelativeTime(session.last_used_at) }}
-                            <span class="detail-subtle">（{{ formatTime(session.last_used_at) }}）</span>
-                          </span>
-                        </div>
-                      </div>
+                      </Transition>
                     </div>
                     <div class="session-item-actions">
                       <button
@@ -1280,6 +1403,15 @@ const showConfirmPassword = ref(false);
 const changingPassword = ref(false);
 const changePasswordError = ref("");
 
+const changePasswordErrorTarget = computed<"none" | "current" | "new" | "confirm">(() => {
+  const msg = (changePasswordError.value || "").trim();
+  if (!msg) return "none";
+  if (msg.includes("当前密码")) return "current";
+  if (msg.includes("不一致") || msg.includes("确认")) return "confirm";
+  if (msg.includes("新密码")) return "new";
+  return "none";
+});
+
 const loginHistory = ref<LoginHistoryItem[]>([]);
 const loadingLoginHistory = ref(false);
 const refreshingLoginHistory = ref(false);
@@ -1325,28 +1457,14 @@ const resendingVerification = ref(false);
 
 const modalBodyLockCount = ref(0);
 
+// 为避免任何布局跳动，这里不再锁定滚动容器，仅保留计数接口以兼容调用方
 const lockBodyScroll = () => {
-  if (typeof document === "undefined") return;
-  if (modalBodyLockCount.value === 0) {
-    document.body.dataset.prevOverflow = document.body.style.overflow || "";
-    document.body.style.overflow = "hidden";
-  }
   modalBodyLockCount.value += 1;
 };
 
 const unlockBodyScroll = () => {
-  if (typeof document === "undefined") return;
   if (modalBodyLockCount.value <= 0) return;
   modalBodyLockCount.value -= 1;
-  if (modalBodyLockCount.value === 0) {
-    const prev = document.body.dataset.prevOverflow;
-    if (prev !== undefined) {
-      document.body.style.overflow = prev;
-      delete document.body.dataset.prevOverflow;
-    } else {
-      document.body.style.overflow = "";
-    }
-  }
 };
 
 // A11y: 记录触发元素，关闭时还原焦点
@@ -1380,10 +1498,13 @@ const avatarModalTitleRef = ref<HTMLElement | null>(null);
 const currentPasswordInputRef = ref<HTMLInputElement | null>(null);
 const nameInputRef = ref<HTMLInputElement | null>(null);
 
-const focusEl = async (el: { focus?: () => void } | null | undefined) => {
+const focusEl = async (el: HTMLElement | { focus?: (opts?: FocusOptions) => void } | null | undefined) => {
   await nextTick();
   try {
-    el?.focus?.();
+    // 优先使用 preventScroll，避免触发自动滚动导致布局轻微抖动
+    if (el && "focus" in el) {
+      (el as any).focus?.({ preventScroll: true });
+    }
   } catch {
     // ignore
   }
@@ -1513,6 +1634,27 @@ const editingName = ref(false);
 const nameInput = ref("");
 const savingName = ref(false);
 const nameError = ref("");
+const nameTouched = ref(false);
+
+const validateNameLive = () => {
+  if (!editingName.value) return;
+  if (!nameTouched.value) return;
+  const value = nameInput.value.trim();
+  if (!value) {
+    nameError.value = "昵称不能为空";
+    return;
+  }
+  if (value.length > 50) {
+    nameError.value = "昵称长度不能超过 50 个字符";
+    return;
+  }
+  nameError.value = "";
+};
+
+const onNameBlur = () => {
+  nameTouched.value = true;
+  validateNameLive();
+};
 
 // 以下安全扩展功能（2FA / 社交绑定 / 密码泄露检测）已下线，仅保留占位变量避免报错
 const twoFAStatus = ref(null);
@@ -1738,6 +1880,49 @@ const toggleSessionToken = (key: string) => {
   expandedSessionTokens.value = new Set(s);
 };
 
+// Accordion: details expand/collapse (height animation)
+// Accordion mode: only one item expanded at a time (per list)
+const expandedSessionDetailsKey = ref<string | null>(null);
+const toggleSessionDetails = (key: string) => {
+  if (!key) return;
+  expandedSessionDetailsKey.value = expandedSessionDetailsKey.value === key ? null : key;
+};
+
+const expandedLoginHistoryDetailsKey = ref<string | null>(null);
+const toggleLoginHistoryDetails = (key: string) => {
+  if (!key) return;
+  expandedLoginHistoryDetailsKey.value = expandedLoginHistoryDetailsKey.value === key ? null : key;
+};
+
+const collapseEnter = (el: Element) => {
+  const node = el as HTMLElement;
+  node.style.height = "0px";
+  node.style.overflow = "hidden";
+  node.style.willChange = "height";
+  // force reflow
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  node.offsetHeight;
+  node.style.height = `${node.scrollHeight}px`;
+};
+
+const collapseAfterEnter = (el: Element) => {
+  const node = el as HTMLElement;
+  node.style.height = "auto";
+  node.style.overflow = "";
+  node.style.willChange = "";
+};
+
+const collapseLeave = (el: Element) => {
+  const node = el as HTMLElement;
+  node.style.height = `${node.scrollHeight}px`;
+  node.style.overflow = "hidden";
+  node.style.willChange = "height";
+  // force reflow
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  node.offsetHeight;
+  node.style.height = "0px";
+};
+
 const parseUserAgent = (userAgent: string) => {
   if (!userAgent) return "未知设备";
   // 简单的User-Agent解析（用于会话管理，登录历史使用后端解析的数据）
@@ -1816,6 +2001,7 @@ const handleAvatarFileChange = (event: Event) => {
 const startEditName = () => {
   setLastTrigger({ currentTarget: nameTriggerRef.value } as any);
   nameError.value = "";
+  nameTouched.value = false;
   editingName.value = true;
   nameInput.value = userStore.user?.name || "";
   focusEl(nameInputRef.value);
@@ -1824,6 +2010,7 @@ const startEditName = () => {
 const cancelEditName = () => {
   editingName.value = false;
   nameError.value = "";
+  nameTouched.value = false;
   nameInput.value = userStore.user?.name || "";
   restoreFocus();
 };
@@ -2037,6 +2224,57 @@ const handleChangePassword = async () => {
     }
   } finally {
     changingPassword.value = false;
+  }
+};
+
+// Change password: real-time validation (touched-based)
+const changePasswordTouched = ref({ current: false, new: false, confirm: false });
+const changePasswordFieldError = computed(() => {
+  const current = changePasswordData.value.currentPassword || "";
+  const next = changePasswordData.value.newPassword || "";
+  const confirm = changePasswordData.value.confirmPassword || "";
+
+  return {
+    current: !current ? "请输入当前密码" : "",
+    new: !next ? "请输入新密码" : next.length < 8 ? "新密码至少需要8个字符" : "",
+    confirm: !confirm ? "请再次输入新密码" : next && confirm && next !== confirm ? "两次输入的密码不一致" : "",
+  };
+});
+
+const validateChangePasswordLive = () => {
+  // When any field is touched, keep the inline error message aligned with the first visible issue.
+  if (!changePasswordTouched.value.current && !changePasswordTouched.value.new && !changePasswordTouched.value.confirm) return;
+
+  // If user already submitted and got a server-side/permission error, don't fight it.
+  const existing = (changePasswordError.value || "").trim();
+  if (existing && (existing.includes("邮箱未验证") || existing.includes("500") || existing.includes("timeout") || existing.includes("网络") || existing.includes("服务"))) {
+    return;
+  }
+
+  const errs = changePasswordFieldError.value;
+  if (changePasswordTouched.value.current && errs.current) {
+    changePasswordError.value = errs.current;
+    return;
+  }
+  if (changePasswordTouched.value.new && errs.new) {
+    changePasswordError.value = errs.new;
+    return;
+  }
+  if (changePasswordTouched.value.confirm && errs.confirm) {
+    changePasswordError.value = errs.confirm;
+    return;
+  }
+
+  // Clear only if it's one of our client-side validation messages
+  if (
+    existing === "请输入当前密码" ||
+    existing === "请输入新密码" ||
+    existing === "新密码至少需要8个字符" ||
+    existing === "两次输入的密码不一致" ||
+    existing === "请输入确认密码" ||
+    existing === "请再次输入新密码"
+  ) {
+    changePasswordError.value = "";
   }
 };
 
@@ -2361,7 +2599,7 @@ onMounted(() => {
   width: 100%;
   padding: 0;
   margin: 0;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 50%, #f3e8ff 100%);
+  background: var(--gradient-settings-bg, linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 50%, #f3e8ff 100%));
   display: block;
   min-height: 100%;
 }
@@ -2384,10 +2622,10 @@ onMounted(() => {
 .settings-title {
   font-size: 48px;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--app-text, #1e293b);
   margin: 0 0 12px 0;
   letter-spacing: -0.03em;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: var(--gradient-primary, linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -2395,7 +2633,7 @@ onMounted(() => {
 
 .settings-subtitle {
   font-size: 18px;
-  color: #64748b;
+  color: var(--app-muted, #64748b);
   margin: 0;
   font-weight: 400;
 }
@@ -2403,9 +2641,9 @@ onMounted(() => {
 .settings-section {
   padding: 48px;
   border-radius: 28px;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--app-surface, rgba(255, 255, 255, 0.95));
   backdrop-filter: blur(20px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md, 0 8px 32px rgba(0, 0, 0, 0.08));
   width: 100%;
   transition: all 0.3s ease;
 }
@@ -2656,71 +2894,7 @@ onMounted(() => {
   color: #10b981;
 }
 
-.security-warning-banner {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 16px;
-  margin-bottom: 20px;
-  border-radius: 14px;
-  background: linear-gradient(120deg, rgba(254, 243, 199, 0.9), rgba(253, 230, 138, 0.9));
-  box-shadow: 0 10px 30px rgba(251, 191, 36, 0.3);
-  border: 1px solid rgba(245, 158, 11, 0.35);
-}
-
-.security-warning-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: #f97316;
-  box-shadow: 0 0 0 4px rgba(248, 171, 75, 0.4);
-  flex-shrink: 0;
-}
-
-.security-warning-text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-
-.security-warning-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #92400e;
-}
-
-.security-warning-desc {
-  font-size: 13px;
-  color: #78350f;
-  opacity: 0.9;
-}
-
-.security-warning-action {
-  border: none;
-  outline: none;
-  border-radius: 999px;
-  padding: 8px 14px;
-  background: linear-gradient(135deg, #f97316, #ea580c);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 8px 18px rgba(234, 88, 12, 0.45);
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.security-warning-action:disabled {
-  opacity: 0.7;
-  cursor: default;
-  box-shadow: none;
-}
-
-.security-warning-action:not(:disabled):hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(234, 88, 12, 0.6);
-}
+/* security-warning-* replaced by global .app-alert */
 
 .security-status-badge {
   display: inline-flex;
@@ -2760,75 +2934,7 @@ onMounted(() => {
   box-shadow: var(--sec-dot-neutral-shadow, 0 0 0 4px rgba(59, 130, 246, 0.22));
 }
 
-.security-warning-help {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.security-warning-help-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  background: rgba(255, 255, 255, 0.55);
-  color: #92400e;
-  font-weight: 800;
-  font-size: 14px;
-  cursor: help;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.security-warning-help-btn:hover,
-.security-warning-help-btn:focus-visible {
-  background: rgba(255, 255, 255, 0.75);
-  box-shadow: 0 10px 24px rgba(251, 191, 36, 0.25);
-  outline: none;
-}
-
-.security-warning-tooltip {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 10px);
-  width: 320px;
-  max-width: 72vw;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.92);
-  color: rgba(248, 250, 252, 0.95);
-  font-size: 12px;
-  line-height: 1.45;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  opacity: 0;
-  transform: translateY(-4px);
-  pointer-events: none;
-  transition: all 0.18s ease;
-  z-index: 2;
-}
-
-.security-warning-tooltip::before {
-  content: "";
-  position: absolute;
-  top: -6px;
-  right: 10px;
-  width: 10px;
-  height: 10px;
-  background: rgba(15, 23, 42, 0.92);
-  transform: rotate(45deg);
-  border-left: 1px solid rgba(148, 163, 184, 0.12);
-  border-top: 1px solid rgba(148, 163, 184, 0.12);
-}
-
-.security-warning-help:hover .security-warning-tooltip,
-.security-warning-help:focus-within .security-warning-tooltip {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
+/* security-warning-* replaced by global .app-alert */
 
 .setting-card-subtext {
   font-size: 13px;
@@ -2967,6 +3073,26 @@ onMounted(() => {
 .user-avatar-wrapper {
   position: relative;
   cursor: pointer;
+  border: none;
+  padding: 0;
+  background: transparent;
+  text-align: inherit;
+}
+
+.settings :is(
+  button,
+  [role="button"],
+  a,
+  input,
+  select,
+  textarea
+):focus-visible {
+  outline: 3px solid rgba(99, 102, 241, 0.45);
+  outline-offset: 2px;
+}
+
+.settings :is(button, [role="button"]):focus-visible {
+  border-radius: 12px;
 }
 
 .user-avatar,
@@ -3017,7 +3143,6 @@ onMounted(() => {
   width: 32px;
   height: 32px;
   border-radius: 999px;
-  border: none;
   background: radial-gradient(circle at 0 0, #e0f2fe 0%, #6366f1 45%, #8b5cf6 100%);
   color: #f9fafb;
   display: flex;
@@ -3026,7 +3151,7 @@ onMounted(() => {
   box-shadow:
     0 10px 25px rgba(15, 23, 42, 0.38),
     0 0 0 1px rgba(255, 255, 255, 0.7);
-  cursor: pointer;
+  pointer-events: none; /* 避免嵌套可点击元素：点击落到外层头像按钮 */
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
@@ -3111,6 +3236,22 @@ onMounted(() => {
   color: #111827;
 }
 
+.name-edit-pane {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.name-input.input-error {
+  border-color: rgba(239, 68, 68, 0.85);
+  box-shadow:
+    0 14px 45px rgba(239, 68, 68, 0.12),
+    0 0 0 3px rgba(239, 68, 68, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.9) inset;
+  animation: shake-x 0.26s ease-in-out;
+}
+
 .name-input:focus {
   border-color: rgba(129, 140, 248, 0.9);
   box-shadow:
@@ -3164,6 +3305,34 @@ onMounted(() => {
   border: 2px solid #e2e8f0;
   min-width: 180px;
   display: inline-block;
+}
+
+/* Transitions: lightweight, used for expand/collapse-like swaps */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.field-pop-enter-active,
+.field-pop-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.field-pop-enter-from,
+.field-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@keyframes shake-x {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  75% { transform: translateX(-3px); }
 }
 
 .email-text {
@@ -3448,6 +3617,37 @@ onMounted(() => {
   box-shadow: 0 12px 35px rgba(15, 23, 42, 0.35);
 }
 
+.avatar-preview-circle::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* 细腻的裁剪网格线 */
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.08) 1px, transparent 1px);
+  background-size: 18px 18px;
+  opacity: 0.55;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+.avatar-preview-circle::after {
+  content: "";
+  position: absolute;
+  inset: 10%;
+  /* 中心辅助线（十字线）+ 内圈裁剪框 */
+  background:
+    linear-gradient(to right, rgba(255, 255, 255, 0.65) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.65) 1px, transparent 1px);
+  background-repeat: no-repeat;
+  background-position: 50% 0, 0 50%;
+  background-size: 1px 100%, 100% 1px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
 .avatar-preview-circle img {
   width: 100%;
   height: 100%;
@@ -3486,6 +3686,20 @@ onMounted(() => {
   background: #eef2ff;
   border: 2px solid rgba(255, 255, 255, 0.9);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+  position: relative;
+}
+
+.avatar-mini::before {
+  content: "";
+  position: absolute;
+  inset: 10%;
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.08) 1px, transparent 1px);
+  background-size: 14px 14px;
+  opacity: 0.6;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
 }
 
 .avatar-mini--circle {
@@ -3806,11 +4020,7 @@ onMounted(() => {
   animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+/* spin keyframes are defined globally in src/styles.css */
 
 .loading-state {
   display: flex;
@@ -4004,6 +4214,46 @@ onMounted(() => {
   justify-content: space-between;
   margin-bottom: 8px;
   gap: 12px;
+}
+
+.history-item-header-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.accordion-toggle {
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.7);
+  color: rgba(51, 65, 85, 0.9);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.accordion-toggle:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10);
+}
+
+.accordion-toggle:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.accordion-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.collapse-enter-active,
+.collapse-leave-active {
+  transition: height 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .history-item-status,
@@ -4661,6 +4911,23 @@ onMounted(() => {
 }
 
 /* 响应式设计 */
+@media (max-width: 1024px) {
+  /* 不改变桌面端布局：仅在中小屏收紧间距/留白 */
+  .settings-container {
+    padding: 48px 32px;
+    gap: 36px;
+  }
+
+  .settings-section {
+    padding: 44px 36px;
+    border-radius: 26px;
+  }
+
+  .settings-grid {
+    gap: 28px;
+  }
+}
+
 @media (max-width: 768px) {
   .settings-container {
     padding: 32px 20px;
@@ -4773,6 +5040,100 @@ onMounted(() => {
     font-size: 14px;
     padding: 12px 24px;
     min-width: 120px;
+  }
+}
+
+@media (max-width: 640px) {
+  .settings-container {
+    padding: 24px 14px;
+    gap: 24px;
+  }
+
+  .settings-title {
+    font-size: 32px;
+  }
+
+  .settings-subtitle {
+    font-size: 15px;
+  }
+
+  .settings-section {
+    padding: 22px 16px;
+    border-radius: 20px;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr; /* 小屏强制单列 */
+    gap: 16px;
+  }
+
+  .setting-card {
+    padding: 22px 16px;
+    min-height: auto;
+  }
+
+  /* 小屏：模态框全屏（不影响桌面端） */
+  .modal-overlay {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .modal-content {
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .modal-header {
+    padding: 16px 16px;
+  }
+
+  .modal-body,
+  .avatar-modal-body {
+    padding: 16px;
+  }
+
+  /* 头像编辑：小屏改为单列，避免左右两栏挤压 */
+  .avatar-editor-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .avatar-preview-wrapper {
+    width: min(320px, 92vw);
+    height: min(320px, 92vw);
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-container {
+    padding: 18px 12px;
+    gap: 20px;
+  }
+
+  .settings-title {
+    font-size: 28px;
+  }
+
+  .settings-subtitle {
+    font-size: 14px;
+  }
+
+  .settings-section {
+    padding: 18px 14px;
+    border-radius: 18px;
+  }
+
+  .setting-card {
+    padding: 18px 14px;
+  }
+
+  .modal-header h2 {
+    font-size: 18px;
   }
 }
 
