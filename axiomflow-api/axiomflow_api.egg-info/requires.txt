@@ -23,6 +23,7 @@ google-auth>=2.23.0
 google-auth-oauthlib>=1.1.0
 bcrypt>=4.0.0
 pyjwt>=2.8.0
+python-dotenv>=1.0.1
 
 [all]
 pytesseract>=0.3.10

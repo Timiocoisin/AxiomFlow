@@ -73,7 +73,11 @@
 
             <div class="setting-card user-card">
               <div class="card-icon-wrapper">
-                <div class="user-avatar-wrapper" @click="openAvatarModal">
+                <div
+                  class="user-avatar-wrapper"
+                  @click="(e) => openAvatarModalFromTrigger(e)"
+                  ref="avatarTriggerRef"
+                >
                   <div class="user-avatar" v-if="userStore.user?.avatar">
                     <img :src="userStore.user.avatar" :alt="userStore.user?.name || '用户头像'" />
                   </div>
@@ -87,6 +91,7 @@
                     type="button"
                     class="avatar-edit-icon"
                     aria-label="编辑头像"
+                    @click.stop="(e) => openAvatarModalFromTrigger(e)"
                   >
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -102,6 +107,7 @@
                 <div class="name-display name-editable">
                   <template v-if="editingName">
                     <input
+                      ref="nameInputRef"
                       v-model="nameInput"
                       class="name-input"
                       type="text"
@@ -109,7 +115,10 @@
                       placeholder="请输入昵称"
                       @keyup.enter="saveName"
                       @keyup.esc="cancelEditName"
+                      :aria-invalid="nameError ? 'true' : 'false'"
+                      :aria-describedby="nameError ? 'name-error' : undefined"
                     />
+                    <div v-if="nameError" id="name-error" class="field-error">{{ nameError }}</div>
                     <div class="name-edit-actions">
                       <button
                         type="button"
@@ -135,6 +144,8 @@
                       type="button"
                       class="name-text-button"
                       @click="startEditName"
+                      ref="nameTriggerRef"
+                      aria-label="编辑昵称"
                     >
                       <span class="name-text">{{ userStore.user?.name || "未设置" }}</span>
                       <span class="name-edit-icon">
@@ -186,6 +197,23 @@
                 为了保障账户安全，请先完成邮箱验证，部分安全操作在验证前将被限制。
               </div>
             </div>
+            <div class="security-warning-help">
+              <button
+                type="button"
+                class="security-warning-help-btn"
+                aria-label="为何受限？"
+                aria-describedby="security-warning-tooltip"
+              >
+                ?
+              </button>
+              <div
+                id="security-warning-tooltip"
+                class="security-warning-tooltip"
+                role="tooltip"
+              >
+                未验证邮箱时，将限制修改密码、会话撤销等敏感操作，以降低账户被盗用风险。
+              </div>
+            </div>
             <button
               type="button"
               class="security-warning-action"
@@ -225,13 +253,23 @@
                 <span class="setting-label">修改密码</span>
               </div>
               <div class="setting-card-content">
-                <button
-                  class="settings-action-btn"
-                  @click="showChangePasswordModal = true"
-                  :disabled="!canChangePassword || !isEmailVerified"
-                >
-                  修改密码
-                </button>
+                <div class="restricted-action">
+                  <button
+                    class="settings-action-btn"
+                    @click="(e) => openChangePasswordModalFromTrigger(e)"
+                    :disabled="!canChangePassword || !isEmailVerified"
+                    ref="changePasswordTriggerRef"
+                    :aria-describedby="(!isEmailVerified && canChangePassword) ? 'email-restrict-tip-password' : undefined"
+                  >
+                    修改密码
+                  </button>
+                  <span v-if="!isEmailVerified && canChangePassword" class="restricted-help sec-tooltip-trigger" tabindex="0" aria-describedby="email-restrict-tip-password">
+                    为什么？
+                    <span id="email-restrict-tip-password" class="restricted-tooltip sec-tooltip" role="tooltip">
+                      {{ emailRestrictionMessage }}
+                    </span>
+                  </span>
+                </div>
                 <p v-if="!canChangePassword" class="settings-hint">
                   当前账户暂不支持直接修改密码，请先通过“忘记密码”设置登录密码。
                 </p>
@@ -255,13 +293,23 @@
                 <span class="setting-label">登录历史</span>
               </div>
               <div class="setting-card-content">
-                <button
-                  class="settings-action-btn"
-                  @click="showLoginHistoryModal = true"
-                  :disabled="!isEmailVerified"
-                >
-                  查看登录历史
-                </button>
+                <div class="restricted-action">
+                  <button
+                    class="settings-action-btn"
+                    @click="(e) => openLoginHistoryModalFromTrigger(e)"
+                    :disabled="!isEmailVerified"
+                    ref="loginHistoryTriggerRef"
+                    :aria-describedby="!isEmailVerified ? 'email-restrict-tip-history' : undefined"
+                  >
+                    查看登录历史
+                  </button>
+                  <span v-if="!isEmailVerified" class="restricted-help sec-tooltip-trigger" tabindex="0" aria-describedby="email-restrict-tip-history">
+                    为什么？
+                    <span id="email-restrict-tip-history" class="restricted-tooltip sec-tooltip" role="tooltip">
+                      {{ emailRestrictionMessage }}
+                    </span>
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -280,27 +328,35 @@
                   <span class="setting-label">活跃会话</span>
                   <span
                     v-if="sessions.length > 0"
-                    class="security-status-badge security-status-badge-warning"
+                    class="security-status-badge"
+                    :class="sessionBadgeVariant === 'warning' ? 'security-status-badge-warning' : 'security-status-badge-neutral'"
                   >
-                    <span class="security-status-dot"></span>
-                    {{ sessions.length }} 个活跃会话
+                    <span
+                      class="security-status-dot"
+                      :class="sessionBadgeVariant === 'warning' ? 'security-status-dot-warning' : 'security-status-dot-neutral'"
+                    ></span>
+                    {{ sessionBadgeLabel }}
                   </span>
                 </div>
-                <p
-                  v-if="sessions.length > 0"
-                  class="setting-card-subtext"
-                >
-                  建议定期检查并关闭不认识的设备登录。
-                </p>
               </div>
               <div class="setting-card-content">
-                <button
-                  class="settings-action-btn"
-                  @click="showSessionsModal = true"
-                  :disabled="!isEmailVerified"
-                >
-                  管理会话
-                </button>
+                <div class="restricted-action">
+                  <button
+                    class="settings-action-btn"
+                    @click="(e) => openSessionsModalFromTrigger(e)"
+                    :disabled="!isEmailVerified"
+                    ref="sessionsTriggerRef"
+                    :aria-describedby="!isEmailVerified ? 'email-restrict-tip-sessions' : undefined"
+                  >
+                    管理会话
+                  </button>
+                  <span v-if="!isEmailVerified" class="restricted-help sec-tooltip-trigger" tabindex="0" aria-describedby="email-restrict-tip-sessions">
+                    为什么？
+                    <span id="email-restrict-tip-sessions" class="restricted-tooltip sec-tooltip" role="tooltip">
+                      {{ emailRestrictionMessage }}
+                    </span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -319,10 +375,15 @@
           role="dialog"
           aria-labelledby="change-password-title"
           aria-modal="true"
+          @keyup.esc.stop.prevent="showChangePasswordModal = false"
+          tabindex="-1"
         >
-          <div class="modal-content glass-card">
+          <div class="modal-content glass-card modal-content--sm">
             <div class="modal-header">
-              <h2 id="change-password-title">修改密码</h2>
+              <div class="modal-header-text">
+                <h2 id="change-password-title" ref="changePasswordTitleRef" tabindex="-1">修改密码</h2>
+                <p class="modal-subtitle">定期更新密码，提升账户安全。</p>
+              </div>
               <button
                 class="modal-close"
                 @click="showChangePasswordModal = false"
@@ -338,6 +399,7 @@
                 <label class="form-label" for="current-password">当前密码</label>
                 <div class="password-input-wrapper">
                   <input
+                    ref="currentPasswordInputRef"
                     id="current-password"
                     v-model="changePasswordData.currentPassword"
                     :type="showCurrentPassword ? 'text' : 'password'"
@@ -351,7 +413,7 @@
                     type="button"
                     class="password-toggle"
                     @click="showCurrentPassword = !showCurrentPassword"
-                    tabindex="-1"
+                    aria-label="切换当前密码可见性"
                   >
                     <svg v-if="showCurrentPassword" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M1 12S5 4 12 4S23 12 23 12S19 20 12 20S1 12 1 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -381,7 +443,7 @@
                     type="button"
                     class="password-toggle"
                     @click="showNewPassword = !showNewPassword"
-                    tabindex="-1"
+                    aria-label="切换新密码可见性"
                   >
                     <svg v-if="showNewPassword" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M1 12S5 4 12 4S23 12 23 12S19 20 12 20S1 12 1 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -410,7 +472,7 @@
                     type="button"
                     class="password-toggle"
                     @click="showConfirmPassword = !showConfirmPassword"
-                    tabindex="-1"
+                    aria-label="切换确认密码可见性"
                   >
                     <svg v-if="showConfirmPassword" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M1 12S5 4 12 4S23 12 23 12S19 20 12 20S1 12 1 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -451,32 +513,159 @@
           @keyup.esc.stop.prevent="showLoginHistoryModal = false"
           tabindex="-1"
         >
-          <div class="modal-content glass-card modal-content-large">
+          <div class="modal-content glass-card modal-content--lg">
             <div class="modal-header">
-              <h2 id="login-history-title">登录历史</h2>
-              <button
-                class="modal-close"
-                @click="showLoginHistoryModal = false"
-                aria-label="关闭"
-              >
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
+              <div class="modal-header-text">
+                <h2 id="login-history-title" ref="loginHistoryTitleRef" tabindex="-1">登录历史</h2>
+                <p class="modal-subtitle">查看最近的登录记录，发现异常可及时处理。</p>
+              </div>
+              <div class="modal-header-right">
+                <span class="modal-updated-at" aria-live="polite">{{ loginHistoryUpdatedLabel }}</span>
+                <button
+                  class="modal-close"
+                  @click="showLoginHistoryModal = false"
+                  aria-label="关闭"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
             </div>
             <div class="modal-body">
-              <div v-if="loadingLoginHistory" class="loading-state">
-                <div class="loading-spinner"></div>
-                <p>加载中...</p>
+              <p class="modal-tip-pill sec-pill sec-pill--warning sec-pill--one-line">
+                支持筛选与搜索，建议定期回顾异常登录。
+              </p>
+              <div class="modal-toolbar">
+                <div class="modal-toolbar-left">
+                  <div class="filter-pills" role="tablist" aria-label="登录历史筛选">
+                    <button
+                      class="filter-pill"
+                      :class="{ 'filter-pill-active': loginHistoryFilter === 'all' }"
+                      type="button"
+                      @click="loginHistoryFilter = 'all'"
+                    >
+                      全部
+                    </button>
+                    <button
+                      class="filter-pill"
+                      :class="{ 'filter-pill-active': loginHistoryFilter === 'failed' }"
+                      type="button"
+                      @click="loginHistoryFilter = 'failed'"
+                    >
+                      仅失败
+                    </button>
+                    <button
+                      class="filter-pill"
+                      :class="{ 'filter-pill-active': loginHistoryFilter === '7d' }"
+                      type="button"
+                      @click="loginHistoryFilter = '7d'"
+                    >
+                      近 7 天
+                    </button>
+                  </div>
+                </div>
+                <div class="modal-toolbar-right">
+                  <div class="search-input">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                      <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                      <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <input
+                      v-model="loginHistorySearch"
+                      type="text"
+                      placeholder="搜索设备 / IP"
+                      aria-label="搜索设备或IP"
+                    />
+                    <button
+                      v-if="loginHistorySearch"
+                      class="search-clear"
+                      type="button"
+                      @click="loginHistorySearch = ''"
+                      aria-label="清空搜索"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <button
+                    class="modal-refresh-btn"
+                    type="button"
+                    @click="loadLoginHistory({ force: true, isRefresh: true })"
+                    :disabled="loadingLoginHistory || refreshingLoginHistory"
+                    aria-label="刷新登录历史"
+                    title="刷新"
+                  >
+                    <svg 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      xmlns="http://www.w3.org/2000/svg"
+                      :class="{ 'refresh-icon-spinning': refreshingLoginHistory }"
+                    >
+                      <path d="M21 12a9 9 0 1 1-2.64-6.36" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                      <path d="M21 3v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
-              <div v-else-if="loginHistory.length === 0" class="empty-state">
+
+              <div v-if="loadingLoginHistory && !refreshingLoginHistory" class="skeleton-list">
+                <div v-for="n in 3" :key="n" class="skeleton-card">
+                  <div class="skeleton-icon"></div>
+                  <div class="skeleton-lines">
+                    <div class="skeleton-line skeleton-line--lg"></div>
+                    <div class="skeleton-line"></div>
+                    <div class="skeleton-line skeleton-line--sm"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-else-if="loginHistoryErrorType === 'permission'"
+                class="empty-state empty-state-warning"
+              >
+                <div class="empty-state-icon">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <p class="empty-state-title">操作受限</p>
+                <p class="empty-state-subtitle">{{ loginHistoryErrorMessage }}</p>
+                <button class="auth-button" type="button" @click="loadLoginHistory({ force: true })">
+                  重试
+                </button>
+              </div>
+
+              <div
+                v-else-if="loginHistoryErrorType === 'network'"
+                class="empty-state empty-state-danger"
+              >
+                <div class="empty-state-icon">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <p class="empty-state-title">加载失败</p>
+                <p class="empty-state-subtitle">{{ loginHistoryErrorMessage }}</p>
+                <button class="auth-button" type="button" @click="loadLoginHistory({ force: true })">
+                  重试
+                </button>
+              </div>
+
+              <div v-else-if="filteredLoginHistory.length === 0" class="empty-state">
                 <div class="empty-state-icon">
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
                   </svg>
                 </div>
-                <p>当前没有登录记录，一切正常。</p>
+                <p class="empty-state-title">
+                  {{ loginHistory.length === 0 ? "当前没有登录记录，一切正常。" : "没有匹配的记录" }}
+                </p>
+                <p class="empty-state-subtitle">
+                  {{ loginHistory.length === 0 ? "如发现陌生登录，可前往“活跃会话”撤销相关设备。" : "可尝试调整筛选条件或搜索关键词。" }}
+                </p>
               </div>
               <div v-else>
                 <div class="history-list">
@@ -540,7 +729,7 @@
                 <!-- 分页控件 -->
                 <div v-if="totalLoginHistoryPages > 1" class="pagination-container">
                   <div class="pagination-info">
-                    <span>共 {{ loginHistory.length }} 条记录</span>
+                    <span>共 {{ filteredLoginHistory.length }} 条记录</span>
                     <span>第 {{ currentLoginHistoryPage }} / {{ totalLoginHistoryPages }} 页</span>
                   </div>
                   <div class="pagination-controls">
@@ -601,32 +790,155 @@
           @keyup.esc.stop.prevent="showSessionsModal = false"
           tabindex="-1"
         >
-          <div class="modal-content glass-card modal-content-large">
+          <div class="modal-content glass-card modal-content--lg">
             <div class="modal-header">
-              <h2 id="sessions-title">活跃会话</h2>
-              <button
-                class="modal-close"
-                @click="showSessionsModal = false"
-                aria-label="关闭"
-              >
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
+              <div class="modal-header-text">
+                <h2 id="sessions-title" ref="sessionsTitleRef" tabindex="-1">活跃会话</h2>
+                <p class="modal-subtitle">管理已登录设备，撤销不认识的会话。</p>
+              </div>
+              <div class="modal-header-right">
+                <span class="modal-updated-at" aria-live="polite">{{ sessionsUpdatedLabel }}</span>
+                <button
+                  class="modal-close"
+                  @click="showSessionsModal = false"
+                  aria-label="关闭"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
             </div>
             <div class="modal-body">
-              <div v-if="loadingSessions" class="loading-state">
-                <div class="loading-spinner"></div>
-                <p>加载中...</p>
+              <p class="modal-tip-pill sec-pill sec-pill--warning sec-pill--one-line">
+                建议定期检查并关闭不认识的设备登录。
+              </p>
+              <div class="modal-toolbar">
+                <div class="modal-toolbar-left">
+                  <div class="filter-pills" role="tablist" aria-label="活跃会话筛选">
+                    <button
+                      class="filter-pill"
+                      :class="{ 'filter-pill-active': sessionsFilter === 'all' }"
+                      type="button"
+                      @click="sessionsFilter = 'all'"
+                    >
+                      全部
+                    </button>
+                    <button
+                      class="filter-pill"
+                      :class="{ 'filter-pill-active': sessionsFilter === 'abnormal' }"
+                      type="button"
+                      @click="sessionsFilter = 'abnormal'"
+                    >
+                      仅其他设备
+                    </button>
+                    <button
+                      class="filter-pill"
+                      :class="{ 'filter-pill-active': sessionsFilter === '7d' }"
+                      type="button"
+                      @click="sessionsFilter = '7d'"
+                    >
+                      近 7 天活跃
+                    </button>
+                  </div>
+                </div>
+                <div class="modal-toolbar-right">
+                  <div class="search-input">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                      <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                      <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <input
+                      v-model="sessionsSearch"
+                      type="text"
+                      placeholder="搜索设备 / IP"
+                      aria-label="搜索设备或IP"
+                    />
+                    <button
+                      v-if="sessionsSearch"
+                      class="search-clear"
+                      type="button"
+                      @click="sessionsSearch = ''"
+                      aria-label="清空搜索"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <button
+                    class="modal-refresh-btn"
+                    type="button"
+                    @click="loadSessions({ force: true, isRefresh: true })"
+                    :disabled="loadingSessions || refreshingSessions"
+                    aria-label="刷新会话列表"
+                    title="刷新"
+                  >
+                    <svg 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      xmlns="http://www.w3.org/2000/svg"
+                      :class="{ 'refresh-icon-spinning': refreshingSessions }"
+                    >
+                      <path d="M21 12a9 9 0 1 1-2.64-6.36" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                      <path d="M21 3v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
-              <div v-else-if="sessions.length === 0" class="empty-state">
+
+              <div v-if="loadingSessions && !refreshingSessions" class="skeleton-list">
+                <div v-for="n in 3" :key="n" class="skeleton-card">
+                  <div class="skeleton-icon"></div>
+                  <div class="skeleton-lines">
+                    <div class="skeleton-line skeleton-line--lg"></div>
+                    <div class="skeleton-line"></div>
+                    <div class="skeleton-line skeleton-line--sm"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-else-if="sessionsErrorType === 'permission'"
+                class="empty-state empty-state-warning"
+              >
+                <div class="empty-state-icon">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <p class="empty-state-title">操作受限</p>
+                <p class="empty-state-subtitle">{{ sessionsErrorMessage }}</p>
+                <button class="auth-button" type="button" @click="loadSessions({ force: true })">
+                  重试
+                </button>
+              </div>
+
+              <div
+                v-else-if="sessionsErrorType === 'network'"
+                class="empty-state empty-state-danger"
+              >
+                <div class="empty-state-icon">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <p class="empty-state-title">加载失败</p>
+                <p class="empty-state-subtitle">{{ sessionsErrorMessage }}</p>
+                <button class="auth-button" type="button" @click="loadSessions({ force: true })">
+                  重试
+                </button>
+              </div>
+
+              <div v-else-if="filteredSessions.length === 0" class="empty-state">
                 <div class="empty-state-icon">
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
                   </svg>
                 </div>
-                <p>当前没有其他活跃会话，一切正常。</p>
+                <p class="empty-state-title">没有匹配的会话</p>
+                <p class="empty-state-subtitle">可尝试调整筛选条件或搜索关键词。</p>
               </div>
               <div v-else>
                 <div class="sessions-list">
@@ -644,7 +956,35 @@
                     </div>
                     <div class="session-item-content">
                       <div class="session-item-header">
-                        <span class="session-item-token">Token: {{ session.token }}</span>
+                        <div class="session-item-token-row">
+                          <span class="session-item-token-label">Token</span>
+                          <span class="session-item-token-mono">
+                            {{ expandedSessionTokens.has(session.session_id || session.token) ? (session.token || "未知") : shortToken(session.token) }}
+                          </span>
+                          <button
+                            class="session-copy-btn"
+                            type="button"
+                            :disabled="!session.token"
+                            @click="copyText(session.token)"
+                            aria-label="复制 Token"
+                            title="复制"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/>
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                          </button>
+                          <button
+                            class="session-expand-btn"
+                            type="button"
+                            :disabled="!session.token || (session.token || '').length <= 16"
+                            @click="toggleSessionToken(session.session_id || session.token)"
+                            aria-label="展开或收起 Token"
+                            title="展开/收起"
+                          >
+                            {{ expandedSessionTokens.has(session.session_id || session.token) ? "收起" : "展开" }}
+                          </button>
+                        </div>
                         <span v-if="session.is_current" class="session-item-badge">当前会话</span>
                       </div>
                       <div class="session-item-details">
@@ -662,7 +1002,10 @@
                         </div>
                         <div v-if="session.last_used_at" class="session-item-detail">
                           <span class="detail-label">最后使用：</span>
-                          <span class="detail-value">{{ formatTime(session.last_used_at) }}</span>
+                          <span class="detail-value">
+                            {{ formatRelativeTime(session.last_used_at) }}
+                            <span class="detail-subtle">（{{ formatTime(session.last_used_at) }}）</span>
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -683,7 +1026,7 @@
                 <!-- 分页控件：样式与登录历史保持一致 -->
                 <div v-if="totalSessionsPages > 1" class="pagination-container">
                   <div class="pagination-info">
-                    <span>共 {{ sessions.length }} 个会话</span>
+                    <span>共 {{ filteredSessions.length }} 个会话</span>
                     <span>第 {{ currentSessionsPage }} / {{ totalSessionsPages }} 页</span>
                   </div>
                   <div class="pagination-controls">
@@ -732,7 +1075,13 @@
                     :disabled="revokingAllSessions"
                   >
                     <span v-if="revokingAllSessions" class="loading-spinner"></span>
-                    <span>{{ revokingAllSessions ? "撤销中..." : "撤销所有会话" }}</span>
+                    <span>
+                      {{
+                        revokingAllSessions
+                          ? "撤销中..."
+                          : (Date.now() < revokeAllConfirmUntil ? "确认撤销（2秒内）" : "撤销所有会话")
+                      }}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -755,9 +1104,12 @@
           @keyup.esc.stop.prevent="showAvatarModal = false"
           tabindex="-1"
         >
-          <div class="modal-content glass-card modal-content-avatar">
+          <div class="modal-content glass-card modal-content--md">
             <div class="modal-header">
-              <h2 id="avatar-modal-title">编辑头像</h2>
+              <div class="modal-header-text">
+                <h2 id="avatar-modal-title" ref="avatarModalTitleRef" tabindex="-1">编辑头像</h2>
+                <p class="modal-subtitle">上传并调整头像，推荐清晰的正方形图片。</p>
+              </div>
               <button
                 class="modal-close"
                 @click="showAvatarModal = false"
@@ -778,7 +1130,12 @@
                           v-if="avatarPreviewUrl || userStore.user?.avatar"
                           :src="avatarPreviewUrl || userStore.user?.avatar"
                           alt="头像预览"
-                          :style="{ transform: `scale(${avatarZoom})` }"
+                          :style="getAvatarTransformStyle()"
+                          @pointerdown.prevent="handleAvatarPointerDown"
+                          @pointermove.prevent="handleAvatarPointerMove"
+                          @pointerup.prevent="endAvatarDragging"
+                          @pointercancel.prevent="endAvatarDragging"
+                          @pointerleave.prevent="endAvatarDragging"
                         />
                         <div v-else class="avatar-preview-placeholder">
                           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -792,6 +1149,30 @@
                   <p class="avatar-helper-text">
                     头像将以居中区域裁剪为正方形，适配圆形展示。
                   </p>
+                  <div class="avatar-dual-preview">
+                    <div class="avatar-mini-preview">
+                      <div class="avatar-mini-label">圆形</div>
+                      <div class="avatar-mini avatar-mini--circle">
+                        <img
+                          v-if="avatarPreviewUrl || userStore.user?.avatar"
+                          :src="avatarPreviewUrl || userStore.user?.avatar"
+                          alt="圆形预览"
+                          :style="getAvatarTransformStyle()"
+                        />
+                      </div>
+                    </div>
+                    <div class="avatar-mini-preview">
+                      <div class="avatar-mini-label">方形</div>
+                      <div class="avatar-mini avatar-mini--square">
+                        <img
+                          v-if="avatarPreviewUrl || userStore.user?.avatar"
+                          :src="avatarPreviewUrl || userStore.user?.avatar"
+                          alt="方形预览"
+                          :style="getAvatarTransformStyle()"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div class="avatar-control-panel">
                   <div class="form-group">
@@ -801,9 +1182,12 @@
                         type="file"
                         accept="image/*"
                         @change="handleAvatarFileChange"
+                        :aria-invalid="avatarError ? 'true' : 'false'"
+                        :aria-describedby="avatarError ? 'avatar-error' : undefined"
                       />
                       <span>上传图片</span>
                     </label>
+                    <div v-if="avatarError" id="avatar-error" class="field-error">{{ avatarError }}</div>
                     <p class="avatar-upload-hint">推荐使用清晰的正方形图片，支持 JPG / PNG，最大 2MB。</p>
                   </div>
                   <div class="form-group">
@@ -823,6 +1207,18 @@
                       </span>
                       <span class="avatar-zoom-label">放大</span>
                     </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">调整</label>
+                    <div class="avatar-transform-row">
+                      <button class="avatar-tool-btn" type="button" @click="rotateAvatar90" :disabled="!avatarImage">
+                        旋转 90°
+                      </button>
+                      <button class="avatar-tool-btn avatar-tool-btn--ghost" type="button" @click="resetAvatarTransform" :disabled="!avatarImage">
+                        重置
+                      </button>
+                    </div>
+                    <p class="avatar-upload-hint">可拖拽预览区移动位置，修正手机照片方向或构图。</p>
                   </div>
                   <div class="avatar-actions">
                     <button
@@ -847,7 +1243,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useUserStore } from "@/stores/user";
 import {
@@ -886,17 +1282,44 @@ const changePasswordError = ref("");
 
 const loginHistory = ref<LoginHistoryItem[]>([]);
 const loadingLoginHistory = ref(false);
+const refreshingLoginHistory = ref(false);
 const currentLoginHistoryPage = ref(1);
 const loginHistoryPageSize = 3; // 每页显示3条记录
 
-const currentLoginMethod = ref<"email" | "google" | "github">("email");
+const currentLoginMethod = ref<"email" | "google" | "github">(userStore.user?.provider || "email");
 
 const sessions = ref<SessionInfo[]>([]);
 const loadingSessions = ref(false);
+const refreshingSessions = ref(false);
 const currentSessionsPage = ref(1);
 const sessionsPageSize = 3; // 每页3条，与登录历史保持一致
 const revokingSession = ref<string | null>(null);
 const revokingAllSessions = ref(false);
+const revokeAllConfirmUntil = ref<number>(0);
+
+const loginHistoryErrorType = ref<"none" | "permission" | "network">("none");
+const loginHistoryErrorMessage = ref("");
+const sessionsErrorType = ref<"none" | "permission" | "network">("none");
+const sessionsErrorMessage = ref("");
+
+const loginHistoryFilter = ref<"all" | "failed" | "7d">("all");
+const loginHistorySearch = ref("");
+const sessionsFilter = ref<"all" | "abnormal" | "7d">("all");
+const sessionsSearch = ref("");
+
+const CACHE_MS = 60_000;
+const lastLoginHistoryFetchedAt = ref<number>(0);
+const lastSessionsFetchedAt = ref<number>(0);
+const lastLoginHistoryUpdatedAt = ref<number>(0);
+const lastSessionsUpdatedAt = ref<number>(0);
+
+const formatRelativeFromTs = (ts: number) => {
+  if (!ts) return "未更新";
+  return formatRelativeTime(new Date(ts).toISOString());
+};
+
+const loginHistoryUpdatedLabel = computed(() => `最近更新：${formatRelativeFromTs(lastLoginHistoryUpdatedAt.value)}`);
+const sessionsUpdatedLabel = computed(() => `最近更新：${formatRelativeFromTs(lastSessionsUpdatedAt.value)}`);
 
 const resendingVerification = ref(false);
 
@@ -926,12 +1349,161 @@ const unlockBodyScroll = () => {
   }
 };
 
+// A11y: 记录触发元素，关闭时还原焦点
+const lastTriggerEl = ref<HTMLElement | null>(null);
+const setLastTrigger = (e?: Event) => {
+  const target = (e?.currentTarget || e?.target) as HTMLElement | null;
+  if (target && typeof target.focus === "function") lastTriggerEl.value = target;
+};
+const restoreFocus = async () => {
+  await nextTick();
+  if (lastTriggerEl.value) {
+    try {
+      lastTriggerEl.value.focus();
+    } catch {
+      // ignore
+    }
+  }
+};
+
+const changePasswordTriggerRef = ref<HTMLElement | null>(null);
+const loginHistoryTriggerRef = ref<HTMLElement | null>(null);
+const sessionsTriggerRef = ref<HTMLElement | null>(null);
+const avatarTriggerRef = ref<HTMLElement | null>(null);
+const nameTriggerRef = ref<HTMLElement | null>(null);
+
+const changePasswordTitleRef = ref<HTMLElement | null>(null);
+const loginHistoryTitleRef = ref<HTMLElement | null>(null);
+const sessionsTitleRef = ref<HTMLElement | null>(null);
+const avatarModalTitleRef = ref<HTMLElement | null>(null);
+
+const currentPasswordInputRef = ref<HTMLInputElement | null>(null);
+const nameInputRef = ref<HTMLInputElement | null>(null);
+
+const focusEl = async (el: { focus?: () => void } | null | undefined) => {
+  await nextTick();
+  try {
+    el?.focus?.();
+  } catch {
+    // ignore
+  }
+};
+
 // 头像上传 / 裁剪
 const showAvatarModal = ref(false);
 const avatarPreviewUrl = ref<string | null>(null);
 const avatarImage = ref<HTMLImageElement | null>(null);
 const avatarZoom = ref(1.1);
 const avatarUploading = ref(false);
+const avatarError = ref("");
+const avatarRotate = ref<0 | 90 | 180 | 270>(0);
+const avatarOffsetX = ref(0);
+const avatarOffsetY = ref(0);
+const avatarDragging = ref(false);
+const avatarDragStartX = ref(0);
+const avatarDragStartY = ref(0);
+const avatarDragStartOffsetX = ref(0);
+const avatarDragStartOffsetY = ref(0);
+
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+
+const AVATAR_PREVIEW_SIZE = 200; // 主预览裁剪窗口（圆形）直径，px
+
+const getAvatarMaxOffsets = () => {
+  const img = avatarImage.value;
+  if (!img) return { maxX: 0, maxY: 0 };
+
+  // 先让图片在预览窗口“至少覆盖”（cover），再叠加用户缩放
+  const baseScale = Math.max(AVATAR_PREVIEW_SIZE / img.width, AVATAR_PREVIEW_SIZE / img.height);
+  const scale = baseScale * avatarZoom.value;
+  const w = img.width * scale;
+  const h = img.height * scale;
+
+  // 旋转后矩形的轴对齐包围盒尺寸
+  const rad = (avatarRotate.value * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const bw = Math.abs(w * cos) + Math.abs(h * sin);
+  const bh = Math.abs(w * sin) + Math.abs(h * cos);
+
+  // 为避免留白，中心点可移动范围为 (bbox - window) / 2
+  const maxX = Math.max(0, (bw - AVATAR_PREVIEW_SIZE) / 2);
+  const maxY = Math.max(0, (bh - AVATAR_PREVIEW_SIZE) / 2);
+  return { maxX, maxY };
+};
+
+const clampAvatarOffsets = () => {
+  const { maxX, maxY } = getAvatarMaxOffsets();
+  avatarOffsetX.value = clamp(avatarOffsetX.value, -maxX, maxX);
+  avatarOffsetY.value = clamp(avatarOffsetY.value, -maxY, maxY);
+};
+
+const getAvatarTransformStyle = () => {
+  return {
+    transform: `translate(${avatarOffsetX.value}px, ${avatarOffsetY.value}px) rotate(${avatarRotate.value}deg) scale(${avatarZoom.value})`,
+    cursor: avatarImage.value ? (avatarDragging.value ? "grabbing" : "grab") : "default",
+  } as Record<string, string>;
+};
+
+const rotateAvatar90 = () => {
+  avatarRotate.value = ((avatarRotate.value + 90) % 360) as 0 | 90 | 180 | 270;
+  clampAvatarOffsets();
+};
+
+const resetAvatarTransform = () => {
+  avatarZoom.value = 1.1;
+  avatarRotate.value = 0;
+  avatarOffsetX.value = 0;
+  avatarOffsetY.value = 0;
+};
+
+const handleAvatarPointerDown = (e: PointerEvent) => {
+  if (!avatarImage.value) return;
+  avatarDragging.value = true;
+  avatarDragStartX.value = e.clientX;
+  avatarDragStartY.value = e.clientY;
+  avatarDragStartOffsetX.value = avatarOffsetX.value;
+  avatarDragStartOffsetY.value = avatarOffsetY.value;
+  try {
+    (e.currentTarget as HTMLElement | null)?.setPointerCapture?.(e.pointerId);
+  } catch {
+    // ignore
+  }
+};
+
+const handleAvatarPointerMove = (e: PointerEvent) => {
+  if (!avatarDragging.value) return;
+  const dx = e.clientX - avatarDragStartX.value;
+  const dy = e.clientY - avatarDragStartY.value;
+  const { maxX, maxY } = getAvatarMaxOffsets();
+  avatarOffsetX.value = clamp(avatarDragStartOffsetX.value + dx, -maxX, maxX);
+  avatarOffsetY.value = clamp(avatarDragStartOffsetY.value + dy, -maxY, maxY);
+};
+
+const endAvatarDragging = (e?: PointerEvent) => {
+  if (!avatarDragging.value) return;
+  avatarDragging.value = false;
+  if (e) {
+    try {
+      (e.currentTarget as HTMLElement | null)?.releasePointerCapture?.(e.pointerId);
+    } catch {
+      // ignore
+    }
+  }
+};
+
+// 缩放/旋转变化时也要自动约束位移，避免出现边缘留白
+watch([avatarZoom, avatarRotate, avatarImage], () => {
+  clampAvatarOffsets();
+});
+
+watch([loginHistoryFilter, loginHistorySearch], () => {
+  currentLoginHistoryPage.value = 1;
+});
+
+watch([sessionsFilter, sessionsSearch], () => {
+  currentSessionsPage.value = 1;
+});
 
 // 头像引导提示：仅首次显示一次
 const showAvatarHint = ref(false);
@@ -940,6 +1512,7 @@ const showAvatarHint = ref(false);
 const editingName = ref(false);
 const nameInput = ref("");
 const savingName = ref(false);
+const nameError = ref("");
 
 // 以下安全扩展功能（2FA / 社交绑定 / 密码泄露检测）已下线，仅保留占位变量避免报错
 const twoFAStatus = ref(null);
@@ -959,6 +1532,35 @@ const currentLoginMethodText = computed(() => {
   return formatLoginMethod(currentLoginMethod.value);
 });
 
+// 首屏避免额外请求：优先用用户信息中的 provider 推断登录方式；
+// 打开“登录历史”弹窗时再加载完整审计记录并纠正展示。
+watch(
+  () => userStore.user?.provider,
+  (provider) => {
+    if (provider === "email" || provider === "google" || provider === "github") {
+      currentLoginMethod.value = provider;
+    } else {
+      currentLoginMethod.value = "email";
+    }
+  },
+  { immediate: true }
+);
+
+const sessionBadgeVariant = computed<"neutral" | "warning">(() => {
+  if (!sessions.value || sessions.value.length === 0) return "neutral";
+  if (sessions.value.length >= 2) return "warning";
+  // length === 1
+  const only = sessions.value[0] as any;
+  return only?.is_current ? "neutral" : "warning";
+});
+
+const sessionBadgeLabel = computed(() => {
+  const count = sessions.value?.length || 0;
+  if (count <= 0) return "";
+  if (count === 1 && sessionBadgeVariant.value === "neutral") return "仅当前设备";
+  return `${count} 个活跃会话`;
+});
+
 const canChangePassword = computed(() => {
   // provider 不代表“当前登录方式”，也不应作为权限依据；
   // 是否能改密码取决于账户是否设置过密码（OAuth-only 用户需要先走“忘记密码”设置密码）
@@ -968,6 +1570,8 @@ const canChangePassword = computed(() => {
 const isEmailVerified = computed(() => {
   return !!userStore.user?.email_verified;
 });
+
+const emailRestrictionMessage = "当前邮箱未验证，部分安全操作将受限，建议尽快完成验证。";
 
 const showToast = (type: "success" | "error" | "warning" | "info", title: string, message?: string) => {
   const event = new CustomEvent("show-toast", {
@@ -985,15 +1589,33 @@ const initAvatarHint = () => {
   }
 };
 
+const filteredSessions = computed(() => {
+  const q = sessionsSearch.value.trim().toLowerCase();
+  const now = Date.now();
+  return sessions.value.filter((s) => {
+    if (!s) return false;
+    if (sessionsFilter.value === "abnormal" && s.is_current) return false;
+    if (sessionsFilter.value === "7d") {
+      const t = new Date((s.last_used_at as any) || s.created_at || "").getTime();
+      if (!Number.isFinite(t) || now - t > 7 * 24 * 3600 * 1000) return false;
+    }
+    if (q) {
+      const hay = `${s.ip || ""} ${s.user_agent || ""} ${parseUserAgent(s.user_agent || "")}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+});
+
 // 计算分页后的活跃会话列表
 const totalSessionsPages = computed(() => {
-  return sessions.value.length === 0 ? 1 : Math.ceil(sessions.value.length / sessionsPageSize);
+  return filteredSessions.value.length === 0 ? 1 : Math.ceil(filteredSessions.value.length / sessionsPageSize);
 });
 
 const paginatedSessions = computed(() => {
   const start = (currentSessionsPage.value - 1) * sessionsPageSize;
   const end = start + sessionsPageSize;
-  return sessions.value.slice(start, end);
+  return filteredSessions.value.slice(start, end);
 });
 
 // 当前会话优先排序：当前会话在前，其余保持时间顺序
@@ -1058,6 +1680,64 @@ const formatTime = (timeStr: string) => {
   }
 };
 
+const formatRelativeTime = (timeStr: string) => {
+  if (!timeStr) return "未知";
+  const t = new Date(timeStr).getTime();
+  if (!Number.isFinite(t)) return timeStr;
+  const diff = Date.now() - t;
+  if (diff < 0) return "刚刚";
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return "刚刚";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} 分钟前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} 小时前`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day} 天前`;
+  // 超过一周回落到绝对时间，避免“32天前”不直观
+  return formatTime(timeStr);
+};
+
+const shortToken = (token?: string) => {
+  const t = (token || "").trim();
+  if (!t) return "未知";
+  if (t.length <= 16) return t;
+  return `${t.slice(0, 6)}…${t.slice(-6)}`;
+};
+
+const copyText = async (text: string) => {
+  const v = (text || "").trim();
+  if (!v) return;
+  try {
+    await navigator.clipboard.writeText(v);
+    showToast("success", "已复制", "已复制到剪贴板");
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = v;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      showToast("success", "已复制", "已复制到剪贴板");
+    } catch {
+      showToast("error", "复制失败", "请手动复制");
+    }
+  }
+};
+
+const expandedSessionTokens = ref(new Set<string>());
+const toggleSessionToken = (key: string) => {
+  if (!key) return;
+  const s = expandedSessionTokens.value;
+  if (s.has(key)) s.delete(key);
+  else s.add(key);
+  // 触发响应式更新：Set 本身不是深度追踪，替换引用更稳妥
+  expandedSessionTokens.value = new Set(s);
+};
+
 const parseUserAgent = (userAgent: string) => {
   if (!userAgent) return "未知设备";
   // 简单的User-Agent解析（用于会话管理，登录历史使用后端解析的数据）
@@ -1079,7 +1759,8 @@ const formatLoginMethod = (method: string) => {
 };
 
 const openAvatarModal = () => {
-  avatarZoom.value = 1.1;
+  resetAvatarTransform();
+  avatarError.value = "";
   avatarPreviewUrl.value = userStore.user?.avatar || null;
   avatarImage.value = null;
   showAvatarModal.value = true;
@@ -1095,17 +1776,25 @@ const openAvatarModal = () => {
   showAvatarHint.value = false;
 };
 
+const openAvatarModalFromTrigger = (e: Event) => {
+  setLastTrigger(e);
+  openAvatarModal();
+};
+
 const handleAvatarFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement;
   if (!target.files || !target.files[0]) return;
   const file = target.files[0];
 
+  avatarError.value = "";
+  // 选择新图时重置变换，更符合用户预期
+  resetAvatarTransform();
   if (!file.type.startsWith("image/")) {
-    showToast("error", "格式不支持", "请上传 JPG 或 PNG 图片");
+    avatarError.value = "格式不支持：请上传 JPG 或 PNG 图片";
     return;
   }
   if (file.size > 2 * 1024 * 1024) {
-    showToast("error", "图片过大", "头像图片大小不能超过 2MB");
+    avatarError.value = "图片过大：头像图片大小不能超过 2MB";
     return;
   }
 
@@ -1117,6 +1806,7 @@ const handleAvatarFileChange = (event: Event) => {
     img.onload = () => {
       avatarImage.value = img;
       avatarZoom.value = 1.1;
+      clampAvatarOffsets();
     };
     img.src = result;
   };
@@ -1124,23 +1814,29 @@ const handleAvatarFileChange = (event: Event) => {
 };
 
 const startEditName = () => {
+  setLastTrigger({ currentTarget: nameTriggerRef.value } as any);
+  nameError.value = "";
   editingName.value = true;
   nameInput.value = userStore.user?.name || "";
+  focusEl(nameInputRef.value);
 };
 
 const cancelEditName = () => {
   editingName.value = false;
+  nameError.value = "";
   nameInput.value = userStore.user?.name || "";
+  restoreFocus();
 };
 
 const saveName = async () => {
+  nameError.value = "";
   const value = nameInput.value.trim();
   if (!value) {
-    showToast("error", "保存失败", "昵称不能为空");
+    nameError.value = "昵称不能为空";
     return;
   }
   if (value.length > 50) {
-    showToast("error", "保存失败", "昵称长度不能超过 50 个字符");
+    nameError.value = "昵称长度不能超过 50 个字符";
     return;
   }
 
@@ -1155,16 +1851,20 @@ const saveName = async () => {
     }
     showToast("success", "已保存", res.message || "昵称已更新");
     editingName.value = false;
+    restoreFocus();
   } catch (err: any) {
     showToast("error", "保存失败", err.message || "保存昵称失败，请稍后重试");
+    // 可重试的服务端错误也给输入区域一个可见提示（更不打扰）
+    nameError.value = err?.message || "保存失败，请稍后重试";
   } finally {
     savingName.value = false;
   }
 };
 
 const handleSaveAvatar = async () => {
+  avatarError.value = "";
   if (!avatarPreviewUrl.value) {
-    showToast("error", "未选择图片", "请先选择一张头像图片");
+    avatarError.value = "请先选择一张头像图片";
     return;
   }
 
@@ -1190,8 +1890,15 @@ const handleSaveAvatar = async () => {
   ctx.save();
   ctx.fillStyle = "#f3f4f6";
   ctx.fillRect(0, 0, size, size);
-  ctx.translate(size / 2, size / 2);
-  const scale = avatarZoom.value;
+  // 让图片至少覆盖整个输出画布（再叠加用户缩放），避免出现边缘留白
+  const baseScale = Math.max(size / img.width, size / img.height);
+  const scale = baseScale * avatarZoom.value;
+  // 将预览中的平移（基于 200px 圆形区域）映射到 512 输出画布
+  const offsetScale = size / 200;
+  const tx = size / 2 + avatarOffsetX.value * offsetScale;
+  const ty = size / 2 + avatarOffsetY.value * offsetScale;
+  ctx.translate(tx, ty);
+  ctx.rotate((avatarRotate.value * Math.PI) / 180);
   ctx.scale(scale, scale);
   ctx.drawImage(img, -img.width / 2, -img.height / 2);
   ctx.restore();
@@ -1224,12 +1931,40 @@ const handleSaveAvatar = async () => {
     showToast("success", "头像已更新", result.message || "头像已更新");
     showAvatarModal.value = false;
   } catch (err: any) {
-    showToast("error", "上传失败", err.message || "上传头像失败，请稍后重试");
+    const msg = err?.message || "上传头像失败，请稍后重试";
+    // 用户可修复的错误（格式/大小/空文件等）优先内联提示，不弹 toast
+    if (
+      msg.includes("JPG") ||
+      msg.includes("PNG") ||
+      msg.includes("2MB") ||
+      msg.includes("为空") ||
+      msg.includes("格式")
+    ) {
+      avatarError.value = msg;
+    } else {
+      avatarError.value = msg;
+      showToast("error", "上传失败", msg);
+    }
   } finally {
     avatarUploading.value = false;
     showAvatarModal.value = false;
     unlockBodyScroll();
   }
+};
+
+const openChangePasswordModalFromTrigger = (e: Event) => {
+  setLastTrigger(e);
+  showChangePasswordModal.value = true;
+};
+
+const openLoginHistoryModalFromTrigger = (e: Event) => {
+  setLastTrigger(e);
+  showLoginHistoryModal.value = true;
+};
+
+const openSessionsModalFromTrigger = (e: Event) => {
+  setLastTrigger(e);
+  showSessionsModal.value = true;
 };
 
 const formatFailureReason = (reason: string) => {
@@ -1248,6 +1983,7 @@ const handleChangePassword = async () => {
 
   if (!isEmailVerified.value) {
     changePasswordError.value = "邮箱未验证：请先完成邮箱验证后再修改密码";
+    // 权限/受限：保留黄 toast
     showToast("warning", "操作被限制", changePasswordError.value);
     return;
   }
@@ -1292,19 +2028,50 @@ const handleChangePassword = async () => {
       router.push("/auth");
     }, 2000);
   } catch (err: any) {
-    changePasswordError.value = err.message || "修改失败，请稍后重试";
-    showToast("error", "修改失败", err.message);
+    const msg = err?.message || "修改失败，请稍后重试";
+    // 可修复错误优先 inline，避免打扰
+    changePasswordError.value = msg;
+    // 严重失败才红 toast（这里用关键词做一个保守判断）
+    if (msg.includes("500") || msg.includes("timeout") || msg.includes("网络") || msg.includes("服务")) {
+      showToast("error", "修改失败", msg);
+    }
   } finally {
     changingPassword.value = false;
   }
 };
 
-const loadLoginHistory = async () => {
-  loadingLoginHistory.value = true;
+const isPermissionError = (msg: string) => {
+  const m = (msg || "").toLowerCase();
+  return m.includes("401") || m.includes("403") || m.includes("unauthorized") || m.includes("forbidden") || m.includes("not authenticated");
+};
+
+const loadLoginHistory = async (opts?: { force?: boolean; silent?: boolean; isRefresh?: boolean }) => {
+  const force = !!opts?.force;
+  const silent = !!opts?.silent;
+  const isRefresh = !!opts?.isRefresh;
+  loginHistoryErrorType.value = "none";
+  loginHistoryErrorMessage.value = "";
+
+  if (!force && loginHistory.value.length > 0 && Date.now() - lastLoginHistoryFetchedAt.value < CACHE_MS) {
+    return;
+  }
+  
+  // 区分初始加载和刷新
+  if (isRefresh && loginHistory.value.length > 0) {
+    refreshingLoginHistory.value = true;
+  } else {
+    loadingLoginHistory.value = true;
+  }
+  
+  const refreshStartedAt = Date.now();
+  const MIN_REFRESH_MS = 450;
+
   currentLoginHistoryPage.value = 1; // 重置到第一页
   try {
     loginHistory.value = await getLoginHistory(50); // 获取更多记录用于分页
-    // 用最近一次成功登录的审计记录作为“当前登录方式”展示来源
+    lastLoginHistoryFetchedAt.value = Date.now();
+    lastLoginHistoryUpdatedAt.value = Date.now();
+    // 用最近一次成功登录的审计记录作为"当前登录方式"展示来源
     const latestSuccess = loginHistory.value.find((x) => x && x.success);
     if (latestSuccess && (latestSuccess.login_method === "email" || latestSuccess.login_method === "google" || latestSuccess.login_method === "github")) {
       currentLoginMethod.value = latestSuccess.login_method;
@@ -1312,22 +2079,57 @@ const loadLoginHistory = async () => {
       currentLoginMethod.value = "email";
     }
   } catch (err: any) {
-    showToast("error", "加载失败", err.message);
+    const msg = err?.message || "加载失败，请稍后重试";
+    if (isPermissionError(msg)) {
+      loginHistoryErrorType.value = "permission";
+      loginHistoryErrorMessage.value = "当前操作受限：请先完成邮箱验证或重新登录后再试。";
+      if (!silent) showToast("warning", "操作被限制", loginHistoryErrorMessage.value);
+    } else {
+      loginHistoryErrorType.value = "network";
+      loginHistoryErrorMessage.value = msg;
+      if (!silent) showToast("error", "加载失败", msg);
+    }
   } finally {
+    // 让“无感刷新”的旋转有可感知的存在感（避免请求太快肉眼看不到）
+    if (isRefresh) {
+      const elapsed = Date.now() - refreshStartedAt;
+      if (elapsed < MIN_REFRESH_MS) {
+        await new Promise((r) => setTimeout(r, MIN_REFRESH_MS - elapsed));
+      }
+    }
     loadingLoginHistory.value = false;
+    refreshingLoginHistory.value = false;
   }
 };
 
 // 计算分页后的登录历史
+const filteredLoginHistory = computed(() => {
+  const q = loginHistorySearch.value.trim().toLowerCase();
+  const now = Date.now();
+  return loginHistory.value.filter((item) => {
+    if (!item) return false;
+    if (loginHistoryFilter.value === "failed" && item.success) return false;
+    if (loginHistoryFilter.value === "7d") {
+      const t = new Date(item.created_at || "").getTime();
+      if (!Number.isFinite(t) || now - t > 7 * 24 * 3600 * 1000) return false;
+    }
+    if (q) {
+      const hay = `${item.device_type || ""} ${item.ip || ""} ${item.browser || ""} ${item.os || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+});
+
 const paginatedLoginHistory = computed(() => {
   const start = (currentLoginHistoryPage.value - 1) * loginHistoryPageSize;
   const end = start + loginHistoryPageSize;
-  return loginHistory.value.slice(start, end);
+  return filteredLoginHistory.value.slice(start, end);
 });
 
 // 计算总页数
 const totalLoginHistoryPages = computed(() => {
-  return Math.ceil(loginHistory.value.length / loginHistoryPageSize);
+  return Math.ceil(filteredLoginHistory.value.length / loginHistoryPageSize);
 });
 
 // 计算可见的页码
@@ -1382,15 +2184,52 @@ const goToLoginHistoryPage = (page: number) => {
   }
 };
 
-const loadSessions = async () => {
-  loadingSessions.value = true;
+const loadSessions = async (opts?: { force?: boolean; silent?: boolean; isRefresh?: boolean }) => {
+  const force = !!opts?.force;
+  const silent = !!opts?.silent;
+  const isRefresh = !!opts?.isRefresh;
+  sessionsErrorType.value = "none";
+  sessionsErrorMessage.value = "";
+
+  if (!force && sessions.value.length > 0 && Date.now() - lastSessionsFetchedAt.value < CACHE_MS) {
+    return;
+  }
+  
+  // 区分初始加载和刷新
+  if (isRefresh && sessions.value.length > 0) {
+    refreshingSessions.value = true;
+  } else {
+    loadingSessions.value = true;
+  }
+  
+  const refreshStartedAt = Date.now();
+  const MIN_REFRESH_MS = 450;
+
   try {
     sessions.value = await getSessions();
+    lastSessionsFetchedAt.value = Date.now();
+    lastSessionsUpdatedAt.value = Date.now();
     currentSessionsPage.value = 1;
   } catch (err: any) {
-    showToast("error", "加载失败", err.message);
+    const msg = err?.message || "加载失败，请稍后重试";
+    if (isPermissionError(msg)) {
+      sessionsErrorType.value = "permission";
+      sessionsErrorMessage.value = "当前操作受限：请先完成邮箱验证或重新登录后再试。";
+      if (!silent) showToast("warning", "操作被限制", sessionsErrorMessage.value);
+    } else {
+      sessionsErrorType.value = "network";
+      sessionsErrorMessage.value = msg;
+      if (!silent) showToast("error", "加载失败", msg);
+    }
   } finally {
+    if (isRefresh) {
+      const elapsed = Date.now() - refreshStartedAt;
+      if (elapsed < MIN_REFRESH_MS) {
+        await new Promise((r) => setTimeout(r, MIN_REFRESH_MS - elapsed));
+      }
+    }
     loadingSessions.value = false;
+    refreshingSessions.value = false;
   }
 };
 
@@ -1399,19 +2238,26 @@ const handleRevokeSession = async (sessionIdOrTokenPrefix: string) => {
   try {
     await revokeSession(sessionIdOrTokenPrefix);
     showToast("success", "撤销成功", "会话已撤销");
-    await loadSessions();
+    await loadSessions({ force: true, silent: true, isRefresh: true });
   } catch (err: any) {
-    showToast("error", "撤销失败", err.message);
+    const msg = err?.message || "撤销失败，请稍后重试";
+    if (isPermissionError(msg)) {
+      showToast("warning", "操作被限制", "当前操作受限，请先完成邮箱验证或重新登录后再试。");
+    } else {
+      showToast("error", "撤销失败", msg);
+    }
   } finally {
     revokingSession.value = null;
   }
 };
 
 const handleRevokeAllSessions = async () => {
-  if (!confirm("确定要撤销所有会话吗？这将登出所有设备，包括当前设备。")) {
+  // 二段式轻确认：2 秒内再次点击才执行
+  if (Date.now() >= revokeAllConfirmUntil.value) {
+    revokeAllConfirmUntil.value = Date.now() + 2000;
     return;
   }
-  
+
   revokingAllSessions.value = true;
   try {
     await revokeAllSessions();
@@ -1423,9 +2269,15 @@ const handleRevokeAllSessions = async () => {
       router.push("/auth");
     }, 2000);
   } catch (err: any) {
-    showToast("error", "撤销失败", err.message);
+    const msg = err?.message || "撤销失败，请稍后重试";
+    if (isPermissionError(msg)) {
+      showToast("warning", "操作被限制", "当前操作受限，请先完成邮箱验证或重新登录后再试。");
+    } else {
+      showToast("error", "撤销失败", msg);
+    }
   } finally {
     revokingAllSessions.value = false;
+    revokeAllConfirmUntil.value = 0;
   }
 };
 
@@ -1450,34 +2302,61 @@ const handleResendVerification = async () => {
 };
 
 // 监听模态框打开，加载数据
-watch(showLoginHistoryModal, (visible) => {
+watch(showLoginHistoryModal, async (visible) => {
   if (visible) {
     lockBodyScroll();
-    loadLoginHistory();
+    await focusEl(loginHistoryTitleRef.value);
+    // 60s 内重复打开不重复请求；手动刷新可强制拉取
+    loadLoginHistory({ silent: true });
   } else {
     unlockBodyScroll();
+    restoreFocus();
   }
 });
 
-watch(showSessionsModal, (visible) => {
+watch(showSessionsModal, async (visible) => {
   if (visible) {
     lockBodyScroll();
-    loadSessions();
+    await focusEl(sessionsTitleRef.value);
+    loadSessions({ silent: true });
   } else {
     unlockBodyScroll();
+    restoreFocus();
+  }
+});
+
+watch(showChangePasswordModal, async (visible) => {
+  if (visible) {
+    lockBodyScroll();
+    await focusEl(currentPasswordInputRef.value || changePasswordTitleRef.value);
+  } else {
+    unlockBodyScroll();
+    restoreFocus();
+  }
+});
+
+watch(showAvatarModal, async (visible) => {
+  if (visible) {
+    // openAvatarModal() 已经做了 lockBodyScroll
+    await focusEl(avatarModalTitleRef.value);
+  } else {
+    unlockBodyScroll();
+    restoreFocus();
   }
 });
 
 // 2FA / 社交绑定 / 密码泄露检测相关函数已移除，仅保留登录历史等通用安全信息
 
 onMounted(() => {
-  // 初始化时拉取一次登录历史（轻量：用于正确展示“登录方式”卡片）
-  loadLoginHistory();
+  // 初始化时拉取一次会话列表（轻量：用于正确展示“活跃会话”徽章/提示）
+  loadSessions({ silent: true });
   initAvatarHint();
 });
 </script>
 
 <style scoped>
+@import "@/styles/securitySection.tokens.css";
+
 .settings {
   width: 100%;
   padding: 0;
@@ -1854,17 +2733,101 @@ onMounted(() => {
 }
 
 .security-status-badge-warning {
-  background: rgba(254, 226, 226, 0.9);
-  color: #b91c1c;
-  box-shadow: 0 4px 14px rgba(248, 113, 113, 0.4);
+  background: var(--sec-badge-warning-bg, rgba(254, 226, 226, 0.9));
+  color: var(--sec-badge-warning-text, #b91c1c);
+  box-shadow: var(--sec-badge-warning-shadow, 0 4px 14px rgba(248, 113, 113, 0.4));
+}
+
+.security-status-badge-neutral {
+  background: var(--sec-badge-neutral-bg, rgba(219, 234, 254, 0.9));
+  color: var(--sec-badge-neutral-text, #1d4ed8);
+  box-shadow: var(--sec-badge-neutral-shadow, 0 4px 14px rgba(59, 130, 246, 0.28));
 }
 
 .security-status-dot {
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: #ef4444;
-  box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.3);
+}
+
+.security-status-dot-warning {
+  background: var(--sec-dot-warning-bg, #ef4444);
+  box-shadow: var(--sec-dot-warning-shadow, 0 0 0 4px rgba(248, 113, 113, 0.3));
+}
+
+.security-status-dot-neutral {
+  background: var(--sec-dot-neutral-bg, #3b82f6);
+  box-shadow: var(--sec-dot-neutral-shadow, 0 0 0 4px rgba(59, 130, 246, 0.22));
+}
+
+.security-warning-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.security-warning-help-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(255, 255, 255, 0.55);
+  color: #92400e;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.security-warning-help-btn:hover,
+.security-warning-help-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 10px 24px rgba(251, 191, 36, 0.25);
+  outline: none;
+}
+
+.security-warning-tooltip {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  width: 320px;
+  max-width: 72vw;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.92);
+  color: rgba(248, 250, 252, 0.95);
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: all 0.18s ease;
+  z-index: 2;
+}
+
+.security-warning-tooltip::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 10px;
+  width: 10px;
+  height: 10px;
+  background: rgba(15, 23, 42, 0.92);
+  transform: rotate(45deg);
+  border-left: 1px solid rgba(148, 163, 184, 0.12);
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.security-warning-help:hover .security-warning-tooltip,
+.security-warning-help:focus-within .security-warning-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .setting-card-subtext {
@@ -2337,7 +3300,7 @@ onMounted(() => {
   backdrop-filter: blur(20px);
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  max-width: 500px;
+  max-width: 560px;
   width: 100%;
   max-height: 90vh;
   display: flex;
@@ -2345,27 +3308,64 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.modal-content-large {
-  max-width: 800px;
+.modal-content--sm {
+  max-width: 560px;
 }
 
-.modal-content-avatar {
-  max-width: 760px;
+.modal-content--md {
+  max-width: 720px;
+}
+
+.modal-content--lg {
+  max-width: 860px;
 }
 
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 32px;
+  padding: 22px 28px;
   border-bottom: 1px solid #e2e8f0;
+  gap: 16px;
 }
 
 .modal-header h2 {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 700;
   color: #1e293b;
   margin: 0;
+}
+
+.modal-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.modal-header-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.modal-updated-at {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sec-muted, #64748b);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  padding: 6px 10px;
+  border-radius: var(--sec-radius-pill, 999px);
+  white-space: nowrap;
+}
+
+.modal-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
 }
 
 .modal-close {
@@ -2393,14 +3393,14 @@ onMounted(() => {
 }
 
 .modal-body {
-  padding: 32px;
+  padding: 24px 28px 28px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
 }
 
 .avatar-modal-body {
-  padding: 28px 32px 32px;
+  padding: 24px 28px 28px;
 }
 
 .avatar-editor-grid {
@@ -2454,6 +3454,94 @@ onMounted(() => {
   object-fit: cover;
   transform-origin: center center;
   transition: transform 0.15s ease-out;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.avatar-dual-preview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  width: 100%;
+  max-width: 260px;
+}
+
+.avatar-mini-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar-mini-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.avatar-mini {
+  width: 104px;
+  height: 104px;
+  overflow: hidden;
+  background: #eef2ff;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+}
+
+.avatar-mini--circle {
+  border-radius: 50%;
+}
+
+.avatar-mini--square {
+  border-radius: 16px;
+}
+
+.avatar-mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: center center;
+  transition: transform 0.15s ease-out;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.avatar-transform-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.avatar-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.08);
+  color: #3730a3;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.avatar-tool-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.2);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.avatar-tool-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.avatar-tool-btn--ghost {
+  border-color: rgba(148, 163, 184, 0.6);
+  background: rgba(148, 163, 184, 0.12);
+  color: #334155;
 }
 
 .avatar-preview-placeholder {
@@ -2779,6 +3867,22 @@ onMounted(() => {
   margin: 0;
 }
 
+.empty-state-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #475569;
+  margin: 0;
+}
+
+.empty-state-subtitle {
+  font-size: 13px;
+  font-weight: 400;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.4;
+  max-width: 520px;
+}
+
 .history-list,
 .sessions-list {
   display: flex;
@@ -2910,9 +4014,75 @@ onMounted(() => {
   letter-spacing: -0.01em;
 }
 
-.session-item-token {
+.detail-subtle {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.session-item-token-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.session-item-token-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  background: rgba(148, 163, 184, 0.14);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 4px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.session-item-token-mono {
   font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
   font-size: 13px;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.session-copy-btn,
+.session-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  background: rgba(255, 255, 255, 0.7);
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.session-copy-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.session-copy-btn:hover:not(:disabled),
+.session-expand-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.session-copy-btn:disabled,
+.session-expand-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .history-item-time {
@@ -2963,6 +4133,231 @@ onMounted(() => {
   margin-top: 4px;
 }
 
+.subtle-pill {
+  /* legacy alias; styles are provided by sec-pill classes */
+}
+
+.modal-tip-pill {
+  margin: 0 0 16px 0;
+  display: inline-block;
+}
+
+.modal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 0 16px 0;
+  flex-wrap: wrap;
+}
+
+.filter-pills {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-pill {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  background: rgba(255, 255, 255, 0.7);
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10);
+}
+
+.filter-pill-active {
+  border-color: rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.12);
+  color: #3730a3;
+}
+
+.modal-toolbar-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 260px;
+}
+
+.search-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  flex: 1;
+  max-width: 360px;
+}
+
+.search-input svg {
+  width: 16px;
+  height: 16px;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.search-input input {
+  border: none;
+  outline: none;
+  background: transparent;
+  width: 100%;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.search-clear {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(148, 163, 184, 0.18);
+  color: #334155;
+  cursor: pointer;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.modal-refresh-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  background: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  color: #334155;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.modal-refresh-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.modal-refresh-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.modal-refresh-btn svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.3s ease;
+  /* SVG 旋转在部分浏览器需要明确 box/origin，否则看起来“不转” */
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+.refresh-icon-spinning {
+  animation: refreshSpin 0.9s linear infinite;
+}
+
+@keyframes refreshSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px;
+  margin: -4px;
+}
+
+.skeleton-card {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.skeleton-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(226,232,240,0.9) 25%, rgba(241,245,249,0.9) 50%, rgba(226,232,240,0.9) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+  flex-shrink: 0;
+}
+
+.skeleton-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(226,232,240,0.9) 25%, rgba(241,245,249,0.9) 50%, rgba(226,232,240,0.9) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+  width: 70%;
+}
+
+.skeleton-line--lg {
+  width: 48%;
+  height: 14px;
+}
+
+.skeleton-line--sm {
+  width: 34%;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.empty-state-warning .empty-state-icon {
+  color: #f59e0b;
+}
+
+.empty-state-danger .empty-state-icon {
+  color: #ef4444;
+}
+
+.restricted-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.restricted-help {
+  /* tooltip trigger visuals are provided by .sec-tooltip-trigger */
+}
+
+.restricted-tooltip {
+  /* tooltip visuals are provided by .sec-tooltip */
+}
+
 @media (max-width: 768px) {
   .history-item-details,
   .session-item-details {
@@ -2990,6 +4385,31 @@ onMounted(() => {
     flex-direction: column;
     gap: 8px;
     text-align: center;
+  }
+
+  .modal-toolbar-right {
+    min-width: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .search-input {
+    max-width: none;
+  }
+
+  .session-copy-btn,
+  .session-expand-btn,
+  .session-revoke-btn {
+    height: 44px;
+    padding: 0 14px;
+  }
+
+  .modal-header-right {
+    gap: 10px;
+  }
+
+  .modal-updated-at {
+    display: none;
   }
 }
 

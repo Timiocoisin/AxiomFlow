@@ -1,0 +1,128 @@
+/* SecuritySection design tokens (UI/UX Pro-ish, lightweight) */
+:root {
+  --sec-surface: rgba(255, 255, 255, 0.75);
+  --sec-border: rgba(203, 213, 225, 0.7);
+  --sec-text: #334155;
+  --sec-text-strong: #0f172a;
+  --sec-muted: #64748b;
+
+  --sec-radius-pill: 999px;
+  --sec-radius-md: 12px;
+  --sec-shadow-soft: 0 10px 22px rgba(15, 23, 42, 0.10);
+
+  --sec-info-bg: rgba(99, 102, 241, 0.08);
+  --sec-info-border: rgba(99, 102, 241, 0.25);
+  --sec-info-text: #3730a3;
+
+  --sec-warn-bg: rgba(245, 158, 11, 0.10);
+  --sec-warn-border: rgba(245, 158, 11, 0.25);
+  --sec-warn-text: #92400e;
+
+  --sec-danger-text: #ef4444;
+
+  /* Badge & dot tokens – values来自当前实现，不改视觉，仅抽象常量 */
+  --sec-badge-neutral-bg: rgba(219, 234, 254, 0.9);
+  --sec-badge-neutral-text: #1d4ed8;
+  --sec-badge-neutral-shadow: 0 4px 14px rgba(59, 130, 246, 0.28);
+
+  --sec-badge-warning-bg: rgba(254, 226, 226, 0.9);
+  --sec-badge-warning-text: #b91c1c;
+  --sec-badge-warning-shadow: 0 4px 14px rgba(248, 113, 113, 0.4);
+
+  --sec-dot-neutral-bg: #3b82f6;
+  --sec-dot-neutral-shadow: 0 0 0 4px rgba(59, 130, 246, 0.22);
+
+  --sec-dot-warning-bg: #ef4444;
+  --sec-dot-warning-shadow: 0 0 0 4px rgba(248, 113, 113, 0.3);
+
+  --sec-tooltip-bg: rgba(15, 23, 42, 0.95);
+  --sec-tooltip-text: rgba(255, 255, 255, 0.92);
+  --sec-tooltip-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
+}
+
+/* Pills */
+.sec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--sec-radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--sec-border);
+  background: var(--sec-surface);
+  color: #475569;
+}
+
+.sec-pill--one-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sec-pill--info {
+  border-color: var(--sec-info-border);
+  background: var(--sec-info-bg);
+  color: var(--sec-info-text);
+}
+
+.sec-pill--warning {
+  border-color: var(--sec-warn-border);
+  background: var(--sec-warn-bg);
+  color: var(--sec-warn-text);
+}
+
+/* Tooltips */
+.sec-tooltip-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sec-warn-text);
+  background: var(--sec-warn-bg);
+  border: 1px solid var(--sec-warn-border);
+  padding: 8px 10px;
+  border-radius: var(--sec-radius-pill);
+  cursor: help;
+  outline: none;
+}
+
+.sec-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  min-width: 260px;
+  max-width: 320px;
+  background: var(--sec-tooltip-bg);
+  color: var(--sec-tooltip-text);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 12px;
+  border-radius: var(--sec-radius-md);
+  box-shadow: var(--sec-tooltip-shadow);
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: all 0.18s ease;
+  z-index: 50;
+}
+
+.sec-tooltip::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  border: 7px solid transparent;
+  border-top-color: var(--sec-tooltip-bg);
+}
+
+.sec-tooltip-trigger:hover .sec-tooltip,
+.sec-tooltip-trigger:focus .sec-tooltip,
+.sec-tooltip-trigger:focus-within .sec-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+

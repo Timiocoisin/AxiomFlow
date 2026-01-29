@@ -5,11 +5,15 @@ app/celery_app.py
 app/main.py
 app/repo.py
 app/repo_mysql.py
+app/core/auth_db.py
 app/core/config.py
 app/core/config_manager.py
+app/core/dependencies.py
+app/core/email_service.py
 app/core/ids.py
 app/core/jwt_utils.py
 app/core/observability.py
+app/core/two_factor_auth.py
 app/core/user_db.py
 app/db/schema.py
 app/models/domain.py
@@ -22,12 +26,10 @@ app/routers/downloads.py
 app/routers/export.py
 app/routers/glossary.py
 app/routers/health.py
-app/routers/health_observability.py
 app/routers/jobs.py
-app/routers/metrics.py
 app/routers/projects.py
-app/routers/settings.py
 app/routers/terms_suggest.py
+app/routers/users.py
 app/routers/websocket.py
 app/schemas/__init__.py
 app/schemas/glossary.py
@@ -51,7 +53,6 @@ app/services/layout_detect.py
 app/services/layout_enhancement.py
 app/services/layout_features.py
 app/services/layout_rules.py
-app/services/ocr_service.py
 app/services/orchestrator.py
 app/services/pdf_cache.py
 app/services/pdf_export.py
@@ -69,7 +70,6 @@ app/services/providers/ollama.py
 app/services/providers/registry.py
 app/tasks/__init__.py
 app/tasks/batch.py
-app/tasks/observability.py
 app/tasks/parse.py
 app/tasks/translate.py
 axiomflow_api.egg-info/PKG-INFO
