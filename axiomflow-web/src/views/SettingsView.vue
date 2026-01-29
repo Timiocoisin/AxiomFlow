@@ -191,50 +191,6 @@
 
         <!-- 安全设置子区域 -->
         <div class="settings-subsection">
-          <!-- 顶部邮箱未验证提醒条 -->
-          <div
-            v-if="!isEmailVerified"
-            class="app-alert app-alert--warning"
-            role="status"
-            aria-live="polite"
-          >
-            <div class="app-alert-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="22,6 12,13 2,6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </div>
-            <div class="app-alert-content">
-              <p class="app-alert-title">邮箱尚未验证</p>
-              <p class="app-alert-message">
-                为了保障账户安全，请先完成邮箱验证，部分安全操作在验证前将被限制。
-              </p>
-              <div class="app-alert-actions">
-                <span
-                  class="restricted-help sec-tooltip-trigger"
-                  tabindex="0"
-                  role="button"
-                  aria-label="为何受限？"
-                  aria-describedby="security-warning-tooltip"
-                >
-                  为什么？
-                  <span id="security-warning-tooltip" class="restricted-tooltip sec-tooltip" role="tooltip">
-                    {{ emailRestrictionMessage }}
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  class="settings-action-btn"
-                  @click="handleResendVerification"
-                  :disabled="resendingVerification"
-                >
-                  <span v-if="resendingVerification" class="loading-spinner-small"></span>
-                  {{ resendingVerification ? "发送中..." : "重新发送验证邮件" }}
-                </button>
-              </div>
-            </div>
-          </div>
-
           <div class="subsection-header">
             <div class="subsection-icon security-icon">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -270,23 +226,9 @@
                     @click="(e) => openChangePasswordModalFromTrigger(e)"
                     :disabled="!canChangePassword || !isEmailVerified"
                     ref="changePasswordTriggerRef"
-                    :aria-describedby="(!isEmailVerified && canChangePassword) ? 'email-restrict-tip-password' : undefined"
                   >
                     修改密码
                   </button>
-                  <span
-                    v-if="!isEmailVerified && canChangePassword"
-                    class="restricted-help sec-tooltip-trigger"
-                    tabindex="0"
-                    role="button"
-                    aria-label="为什么修改密码被限制？"
-                    aria-describedby="email-restrict-tip-password"
-                  >
-                    为什么？
-                    <span id="email-restrict-tip-password" class="restricted-tooltip sec-tooltip" role="tooltip">
-                      {{ emailRestrictionMessage }}
-                    </span>
-                  </span>
                 </div>
                 <p v-if="!canChangePassword" class="settings-hint">
                   当前账户暂不支持直接修改密码，请先通过“忘记密码”设置登录密码。
@@ -317,23 +259,9 @@
                     @click="(e) => openLoginHistoryModalFromTrigger(e)"
                     :disabled="!isEmailVerified"
                     ref="loginHistoryTriggerRef"
-                    :aria-describedby="!isEmailVerified ? 'email-restrict-tip-history' : undefined"
                   >
                     查看登录历史
                   </button>
-                  <span
-                    v-if="!isEmailVerified"
-                    class="restricted-help sec-tooltip-trigger"
-                    tabindex="0"
-                    role="button"
-                    aria-label="为什么登录历史查看被限制？"
-                    aria-describedby="email-restrict-tip-history"
-                  >
-                    为什么？
-                    <span id="email-restrict-tip-history" class="restricted-tooltip sec-tooltip" role="tooltip">
-                      {{ emailRestrictionMessage }}
-                    </span>
-                  </span>
                 </div>
               </div>
             </div>
@@ -371,23 +299,9 @@
                     @click="(e) => openSessionsModalFromTrigger(e)"
                     :disabled="!isEmailVerified"
                     ref="sessionsTriggerRef"
-                    :aria-describedby="!isEmailVerified ? 'email-restrict-tip-sessions' : undefined"
                   >
                     管理会话
                   </button>
-                  <span
-                    v-if="!isEmailVerified"
-                    class="restricted-help sec-tooltip-trigger"
-                    tabindex="0"
-                    role="button"
-                    aria-label="为什么会话管理被限制？"
-                    aria-describedby="email-restrict-tip-sessions"
-                  >
-                    为什么？
-                    <span id="email-restrict-tip-sessions" class="restricted-tooltip sec-tooltip" role="tooltip">
-                      {{ emailRestrictionMessage }}
-                    </span>
-                  </span>
                 </div>
               </div>
             </div>

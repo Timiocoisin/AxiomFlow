@@ -268,7 +268,7 @@ body {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(248, 250, 255, 0.9) 100%);
   border-bottom: none; /* 移除底部边框，消除横线 */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  position: fixed;
+  position: sticky;
   top: 0;
   left: 0;
   right: 0;
@@ -277,21 +277,27 @@ body {
 }
 
 .logo {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 10px;
   text-decoration: none;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .logo:hover {
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 16px rgba(148, 163, 184, 0.35);
   transform: translateY(-1px);
 }
 
 .logo-image {
-  width: 44px;
-  height: 44px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.2));
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -303,8 +309,11 @@ body {
 }
 
 .logo-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 700;
-  font-size: 20px;
+  font-size: 18px;
   background: linear-gradient(135deg, #3b82f6, #8b5cf6);
   -webkit-background-clip: text;
   background-clip: text;
@@ -319,12 +328,89 @@ body {
   background-clip: text;
 }
 
+.logo-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6366f1, #ec4899);
+  color: #f9fafb;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
 .nav-links {
   display: flex;
   align-items: center;
   gap: 12px;
   position: relative;
   padding-left: 16px;
+}
+
+.nav-toggle {
+  display: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  background: rgba(255, 255, 255, 0.9);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: auto;
+  cursor: pointer;
+}
+
+.nav-toggle-line {
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: #1e293b;
+  display: block;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.nav-toggle-line + .nav-toggle-line {
+  margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 12px 16px;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  .nav-links {
+    position: absolute;
+    right: 16px;
+    top: calc(100% + 8px);
+    padding-left: 0;
+    background: rgba(255, 255, 255, 0.97);
+    border-radius: 16px;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px;
+    min-width: 200px;
+    display: none;
+    z-index: 120;
+  }
+
+  .nav-links::before {
+    display: none;
+  }
+
+  .nav-links.nav-links-open {
+    display: flex;
+  }
+
+  .nav-link-item {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 
 .nav-links::before {
@@ -390,6 +476,7 @@ body {
   color: #3b82f6;
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.12));
   border-color: rgba(59, 130, 246, 0.45);
+  font-weight: 600;
   box-shadow: 
     0 6px 20px rgba(59, 130, 246, 0.22),
     0 3px 10px rgba(59, 130, 246, 0.15),
@@ -409,8 +496,8 @@ body {
 }
 
 .nav-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   stroke-width: 2;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
@@ -455,6 +542,26 @@ body {
     0 4px 12px rgba(59, 130, 246, 0.18),
     0 2px 6px rgba(59, 130, 246, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* 未登录时的“登录 / 注册”按钮，使用胶囊形状，避免文字被裁剪 */
+.login-button {
+  width: auto;
+  min-width: 0;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  overflow: visible;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.login-button .login-text {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .user-avatar-button.has-avatar {
@@ -538,6 +645,82 @@ body {
   border-color: rgba(255, 255, 255, 1);
 }
 
+/* 暗色主题基础适配（通过 .theme-dark 挂在 :root 上） */
+.theme-dark body {
+  background: radial-gradient(circle at top, #020617 0, #020617 40%, #020617 100%);
+  color: var(--color-text);
+}
+
+.theme-dark .app-header {
+  background: radial-gradient(circle at top left, rgba(30, 64, 175, 0.35), rgba(15, 23, 42, 0.96));
+  border-bottom-color: rgba(30, 64, 175, 0.4);
+}
+
+.theme-dark .app-main {
+  background: radial-gradient(circle at top, rgba(15, 23, 42, 0.98), #020617);
+}
+
+.theme-dark .nav-link-item {
+  background: rgba(15, 23, 42, 0.8);
+  border-color: rgba(51, 65, 85, 0.8);
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.theme-dark .nav-link-item.router-link-active {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.45), rgba(129, 140, 248, 0.5));
+  color: #eff6ff;
+}
+
+.theme-dark .user-menu {
+  background: rgba(15, 23, 42, 0.98);
+  border-color: rgba(51, 65, 85, 0.9);
+}
+
+.theme-dark .user-menu-item {
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.theme-dark .user-menu-item:hover {
+  background: rgba(59, 130, 246, 0.18);
+  color: #bfdbfe;
+}
+
+/* 路由切换进度条（简化版 NProgress） */
+.route-progress-bar {
+  position: relative;
+  height: 2px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.route-progress-bar::before {
+  content: "";
+  position: absolute;
+  left: -40%;
+  top: 0;
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, #4f46e5, #3b82f6, #22c55e);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+  animation: route-progress 0.8s ease-in-out infinite;
+  border-radius: 999px;
+}
+
+@keyframes route-progress {
+  0% {
+    left: -40%;
+    width: 30%;
+  }
+  50% {
+    left: 40%;
+    width: 50%;
+  }
+  100% {
+    left: 110%;
+    width: 30%;
+  }
+}
+
 .user-menu-wrapper {
   position: relative;
   z-index: 9999; /* 确保菜单在所有页面元素之上，仅次于模态框 */
@@ -558,18 +741,23 @@ body {
   border: 1px solid rgba(226, 232, 240, 0.6);
   padding: 12px;
   z-index: 9999; /* 确保菜单在所有页面元素之上，仅次于模态框（10000） */
-  animation: fadeInDown 0.2s ease;
 }
 
-@keyframes fadeInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.user-menu-fade-enter-active,
+.user-menu-fade-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.user-menu-fade-enter-from,
+.user-menu-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+}
+
+.user-menu-fade-enter-to,
+.user-menu-fade-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }
 
 .user-menu-header {
@@ -2253,7 +2441,7 @@ body {
 
 .app-main {
   flex: 1;
-  padding: 24px 32px 40px;
+  padding: calc(var(--app-header-height, 80px) + 16px) 32px 40px;
   margin-top: var(--app-header-height, 80px);
   height: calc(100vh - var(--app-header-height, 80px));
   overflow-y: hidden;
