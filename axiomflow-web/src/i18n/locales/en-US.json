@@ -1,0 +1,43 @@
+{
+  "nav": {
+    "home": "Home",
+    "documents": "Documents",
+    "login": "Login / Sign Up",
+    "accountMenu": "Account Menu",
+    "openAccountMenu": "Open Account Menu",
+    "closeAccountMenu": "Close Account Menu",
+    "profile": "Profile",
+    "help": "Help / Feedback",
+    "language": "Language",
+    "theme": "Theme",
+    "settings": "Settings",
+    "logout": "Logout",
+    "user": "User",
+    "openNavMenu": "Open Navigation Menu",
+    "closeNavMenu": "Close Navigation Menu"
+  },
+  "language": {
+    "zhCN": "Simplified Chinese",
+    "zhTW": "Traditional Chinese",
+    "enUS": "English",
+    "jaJP": "Japanese",
+    "koKR": "Korean",
+    "frFR": "Français",
+    "deDE": "Deutsch",
+    "esES": "Español",
+    "label": "Language: {lang}",
+    "switched": "Switched to {lang}",
+    "switchedTo": "Switched to {lang}"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "label": "Theme: {theme}",
+    "switched": "Switched to {theme} theme"
+  },
+  "app": {
+    "title": "AxiomFlow - PDF Math Document Translation & Typesetting Tool",
+    "error": "Frontend Runtime Error"
+  }
+}
+

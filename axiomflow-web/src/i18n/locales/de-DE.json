@@ -1,0 +1,43 @@
+{
+  "nav": {
+    "home": "Startseite",
+    "documents": "Dokumente",
+    "login": "Anmelden / Registrieren",
+    "accountMenu": "Kontomenü",
+    "openAccountMenu": "Kontomenü öffnen",
+    "closeAccountMenu": "Kontomenü schließen",
+    "profile": "Profil",
+    "help": "Hilfe / Feedback",
+    "language": "Sprache",
+    "theme": "Design",
+    "settings": "Einstellungen",
+    "logout": "Abmelden",
+    "user": "Benutzer",
+    "openNavMenu": "Navigationsmenü öffnen",
+    "closeNavMenu": "Navigationsmenü schließen"
+  },
+  "language": {
+    "zhCN": "Vereinfachtes Chinesisch",
+    "zhTW": "Traditionelles Chinesisch",
+    "enUS": "English",
+    "jaJP": "Japanisch",
+    "koKR": "Koreanisch",
+    "frFR": "Français",
+    "deDE": "Deutsch",
+    "esES": "Español",
+    "label": "Sprache: {lang}",
+    "switched": "Zu {lang} gewechselt",
+    "switchedTo": "Zu {lang} gewechselt"
+  },
+  "theme": {
+    "light": "Hell",
+    "dark": "Dunkel",
+    "label": "Design: {theme}",
+    "switched": "Zu {theme} Design gewechselt"
+  },
+  "app": {
+    "title": "AxiomFlow - PDF-Mathematikdokument-Übersetzungs- und Satztool",
+    "error": "Frontend-Laufzeitfehler"
+  }
+}
+

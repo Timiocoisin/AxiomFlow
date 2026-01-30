@@ -1,0 +1,43 @@
+{
+  "nav": {
+    "home": "홈",
+    "documents": "문서",
+    "login": "로그인 / 회원가입",
+    "accountMenu": "계정 메뉴",
+    "openAccountMenu": "계정 메뉴 열기",
+    "closeAccountMenu": "계정 메뉴 닫기",
+    "profile": "프로필",
+    "help": "도움말 / 피드백",
+    "language": "언어",
+    "theme": "테마",
+    "settings": "설정",
+    "logout": "로그아웃",
+    "user": "사용자",
+    "openNavMenu": "내비게이션 메뉴 열기",
+    "closeNavMenu": "내비게이션 메뉴 닫기"
+  },
+  "language": {
+    "zhCN": "간체 중국어",
+    "zhTW": "번체 중국어",
+    "enUS": "English",
+    "jaJP": "일본어",
+    "koKR": "한국어",
+    "frFR": "Français",
+    "deDE": "Deutsch",
+    "esES": "Español",
+    "label": "언어: {lang}",
+    "switched": "{lang}로 전환되었습니다",
+    "switchedTo": "{lang}로 전환되었습니다"
+  },
+  "theme": {
+    "light": "라이트",
+    "dark": "다크",
+    "label": "테마: {theme}",
+    "switched": "{theme} 테마로 전환되었습니다"
+  },
+  "app": {
+    "title": "AxiomFlow - PDF 수학 문서 번역 및 조판 도구",
+    "error": "프론트엔드 실행 오류"
+  }
+}
+

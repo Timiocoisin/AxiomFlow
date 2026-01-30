@@ -495,6 +495,16 @@ body {
   transform: translateY(-2px);
 }
 
+/* 低优先级：优化点击动画反馈 */
+.nav-link-item:active {
+  transform: translateY(0) scale(0.98);
+  transition: transform 0.1s ease;
+}
+
+.nav-link-item.router-link-active:active {
+  transform: translateY(0) scale(0.98);
+}
+
 .nav-icon {
   width: 20px;
   height: 20px;
@@ -605,6 +615,12 @@ body {
 
 .user-avatar-button:active {
   transform: scale(0.95);
+  transition: transform 0.1s ease;
+}
+
+.nav-toggle:active {
+  transform: scale(0.95);
+  transition: transform 0.1s ease;
 }
 
 .user-avatar-button svg {
@@ -750,13 +766,13 @@ body {
 
 .user-menu-fade-enter-from,
 .user-menu-fade-leave-to {
-  opacity: 0;
+    opacity: 0;
   transform: translateY(-6px) scale(0.98);
-}
+  }
 
 .user-menu-fade-enter-to,
 .user-menu-fade-leave-from {
-  opacity: 1;
+    opacity: 1;
   transform: translateY(0) scale(1);
 }
 
@@ -861,6 +877,135 @@ body {
 .user-menu-item:disabled:hover {
   background: transparent;
   color: #64748b;
+}
+
+/* 语言选择器样式 */
+.language-selector {
+  position: relative;
+  padding: 0;
+}
+
+.language-selector-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  justify-content: space-between;
+}
+
+.language-selector-button:hover {
+  background: rgba(59, 130, 246, 0.08);
+  color: #3b82f6;
+}
+
+.language-arrow {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.language-selector:hover .language-arrow,
+.language-selector:has(.language-menu) .language-arrow {
+  transform: rotate(180deg);
+}
+
+.language-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(var(--blur-lg, 20px)) saturate(var(--sat-lg, 180%));
+  -webkit-backdrop-filter: blur(var(--blur-lg, 20px)) saturate(var(--sat-lg, 180%));
+  border-radius: 12px;
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.12),
+    0 4px 16px rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  padding: 6px;
+  z-index: 10000;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.language-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.language-menu-item:hover {
+  background: rgba(59, 130, 246, 0.08);
+  color: #3b82f6;
+}
+
+.language-menu-item.active {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.language-menu-item.active svg {
+  width: 18px;
+  height: 18px;
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
+.language-menu-fade-enter-active,
+.language-menu-fade-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.language-menu-fade-enter-from,
+.language-menu-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+}
+
+.language-menu-fade-enter-to,
+.language-menu-fade-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* 暗色主题适配 */
+.theme-dark .language-menu {
+  background: rgba(15, 23, 42, 0.98);
+  border-color: rgba(51, 65, 85, 0.9);
+}
+
+.theme-dark .language-menu-item {
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.theme-dark .language-menu-item:hover {
+  background: rgba(59, 130, 246, 0.18);
+  color: #bfdbfe;
+}
+
+.theme-dark .language-menu-item.active {
+  background: rgba(59, 130, 246, 0.25);
+  color: #bfdbfe;
 }
 
 /* 登录/注册页面样式 - 参考 Apple/Google/Stripe 设计 */

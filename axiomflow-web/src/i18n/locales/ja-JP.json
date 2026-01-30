@@ -1,0 +1,43 @@
+{
+  "nav": {
+    "home": "ホーム",
+    "documents": "ドキュメント",
+    "login": "ログイン / 登録",
+    "accountMenu": "アカウントメニュー",
+    "openAccountMenu": "アカウントメニューを開く",
+    "closeAccountMenu": "アカウントメニューを閉じる",
+    "profile": "プロフィール",
+    "help": "ヘルプ / フィードバック",
+    "language": "言語",
+    "theme": "テーマ",
+    "settings": "設定",
+    "logout": "ログアウト",
+    "user": "ユーザー",
+    "openNavMenu": "ナビゲーションメニューを開く",
+    "closeNavMenu": "ナビゲーションメニューを閉じる"
+  },
+  "language": {
+    "zhCN": "簡体字中国語",
+    "zhTW": "繁体字中国語",
+    "enUS": "English",
+    "jaJP": "日本語",
+    "koKR": "韓国語",
+    "frFR": "Français",
+    "deDE": "Deutsch",
+    "esES": "Español",
+    "label": "言語：{lang}",
+    "switched": "{lang}に切り替えました",
+    "switchedTo": "{lang}に切り替えました"
+  },
+  "theme": {
+    "light": "ライト",
+    "dark": "ダーク",
+    "label": "テーマ：{theme}",
+    "switched": "{theme}テーマに切り替えました"
+  },
+  "app": {
+    "title": "AxiomFlow - PDF数学文書翻訳・組版ツール",
+    "error": "フロントエンド実行エラー"
+  }
+}
+

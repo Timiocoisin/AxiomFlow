@@ -1,0 +1,43 @@
+{
+  "nav": {
+    "home": "首頁",
+    "documents": "文件",
+    "login": "登入 / 註冊",
+    "accountMenu": "帳戶選單",
+    "openAccountMenu": "開啟帳戶選單",
+    "closeAccountMenu": "關閉帳戶選單",
+    "profile": "個人資料",
+    "help": "幫助 / 回饋",
+    "language": "語言",
+    "theme": "主題",
+    "settings": "設定",
+    "logout": "登出",
+    "user": "使用者",
+    "openNavMenu": "開啟導航選單",
+    "closeNavMenu": "關閉導航選單"
+  },
+  "language": {
+    "zhCN": "簡體中文",
+    "zhTW": "繁體中文",
+    "enUS": "English",
+    "jaJP": "日本語",
+    "koKR": "한국어",
+    "frFR": "Français",
+    "deDE": "Deutsch",
+    "esES": "Español",
+    "label": "語言：{lang}",
+    "switched": "已切換到{lang}",
+    "switchedTo": "已切換到{lang}"
+  },
+  "theme": {
+    "light": "淺色",
+    "dark": "深色",
+    "label": "主題：{theme}",
+    "switched": "已切換到{theme}主題"
+  },
+  "app": {
+    "title": "AxiomFlow - PDF 數學文件翻譯與排版工具",
+    "error": "前端執行錯誤"
+  }
+}
+

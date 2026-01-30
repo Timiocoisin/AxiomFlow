@@ -10,9 +10,10 @@
   },
   "dependencies": {
     "pdfjs-dist": "^4.10.38",
+    "pinia": "^2.2.0",
     "vue": "^3.5.0",
-    "vue-router": "^4.4.0",
-    "pinia": "^2.2.0"
+    "vue-i18n": "^9.14.4",
+    "vue-router": "^4.4.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",
@@ -20,5 +21,3 @@
     "vite": "^5.4.0"
   }
 }
-
-

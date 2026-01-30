@@ -1,0 +1,43 @@
+{
+  "nav": {
+    "home": "Accueil",
+    "documents": "Documents",
+    "login": "Connexion / Inscription",
+    "accountMenu": "Menu du compte",
+    "openAccountMenu": "Ouvrir le menu du compte",
+    "closeAccountMenu": "Fermer le menu du compte",
+    "profile": "Profil",
+    "help": "Aide / Commentaires",
+    "language": "Langue",
+    "theme": "Thème",
+    "settings": "Paramètres",
+    "logout": "Déconnexion",
+    "user": "Utilisateur",
+    "openNavMenu": "Ouvrir le menu de navigation",
+    "closeNavMenu": "Fermer le menu de navigation"
+  },
+  "language": {
+    "zhCN": "Chinois simplifié",
+    "zhTW": "Chinois traditionnel",
+    "enUS": "English",
+    "jaJP": "Japonais",
+    "koKR": "Coréen",
+    "frFR": "Français",
+    "deDE": "Deutsch",
+    "esES": "Español",
+    "label": "Langue : {lang}",
+    "switched": "Passé à {lang}",
+    "switchedTo": "Passé à {lang}"
+  },
+  "theme": {
+    "light": "Clair",
+    "dark": "Sombre",
+    "label": "Thème : {theme}",
+    "switched": "Passé au thème {theme}"
+  },
+  "app": {
+    "title": "AxiomFlow - Outil de traduction et de mise en page de documents mathématiques PDF",
+    "error": "Erreur d'exécution frontend"
+  }
+}
+
