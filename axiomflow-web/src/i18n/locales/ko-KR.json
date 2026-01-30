@@ -35,7 +35,8 @@
     "label": "테마: {theme}",
     "switched": "{theme} 테마로 전환되었습니다",
     "switchToLight": "라이트 모드로 전환",
-    "switchToDark": "다크 모드로 전환"
+    "switchToDark": "다크 모드로 전환",
+    "switchTheme": "테마 전환 (왼쪽: 라이트, 오른쪽: 다크)"
   },
   "app": {
     "title": "AxiomFlow - PDF 수학 문서 번역 및 조판 도구",

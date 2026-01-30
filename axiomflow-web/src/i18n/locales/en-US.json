@@ -35,7 +35,8 @@
     "label": "Theme: {theme}",
     "switched": "Switched to {theme} theme",
     "switchToLight": "Switch to light mode",
-    "switchToDark": "Switch to dark mode"
+    "switchToDark": "Switch to dark mode",
+    "switchTheme": "Switch theme (left: light, right: dark)"
   },
   "app": {
     "title": "AxiomFlow - PDF Math Document Translation & Typesetting Tool",

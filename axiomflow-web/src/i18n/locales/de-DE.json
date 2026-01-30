@@ -35,7 +35,8 @@
     "label": "Design: {theme}",
     "switched": "Zu {theme} Design gewechselt",
     "switchToLight": "Zum hellen Modus wechseln",
-    "switchToDark": "Zum dunklen Modus wechseln"
+    "switchToDark": "Zum dunklen Modus wechseln",
+    "switchTheme": "Design wechseln (links: hell, rechts: dunkel)"
   },
   "app": {
     "title": "AxiomFlow - PDF-Mathematikdokument-Übersetzungs- und Satztool",

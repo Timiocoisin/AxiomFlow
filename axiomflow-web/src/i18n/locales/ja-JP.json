@@ -35,7 +35,8 @@
     "label": "テーマ：{theme}",
     "switched": "{theme}テーマに切り替えました",
     "switchToLight": "ライトモードに切り替え",
-    "switchToDark": "ダークモードに切り替え"
+    "switchToDark": "ダークモードに切り替え",
+    "switchTheme": "テーマを切り替え（左：ライト、右：ダーク）"
   },
   "app": {
     "title": "AxiomFlow - PDF数学文書翻訳・組版ツール",

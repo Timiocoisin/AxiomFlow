@@ -35,7 +35,8 @@
     "label": "Tema: {theme}",
     "switched": "Cambiado al tema {theme}",
     "switchToLight": "Cambiar a modo claro",
-    "switchToDark": "Cambiar a modo oscuro"
+    "switchToDark": "Cambiar a modo oscuro",
+    "switchTheme": "Cambiar tema (izquierda: claro, derecha: oscuro)"
   },
   "app": {
     "title": "AxiomFlow - Herramienta de traducción y composición tipográfica de documentos matemáticos PDF",

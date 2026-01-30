@@ -109,16 +109,14 @@
           </Transition>
         </div>
         <!-- 主题切换按钮：浅色 / 深色 -->
-        <button
-          type="button"
-          class="user-avatar-button theme-toggle-button"
-          :title="isDarkMode ? $t('theme.switchToLight') : $t('theme.switchToDark')"
-          :aria-label="isDarkMode ? $t('theme.switchToLight') : $t('theme.switchToDark')"
-          @click="toggleTheme"
-        >
-          <span v-if="!isDarkMode">🌙</span>
-          <span v-else>☀️</span>
-        </button>
+        <div class="theme-toggle-wrapper">
+          <ThemeToggleButton
+            :model-value="isDarkMode ? 'dark' : 'light'"
+            :size="1.5"
+            @update:model-value="handleThemeChange"
+            @change="handleThemeChange"
+          />
+        </div>
         <button
           v-if="!userStore.isLoggedIn"
           class="user-avatar-button login-button"
@@ -229,11 +227,13 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { Teleport } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { supportedLocales, type SupportedLocale } from "@/i18n";
 import { useUserStore } from "@/stores/user";
 import Toast from "@/components/Toast.vue";
+import ThemeToggleButton from "@/components/ThemeToggleButton.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -316,6 +316,10 @@ const applyTheme = (dark: boolean) => {
 
 const toggleTheme = () => {
   applyTheme(!isDarkMode.value);
+};
+
+const handleThemeChange = (theme: 'light' | 'dark') => {
+  applyTheme(theme === 'dark');
 };
 
 // 高优先级：修复缺失的头像处理方法
@@ -406,6 +410,7 @@ const selectActiveLanguage = () => {
   if (!opt) return;
   selectLanguage(opt.value);
 };
+
 
 
 const handleClickOutside = (e: MouseEvent) => {

@@ -35,7 +35,8 @@
     "label": "主题：{theme}",
     "switched": "已切换到{theme}主题",
     "switchToLight": "切换为浅色模式",
-    "switchToDark": "切换为深色模式"
+    "switchToDark": "切换为深色模式",
+    "switchTheme": "切换主题（左侧：浅色，右侧：深色）"
   },
   "app": {
     "title": "AxiomFlow - PDF 数学文档翻译与排版工具",
