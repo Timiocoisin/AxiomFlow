@@ -54,6 +54,71 @@
           </svg>
           <span>{{ $t('nav.documents') }}</span>
         </RouterLink>
+
+        <!-- 语言切换器 -->
+        <div class="nav-language-selector">
+          <button
+            class="nav-language-button"
+            type="button"
+            :aria-label="$t('nav.language')"
+            aria-haspopup="listbox"
+            :aria-expanded="showLanguageMenu"
+            @click.stop="showLanguageMenu = !showLanguageMenu"
+            @keydown.down.prevent="openLanguageMenuAndMove(1)"
+            @keydown.up.prevent="openLanguageMenuAndMove(-1)"
+            @keydown.enter.prevent="showLanguageMenu = !showLanguageMenu"
+            @keydown.space.prevent="showLanguageMenu = !showLanguageMenu"
+            @keydown.esc.prevent="showLanguageMenu = false"
+          >
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 5h16M4 12h9M4 19h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M15 19l2-6 2 6m-3-2h2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>{{ currentLanguageLabel }}</span>
+            <svg class="nav-language-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <Transition name="language-menu-fade">
+            <div
+              v-if="showLanguageMenu"
+              class="nav-language-menu"
+              role="listbox"
+              tabindex="-1"
+              @keydown.down.prevent="moveLanguageSelection(1)"
+              @keydown.up.prevent="moveLanguageSelection(-1)"
+              @keydown.enter.prevent="selectActiveLanguage()"
+              @keydown.esc.prevent="showLanguageMenu = false"
+            >
+              <button
+                v-for="option in languageOptions"
+                :key="option.value"
+                class="language-menu-item"
+                type="button"
+                role="option"
+                :aria-selected="locale === option.value"
+                :class="{ 'active': locale === option.value }"
+                @click="selectLanguage(option.value)"
+              >
+                <span>{{ option.label }}</span>
+                <svg v-if="locale === option.value" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </Transition>
+        </div>
+        <!-- 主题切换按钮：浅色 / 深色 -->
+        <button
+          type="button"
+          class="user-avatar-button theme-toggle-button"
+          :title="isDarkMode ? $t('theme.switchToLight') : $t('theme.switchToDark')"
+          :aria-label="isDarkMode ? $t('theme.switchToLight') : $t('theme.switchToDark')"
+          @click="toggleTheme"
+        >
+          <span v-if="!isDarkMode">🌙</span>
+          <span v-else>☀️</span>
+        </button>
         <button
           v-if="!userStore.isLoggedIn"
           class="user-avatar-button login-button"
@@ -133,59 +198,6 @@
               <span>{{ $t('nav.help') }}</span>
             </button>
             <div class="user-menu-divider"></div>
-            <div class="user-menu-item language-selector">
-              <button
-                class="language-selector-button"
-                type="button"
-                :aria-label="$t('nav.language')"
-                aria-haspopup="listbox"
-                :aria-expanded="showLanguageMenu"
-                @click.stop="showLanguageMenu = !showLanguageMenu"
-                @keydown.down.prevent="openLanguageMenuAndMove(1)"
-                @keydown.up.prevent="openLanguageMenuAndMove(-1)"
-                @keydown.enter.prevent="showLanguageMenu = !showLanguageMenu"
-                @keydown.space.prevent="showLanguageMenu = !showLanguageMenu"
-                @keydown.esc.prevent="showLanguageMenu = false"
-              >
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 5h16M4 12h9M4 19h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M15 19l2-6 2 6m-3-2h2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-                <span>{{ $t('language.label', { lang: currentLanguageLabel }) }}</span>
-                <svg class="language-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-              <Transition name="language-menu-fade">
-                <div
-                  v-if="showLanguageMenu"
-                  class="language-menu"
-                  role="listbox"
-                  tabindex="-1"
-                  @keydown.down.prevent="moveLanguageSelection(1)"
-                  @keydown.up.prevent="moveLanguageSelection(-1)"
-                  @keydown.enter.prevent="selectActiveLanguage()"
-                  @keydown.esc.prevent="showLanguageMenu = false"
-                >
-                  <button
-                    v-for="option in languageOptions"
-                    :key="option.value"
-                    class="language-menu-item"
-                    type="button"
-                    role="option"
-                    :aria-selected="locale === option.value"
-                    :class="{ 'active': locale === option.value }"
-                    @click="selectLanguage(option.value)"
-                  >
-                    <span>{{ option.label }}</span>
-                    <svg v-if="locale === option.value" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-            </button>
-                </div>
-              </Transition>
-            </div>
-            <div class="user-menu-divider"></div>
             <button class="user-menu-item" @click="goToSettings">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -235,6 +247,9 @@ const isNavOpen = ref(false);
 const showLanguageMenu = ref(false);
 const activeLanguageIndex = ref(0);
 
+// 主题状态（浅色 / 深色）
+const isDarkMode = ref(false);
+
 const currentLanguageLabel = computed(() => {
   const currentLocale = locale.value as SupportedLocale;
   const localeMap: Record<SupportedLocale, string> = {
@@ -276,6 +291,31 @@ const getLanguageLabel = (loc: SupportedLocale): string => {
     'es-ES': t("language.esES"),
   };
   return localeMap[loc] || loc;
+};
+
+// 同步当前 DOM 上的主题到状态
+const syncThemeFromDom = () => {
+  if (typeof document === "undefined") return;
+  const html = document.documentElement;
+  isDarkMode.value = html.getAttribute("data-theme") === "dark";
+};
+
+// 应用主题并写入 localStorage
+const applyTheme = (dark: boolean) => {
+  if (typeof document === "undefined") return;
+  const html = document.documentElement;
+  if (dark) {
+    html.setAttribute("data-theme", "dark");
+    localStorage.setItem("theme", "dark");
+  } else {
+    html.removeAttribute("data-theme");
+    localStorage.setItem("theme", "light");
+  }
+  isDarkMode.value = dark;
+};
+
+const toggleTheme = () => {
+  applyTheme(!isDarkMode.value);
 };
 
 // 高优先级：修复缺失的头像处理方法
@@ -375,7 +415,7 @@ const handleClickOutside = (e: MouseEvent) => {
     showMenu.value = false;
   }
   // 语言菜单点击外部关闭
-  if (!target.closest(".language-selector")) {
+  if (!target.closest(".nav-language-selector")) {
     showLanguageMenu.value = false;
   }
   // 中优先级：移动端菜单点击外部关闭
@@ -442,6 +482,9 @@ onMounted(() => {
     // 如果没有存储的语言，保存当前 i18n 检测到的语言
     localStorage.setItem("language", locale.value as string);
   }
+
+    // 初始化主题状态（与 main.ts 中 DOM 状态保持一致）
+    syncThemeFromDom();
 
   // 路由切换进度条
   removeBeforeGuard = router.beforeEach((to, from, next) => {

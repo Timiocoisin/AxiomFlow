@@ -276,7 +276,7 @@
                       <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416;-31.416" repeatCount="indefinite"/>
                     </circle>
                   </svg>
-                  <span v-else>点击加载</span>
+                  <span v-else>{{ $t('auth.clickToLoad') }}</span>
                 </div>
                 <button
                   type="button"
@@ -323,7 +323,7 @@
             class="auth-button" 
             :disabled="loading || !isFormValid"
             :aria-busy="loading"
-            aria-label="提交表单"
+            :aria-label="$t('auth.submittingForm')"
           >
             <span v-if="loading" class="loading-spinner" aria-hidden="true"></span>
             <span>{{ loading ? (isLogin ? $t('auth.loggingIn') : $t('auth.registering')) : (isLogin ? $t('auth.login') : $t('auth.register')) }}</span>
@@ -343,7 +343,7 @@
             <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.01-1.023-.014-1.856-2.782.604-3.369-1.18-3.369-1.18-.455-1.157-1.11-1.466-1.11-1.466-.907-.62.068-.607.068-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.832.09-.647.35-1.088.636-1.338-2.22-.252-4.555-1.11-4.555-4.943 0-1.092.39-1.986 1.03-2.685-.103-.253-.446-1.27.098-2.646 0 0 .84-.269 2.75 1.026A9.56 9.56 0 0 1 12 6.844c.85.004 1.705.115 2.505.336 1.909-1.295 2.748-1.026 2.748-1.026.546 1.376.202 2.393.1 2.646.64.699 1.028 1.593 1.028 2.685 0 3.842-2.339 4.688-4.566 4.935.359.309.678.92.678 1.855 0 1.338-.012 2.416-.012 2.744 0 .267.18.578.688.48A10.02 10.02 0 0 0 22 12c0-5.523-4.477-10-10-10z"/>
             </svg>
-            <span>GitHub登录</span>
+            <span>{{ $t('auth.githubLogin') }}</span>
           </button>
           <button 
             class="social-button social-google" 
@@ -356,14 +356,14 @@
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
             </svg>
-            <span>Google登录</span>
+            <span>{{ $t('auth.googleLogin') }}</span>
           </button>
         </div>
 
         <div class="auth-footer">
-          <span>{{ isLogin ? "还没有账户？" : "已有账户？" }}</span>
-          <button class="auth-link" @click="toggleMode" :disabled="loading" aria-label="切换登录/注册模式">
-            {{ isLogin ? "立即注册" : "立即登录" }}
+          <span>{{ isLogin ? $t('auth.noAccount') : $t('auth.haveAccount') }}</span>
+          <button class="auth-link" @click="toggleMode" :disabled="loading" :aria-label="$t('auth.switchMode')">
+            {{ isLogin ? $t('auth.registerNow') : $t('auth.loginNow') }}
           </button>
         </div>
       </div>
@@ -382,7 +382,7 @@
         >
           <div class="modal-content glass-card">
             <div class="modal-header">
-              <h2 id="forgot-password-title">忘记密码</h2>
+              <h2 id="forgot-password-title">{{ $t('auth.forgotPasswordTitle') }}</h2>
               <button
                 class="modal-close"
                 @click="handleCloseForgotPasswordModal"
@@ -396,9 +396,9 @@
             <div class="modal-body">
               <!-- 第一步：输入邮箱 -->
               <div v-if="forgotPasswordStep === 'email'">
-                <p class="modal-description">请输入您的邮箱地址，我们将发送验证码到您的邮箱。</p>
+                <p class="modal-description">{{ $t('auth.forgotPasswordDescription') }}</p>
                 <div class="form-group">
-                  <label class="form-label" for="forgot-email">邮箱地址</label>
+                  <label class="form-label" for="forgot-email">{{ $t('auth.emailAddress') }}</label>
                   <div class="input-wrapper">
                     <input
                       id="forgot-email"
@@ -406,7 +406,7 @@
                       type="email"
                       class="form-input"
                       :class="{ 'input-error': forgotPasswordEmailError }"
-                      placeholder="请输入邮箱地址"
+                      :placeholder="$t('auth.enterEmailAddress')"
                       autocomplete="email"
                       aria-required="true"
                       aria-invalid="!!forgotPasswordEmailError"
@@ -428,15 +428,15 @@
                   style="width: 100%; margin-top: 20px;"
                 >
                   <span v-if="forgotPasswordLoading" class="loading-spinner"></span>
-                  <span>{{ forgotPasswordLoading ? "发送中..." : "发送验证码" }}</span>
+                  <span>{{ forgotPasswordLoading ? $t('auth.sending') : $t('auth.sendVerificationCode') }}</span>
                 </button>
               </div>
 
               <!-- 第二步：输入验证码 -->
               <div v-else-if="forgotPasswordStep === 'verify'">
-                <p class="modal-description">验证码已发送到 <strong>{{ forgotPasswordEmail }}</strong>，请输入6位验证码（字母+数字，不区分大小写）。</p>
+                <p class="modal-description">{{ $t('auth.verificationCodeSent', { email: forgotPasswordEmail }) }}</p>
                 <div class="form-group">
-                  <label class="form-label" for="verification-code">验证码</label>
+                  <label class="form-label" for="verification-code">{{ $t('auth.verificationCode') }}</label>
                   <div class="input-wrapper">
                     <input
                       id="verification-code"
@@ -444,7 +444,7 @@
                       type="text"
                       class="form-input"
                       :class="{ 'input-error': emailVerificationCodeError }"
-                      placeholder="请输入6位验证码（字母+数字）"
+                      :placeholder="$t('auth.enterVerificationCode')"
                       maxlength="6"
                       autocomplete="off"
                       aria-required="true"
@@ -467,7 +467,7 @@
                     @click="forgotPasswordStep = 'email'"
                     :disabled="verifyCodeLoading"
                   >
-                    ← 返回修改邮箱
+                    {{ $t('auth.backToEmail') }}
                   </button>
                   <button
                     type="button"
@@ -475,7 +475,7 @@
                     @click="handleResendCode"
                     :disabled="forgotPasswordLoading || verifyCodeLoading"
                   >
-                    重新发送验证码
+                    {{ $t('auth.resendVerificationCode') }}
                   </button>
                 </div>
                 <button
@@ -485,7 +485,7 @@
                   style="width: 100%; margin-top: 20px;"
                 >
                   <span v-if="verifyCodeLoading" class="loading-spinner"></span>
-                  <span>{{ verifyCodeLoading ? "验证中..." : "验证" }}</span>
+                  <span>{{ verifyCodeLoading ? $t('auth.verifying') : $t('auth.verify') }}</span>
                 </button>
               </div>
 
@@ -495,14 +495,14 @@
                   <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
                 </svg>
-                <p>验证码验证成功！</p>
-                <p class="success-hint">请设置您的新密码</p>
+                <p>{{ $t('auth.verificationSuccess') }}</p>
+                <p class="success-hint">{{ $t('auth.setNewPasswordHint') }}</p>
                 <button
                   class="auth-button"
                   @click="handleOpenResetPasswordModal"
                   style="width: 100%; margin-top: 20px;"
                 >
-                  设置新密码
+                  {{ $t('auth.setNewPassword') }}
                 </button>
               </div>
             </div>
@@ -524,11 +524,11 @@
         >
           <div class="modal-content glass-card">
             <div class="modal-header">
-              <h2 id="reset-password-title">重置密码</h2>
+              <h2 id="reset-password-title">{{ $t('auth.resetPasswordTitle') }}</h2>
               <button
                 class="modal-close"
                 @click="showResetPasswordModal = false"
-                aria-label="关闭"
+                :aria-label="$t('common.close')"
               >
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -537,14 +537,14 @@
             </div>
             <div class="modal-body">
               <div class="form-group">
-                <label class="form-label" for="reset-password">新密码</label>
+                <label class="form-label" for="reset-password">{{ $t('auth.newPasswordLabel') }}</label>
                 <div class="password-input-wrapper">
                   <input
                     id="reset-password"
                     v-model="resetPasswordData.password"
                     type="password"
                     class="form-input"
-                    placeholder="请输入新密码（至少8位）"
+                    :placeholder="$t('auth.enterPassword')"
                     autocomplete="new-password"
                     aria-required="true"
                     minlength="8"
@@ -553,14 +553,14 @@
                 </div>
               </div>
               <div class="form-group">
-                <label class="form-label" for="reset-confirm-password">确认密码</label>
+                <label class="form-label" for="reset-confirm-password">{{ $t('auth.confirmNewPasswordLabel') }}</label>
                 <div class="password-input-wrapper">
                   <input
                     id="reset-confirm-password"
                     v-model="resetPasswordData.confirmPassword"
                     type="password"
                     class="form-input"
-                    placeholder="请再次输入新密码"
+                    :placeholder="$t('auth.enterConfirmPassword')"
                     autocomplete="new-password"
                     aria-required="true"
                     @keyup.enter="handleResetPassword"
@@ -574,7 +574,7 @@
                 style="width: 100%; margin-top: 20px;"
               >
                 <span v-if="resetPasswordLoading" class="loading-spinner"></span>
-                <span>{{ resetPasswordLoading ? "重置中..." : "重置密码" }}</span>
+                <span>{{ resetPasswordLoading ? $t('auth.resettingPassword') : $t('auth.resetPassword') }}</span>
               </button>
             </div>
           </div>
@@ -595,11 +595,11 @@
         >
           <div class="modal-content glass-card">
             <div class="modal-header">
-              <h2 id="login-unlock-title">解锁登录</h2>
+              <h2 id="login-unlock-title">{{ $t('auth.loginUnlockTitle') }}</h2>
               <button
                 class="modal-close"
                 @click="handleCloseLoginUnlockModal"
-                aria-label="关闭"
+                :aria-label="$t('common.close')"
               >
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -608,10 +608,10 @@
             </div>
             <div class="modal-body">
               <p class="modal-description">
-                由于多次密码错误，当前账户已被临时锁定。您可以通过邮箱验证码快速解锁后再登录。
+                {{ $t('auth.loginUnlockDescription') }}
               </p>
               <div class="form-group">
-                <label class="form-label" for="login-unlock-email">邮箱地址</label>
+                <label class="form-label" for="login-unlock-email">{{ $t('auth.emailAddress') }}</label>
                 <div class="input-wrapper">
                   <input
                     id="login-unlock-email"
@@ -619,7 +619,7 @@
                     type="email"
                     class="form-input"
                     :class="{ 'input-error': loginUnlockEmailError }"
-                    placeholder="请输入登录使用的邮箱地址"
+                    :placeholder="$t('auth.enterEmailAddress')"
                     autocomplete="email"
                     aria-required="true"
                     aria-invalid="!!loginUnlockEmailError"
@@ -667,7 +667,7 @@
                   @click="handleSendLoginUnlockCode"
                   :disabled="loginUnlockSending"
                 >
-                  {{ loginUnlockSending ? "发送中..." : "发送 / 重新发送验证码" }}
+                  {{ loginUnlockSending ? $t('auth.sending') : $t('auth.sendResendVerificationCode') }}
                 </button>
               </div>
 
@@ -678,7 +678,7 @@
                 style="width: 100%; margin-top: 20px;"
               >
                 <span v-if="loginUnlockVerifying" class="loading-spinner"></span>
-                <span>{{ loginUnlockVerifying ? "验证中..." : "验证并解锁" }}</span>
+                <span>{{ loginUnlockVerifying ? $t('auth.verifying') : $t('auth.verifyAndUnlock') }}</span>
               </button>
             </div>
           </div>
@@ -699,11 +699,11 @@
         >
           <div class="modal-content glass-card">
             <div class="modal-header">
-              <h2 id="twofa-title">双因素认证</h2>
+              <h2 id="twofa-title">{{ t('auth.twoFactorAuth') }}</h2>
               <button
                 class="modal-close"
                 @click="showTwoFAModal = false"
-                aria-label="关闭"
+                :aria-label="t('common.close')"
               >
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -712,7 +712,7 @@
             </div>
             <div class="modal-body">
               <p class="modal-description">
-                您的账户已开启双因素认证，请输入认证器中的 6 位验证码，或输入 8 位备份码。
+                {{ t('auth.twoFactorAuthDescription') }}
               </p>
               <div class="form-group">
                 <label class="form-label" for="twofa-code">验证码</label>
@@ -1398,7 +1398,7 @@ onMounted(() => {
         url.searchParams.delete("provider");
         window.history.replaceState({}, "", url.toString());
 
-        showToast("info", "需要二次验证", "已为该账户开启双因素认证，请输入 2FA 验证码完成登录。");
+        showToast("info", t('auth.twoFactorAuthRequired'), t('auth.twoFactorAuthRequiredMessage'));
         return;
       }
 
@@ -1417,7 +1417,7 @@ onMounted(() => {
         window.history.replaceState({}, "", url.toString());
 
         const redirect = (url.searchParams.get("redirect") || (router.currentRoute.value.query.redirect as string) || "/") as string;
-        showToast("success", "登录成功", "欢迎回来！");
+        showToast("success", t('settings.loginSuccess'), t('auth.welcomeBack'));
         router.push(redirect);
         return;
       }
@@ -1483,7 +1483,7 @@ const handleGoogleCredentialResponse = async (response: { credential: string }) 
       }
       userStore.login(result.user, result.token, result.refresh_token || "", rememberMe.value);
       const redirect = (router.currentRoute.value.query.redirect as string) || "/";
-      showToast("success", "登录成功", `欢迎回来，${result.user.name || result.user.email}！`);
+      showToast("success", t('settings.loginSuccess'), t('auth.welcomeBackWithName', { name: result.user.name || result.user.email }));
 
       // 未验证邮箱：允许登录，但提示 + 自动尝试重发验证邮件
       if (!result.user.email_verified) {
@@ -1577,15 +1577,15 @@ const handleVerify2FA = async () => {
 
     const loginMethodText =
       twoFALoginMethod.value === "google"
-        ? "Google 登录"
+        ? t('auth.googleLogin')
         : twoFALoginMethod.value === "github"
-        ? "GitHub 登录"
-        : "邮箱登录";
+        ? t('auth.githubLogin')
+        : t('settings.loginMethodEmail');
 
     showToast(
       "success",
-      "登录成功",
-      `已通过 ${loginMethodText} + 双因素认证，欢迎回来，${result.user.name || result.user.email}！`
+      t('settings.loginSuccess'),
+      t('auth.welcomeBackWith2FA', { method: loginMethodText, name: result.user.name || result.user.email })
     );
 
     // 未验证邮箱：2FA 成功后也给出提示 + 自动尝试重发验证邮件
@@ -1724,13 +1724,13 @@ const handleSubmit = async () => {
         twoFACode.value = "";
         twoFAError.value = "";
         showTwoFAModal.value = true;
-        showToast("info", "需要二次验证", "已为该账户开启双因素认证，请输入 2FA 验证码完成登录。");
+        showToast("info", t('auth.twoFactorAuthRequired'), t('auth.twoFactorAuthRequiredMessage'));
       } else {
         if (!result.user || !result.token) {
           throw new Error("登录返回数据不完整");
         }
         userStore.login(result.user, result.token, result.refresh_token || "", rememberMe.value);
-        showToast("success", "登录成功", `欢迎回来，${result.user.name || result.user.email}！`);
+        showToast("success", t('settings.loginSuccess'), t('auth.welcomeBackWithName', { name: result.user.name || result.user.email }));
 
         // 未验证邮箱：允许登录，但强提示 + 自动尝试重发验证邮件
         if (!result.user.email_verified) {

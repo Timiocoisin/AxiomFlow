@@ -6,6 +6,32 @@ import { i18n } from "./i18n";
 
 import "./styles.css";
 
+// 初始化主题（light / dark），基于 localStorage 或系统偏好
+function initTheme() {
+  try {
+    const stored = localStorage.getItem("theme");
+    let theme: "light" | "dark";
+
+    if (stored === "light" || stored === "dark") {
+      theme = stored;
+    } else {
+      const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+      theme = prefersDark ? "dark" : "light";
+    }
+
+    const html = document.documentElement;
+    if (theme === "dark") {
+      html.setAttribute("data-theme", "dark");
+    } else {
+      html.removeAttribute("data-theme");
+    }
+  } catch {
+    // 安全兜底：出错时保持默认浅色
+  }
+}
+
+initTheme();
+
 const app = createApp(App);
 
 // 全局错误兜底：避免页面"白屏"但控制台才有报错的情况

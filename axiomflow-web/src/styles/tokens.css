@@ -58,3 +58,53 @@
   --app-surface: var(--color-surface-1);
 }
 
+/* =========================================================
+ * Dark theme overrides
+ * - Applied when <html data-theme="dark">
+ * ========================================================= */
+:root[data-theme="dark"] {
+  /* Text colors */
+  --color-text-strong: #e5e7eb;
+  --color-text: #e5e7eb;
+  --color-text-muted: #9ca3af;
+  --color-text-subtle: rgba(209, 213, 219, 0.8);
+
+  /* Surfaces / borders */
+  --color-surface-0: #020617;
+  --color-surface-1: rgba(15, 23, 42, 0.96);
+  --color-surface-2: rgba(30, 41, 59, 0.9);
+  --color-border: rgba(51, 65, 85, 0.9);
+  --color-border-soft: rgba(75, 85, 99, 0.8);
+
+  /* Brand accents tuned for dark */
+  --color-primary: #818cf8;
+  --color-primary-2: #a855f7;
+  --color-info: #60a5fa;
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f97373;
+
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-2) 100%);
+  --gradient-settings-bg: linear-gradient(135deg, #020617 0%, #020617 50%, #020617 100%);
+
+  /* App background */
+  --app-bg:
+    radial-gradient(ellipse 120% 100% at 50% 0%, rgba(59, 130, 246, 0.25) 0%, transparent 60%),
+    radial-gradient(ellipse 100% 80% at 50% 100%, rgba(147, 51, 234, 0.25) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 60% at 20% 50%, rgba(59, 130, 246, 0.18) 0%, transparent 60%),
+    linear-gradient(180deg, #020617 0%, #020617 100%);
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.7);
+  --shadow-sm: 0 6px 18px rgba(15, 23, 42, 0.8);
+  --shadow-md: 0 16px 40px rgba(15, 23, 42, 0.85);
+  --shadow-lg: 0 32px 80px rgba(15, 23, 42, 0.9);
+
+  /* Aliases */
+  --app-text: var(--color-text);
+  --app-text-strong: var(--color-text-strong);
+  --app-muted: var(--color-text-muted);
+  --app-border: var(--color-border);
+  --app-surface: var(--color-surface-1);
+}

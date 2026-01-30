@@ -2,8 +2,8 @@
   <section class="settings">
     <div class="settings-container">
       <div class="settings-header">
-        <h2 class="settings-title">账户设置</h2>
-        <p class="settings-subtitle">管理您的账户信息和安全设置</p>
+        <h2 class="settings-title">{{ t('settings.title') }}</h2>
+        <p class="settings-subtitle">{{ t('settings.subtitle') }}</p>
       </div>
       
       <!-- 账号信息 + 安全设置：合成一个大卡片 -->
@@ -18,8 +18,8 @@
               </svg>
             </div>
             <div>
-              <h3 class="settings-section-title">账号信息</h3>
-              <p class="settings-section-desc">管理您的基本资料和邮箱信息</p>
+              <h3 class="settings-section-title">{{ t('settings.accountInfo') }}</h3>
+              <p class="settings-section-desc">{{ t('settings.accountInfoDesc') }}</p>
             </div>
           </div>
 
@@ -34,19 +34,19 @@
                 </div>
               </div>
               <div class="setting-card-header">
-                <span class="setting-label">邮箱地址</span>
+                <span class="setting-label">{{ t('settings.email') }}</span>
                 <span v-if="userStore.user?.email_verified" class="email-verified-badge">
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
-                  已验证
+                  {{ t('settings.emailVerified') }}
                 </span>
                 <span v-else class="email-unverified-badge">
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
                     <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
-                  未验证
+                  {{ t('settings.emailUnverified') }}
                 </span>
               </div>
               <div class="setting-card-content">
@@ -57,7 +57,7 @@
                   v-if="!userStore.user?.email_verified"
                   class="email-status-description email-status-description-unverified"
                 >
-                  邮箱未验证，将限制部分安全操作，建议尽快完成验证。
+                  {{ t('settings.emailUnverifiedDesc') }}
                 </p>
                 <button
                   v-if="!userStore.user?.email_verified"
@@ -66,7 +66,7 @@
                   :disabled="resendingVerification"
                 >
                   <span v-if="resendingVerification" class="loading-spinner-small"></span>
-                  <span>{{ resendingVerification ? "发送中..." : "发送验证邮件" }}</span>
+                  <span>{{ resendingVerification ? t('settings.resendVerificationSending') : t('settings.resendVerification') }}</span>
                 </button>
               </div>
             </div>
@@ -78,10 +78,10 @@
                   class="user-avatar-wrapper"
                   @click="(e) => openAvatarModalFromTrigger(e)"
                   ref="avatarTriggerRef"
-                  aria-label="编辑头像"
+                  :aria-label="t('settings.editAvatarAria')"
                 >
                   <div class="user-avatar" v-if="userStore.user?.avatar">
-                    <img :src="userStore.user.avatar" :alt="userStore.user?.name || '用户头像'" />
+                    <img :src="userStore.user.avatar" :alt="userStore.user?.name || t('settings.userAvatarAlt')" />
                   </div>
                   <div class="user-avatar-placeholder" v-else>
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -98,7 +98,7 @@
                 </button>
               </div>
               <div class="setting-card-header">
-                <span class="setting-label">用户名</span>
+                <span class="setting-label">{{ t('settings.username') }}</span>
               </div>
               <div class="setting-card-content">
                 <div class="name-display name-editable">
@@ -112,7 +112,7 @@
                           :class="{ 'input-error': !!nameError, 'input-valid': nameTouched && !nameError && nameInput.trim().length > 0 }"
                           type="text"
                           maxlength="50"
-                          placeholder="请输入昵称"
+                          :placeholder="t('settings.namePlaceholder')"
                           @keyup.enter="saveName"
                           @keyup.esc="cancelEditName"
                           @input="validateNameLive"
@@ -131,7 +131,7 @@
                             :disabled="savingName"
                           >
                             <span v-if="savingName" class="loading-spinner-small"></span>
-                            <span>{{ savingName ? "保存中..." : "保存" }}</span>
+                            <span>{{ savingName ? t('settings.nameSaveLoading') : t('settings.nameSave') }}</span>
                           </button>
                           <button
                             type="button"
@@ -139,7 +139,7 @@
                             @click="cancelEditName"
                             :disabled="savingName"
                           >
-                            取消
+                            {{ t('settings.nameCancel') }}
                           </button>
                         </div>
                       </template>
@@ -149,9 +149,9 @@
                           class="name-text-button"
                           @click="startEditName"
                           ref="nameTriggerRef"
-                          aria-label="编辑昵称"
+                          :aria-label="t('settings.editNameAria')"
                         >
-                          <span class="name-text">{{ userStore.user?.name || "未设置" }}</span>
+                          <span class="name-text">{{ userStore.user?.name || t('settings.nameUnset') }}</span>
                           <span class="name-edit-icon">
                             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                               <path d="M12 20h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -175,7 +175,7 @@
                 </div>
               </div>
               <div class="setting-card-header">
-                <span class="setting-label">登录方式</span>
+                <span class="setting-label">{{ t('settings.loginMethod') }}</span>
               </div>
               <div class="setting-card-content">
                 <div class="provider-badge" :class="`provider-${currentLoginMethod}`">
@@ -198,9 +198,9 @@
               </svg>
             </div>
             <div>
-              <h3 class="settings-section-title">安全设置</h3>
+              <h3 class="settings-section-title">{{ t('settings.securityTitle') }}</h3>
               <p class="settings-section-desc">
-                通过密码、登录记录和会话管理保护您的账户安全
+                {{ t('settings.securityDesc') }}
               </p>
             </div>
           </div>
@@ -217,7 +217,7 @@
                 </div>
               </div>
               <div class="setting-card-header">
-                <span class="setting-label">修改密码</span>
+                <span class="setting-label">{{ t('settings.changePassword') }}</span>
               </div>
               <div class="setting-card-content">
                 <div class="restricted-action">
@@ -227,14 +227,14 @@
                     :disabled="!canChangePassword || !isEmailVerified"
                     ref="changePasswordTriggerRef"
                   >
-                    修改密码
+                    {{ t('settings.changePassword') }}
                   </button>
                 </div>
                 <p v-if="!canChangePassword" class="settings-hint">
-                  当前账户暂不支持直接修改密码，请先通过“忘记密码”设置登录密码。
+                  {{ t('settings.changePasswordTipNoPassword') }}
                 </p>
                 <p v-else-if="!isEmailVerified" class="settings-hint">
-                  当前邮箱未验证，部分安全操作将受限，建议尽快完成验证。
+                  {{ t('settings.changePasswordTipEmailUnverified') }}
                 </p>
               </div>
             </div>
@@ -250,7 +250,7 @@
                 </div>
               </div>
               <div class="setting-card-header">
-                <span class="setting-label">登录历史</span>
+                <span class="setting-label">{{ t('settings.loginHistory') }}</span>
               </div>
               <div class="setting-card-content">
                 <div class="restricted-action">
@@ -260,7 +260,7 @@
                     :disabled="!isEmailVerified"
                     ref="loginHistoryTriggerRef"
                   >
-                    查看登录历史
+                    {{ t('settings.viewLoginHistory') }}
                   </button>
                 </div>
               </div>
@@ -278,7 +278,7 @@
               </div>
               <div class="setting-card-header">
                 <div class="setting-card-header-main">
-                  <span class="setting-label">活跃会话</span>
+                  <span class="setting-label">{{ t('settings.activeSessions') }}</span>
                   <span
                     v-if="sessions.length > 0"
                     class="security-status-badge"
@@ -300,7 +300,7 @@
                     :disabled="!isEmailVerified"
                     ref="sessionsTriggerRef"
                   >
-                    管理会话
+                    {{ t('settings.manageSessions') }}
                   </button>
                 </div>
               </div>
@@ -327,8 +327,10 @@
           <div class="modal-content glass-card modal-content--sm">
             <div class="modal-header">
               <div class="modal-header-text">
-                <h2 id="change-password-title" ref="changePasswordTitleRef" tabindex="-1">修改密码</h2>
-                <p class="modal-subtitle">定期更新密码，提升账户安全。</p>
+                <h2 id="change-password-title" ref="changePasswordTitleRef" tabindex="-1">
+                  {{ t('settings.changePasswordModalTitle') }}
+                </h2>
+                <p class="modal-subtitle">{{ t('settings.changePasswordModalSubtitle') }}</p>
               </div>
               <button
                 class="modal-close"
@@ -342,7 +344,7 @@
             </div>
             <div class="modal-body">
               <div class="form-group">
-                <label class="form-label" for="current-password">当前密码</label>
+                <label class="form-label" for="current-password">{{ t('settings.currentPassword') }}</label>
                 <div class="password-input-wrapper">
                   <input
                     ref="currentPasswordInputRef"
@@ -354,7 +356,7 @@
                       'input-error': changePasswordTouched.current && !!changePasswordFieldError.current,
                       'input-valid': changePasswordTouched.current && !changePasswordFieldError.current && !!changePasswordData.currentPassword
                     }"
-                    placeholder="请输入当前密码"
+                    :placeholder="t('settings.currentPasswordPlaceholder')"
                     autocomplete="current-password"
                     aria-required="true"
                     @keyup.enter="handleChangePassword"
@@ -365,7 +367,7 @@
                     type="button"
                     class="password-toggle"
                     @click="showCurrentPassword = !showCurrentPassword"
-                    aria-label="切换当前密码可见性"
+                    :aria-label="t('settings.toggleCurrentPasswordVisibility')"
                   >
                     <svg v-if="showCurrentPassword" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M1 12S5 4 12 4S23 12 23 12S19 20 12 20S1 12 1 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -378,7 +380,7 @@
                 </div>
               </div>
               <div class="form-group">
-                <label class="form-label" for="new-password">新密码</label>
+                <label class="form-label" for="new-password">{{ t('settings.newPassword') }}</label>
                 <div class="password-input-wrapper">
                   <input
                     id="new-password"
@@ -389,7 +391,7 @@
                       'input-error': changePasswordTouched.new && !!changePasswordFieldError.new,
                       'input-valid': changePasswordTouched.new && !changePasswordFieldError.new && !!changePasswordData.newPassword
                     }"
-                    placeholder="请输入新密码（至少8位）"
+                    :placeholder="t('settings.newPasswordPlaceholder')"
                     autocomplete="new-password"
                     aria-required="true"
                     minlength="8"
@@ -401,7 +403,7 @@
                     type="button"
                     class="password-toggle"
                     @click="showNewPassword = !showNewPassword"
-                    aria-label="切换新密码可见性"
+                    :aria-label="t('settings.toggleNewPasswordVisibility')"
                   >
                     <svg v-if="showNewPassword" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M1 12S5 4 12 4S23 12 23 12S19 20 12 20S1 12 1 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -414,7 +416,7 @@
                 </div>
               </div>
               <div class="form-group">
-                <label class="form-label" for="confirm-new-password">确认新密码</label>
+                <label class="form-label" for="confirm-new-password">{{ t('settings.confirmNewPassword') }}</label>
                 <div class="password-input-wrapper">
                   <input
                     id="confirm-new-password"
@@ -425,7 +427,7 @@
                       'input-error': changePasswordTouched.confirm && !!changePasswordFieldError.confirm,
                       'input-valid': changePasswordTouched.confirm && !changePasswordFieldError.confirm && !!changePasswordData.confirmPassword
                     }"
-                    placeholder="请再次输入新密码"
+                    :placeholder="t('settings.confirmNewPasswordPlaceholder')"
                     autocomplete="new-password"
                     aria-required="true"
                     @keyup.enter="handleChangePassword"
@@ -436,7 +438,7 @@
                     type="button"
                     class="password-toggle"
                     @click="showConfirmPassword = !showConfirmPassword"
-                    aria-label="切换确认密码可见性"
+                    :aria-label="t('settings.toggleConfirmPasswordVisibility')"
                   >
                     <svg v-if="showConfirmPassword" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M1 12S5 4 12 4S23 12 23 12S19 20 12 20S1 12 1 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -458,7 +460,7 @@
                 style="width: 100%; margin-top: 20px;"
               >
                 <span v-if="changingPassword" class="loading-spinner"></span>
-                <span>{{ changingPassword ? "修改中..." : "修改密码" }}</span>
+                <span>{{ changingPassword ? t('settings.changePasswordLoading') : t('settings.changePassword') }}</span>
               </button>
             </div>
           </div>
@@ -482,15 +484,15 @@
           <div class="modal-content glass-card modal-content--lg">
             <div class="modal-header">
               <div class="modal-header-text">
-                <h2 id="login-history-title" ref="loginHistoryTitleRef" tabindex="-1">登录历史</h2>
-                <p class="modal-subtitle">查看最近的登录记录，发现异常可及时处理。</p>
+                <h2 id="login-history-title" ref="loginHistoryTitleRef" tabindex="-1">{{ t('settings.loginHistoryModalTitle') }}</h2>
+                <p class="modal-subtitle">{{ t('settings.loginHistoryModalSubtitle') }}</p>
               </div>
               <div class="modal-header-right">
                 <span class="modal-updated-at" aria-live="polite">{{ loginHistoryUpdatedLabel }}</span>
                 <button
                   class="modal-close"
                   @click="showLoginHistoryModal = false"
-                  aria-label="关闭"
+                  :aria-label="t('settings.closeAria')"
                 >
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -500,18 +502,18 @@
             </div>
             <div class="modal-body">
               <p class="modal-tip-pill sec-pill sec-pill--warning sec-pill--one-line">
-                支持筛选与搜索，建议定期回顾异常登录。
+                {{ t('settings.loginHistoryTip') }}
               </p>
               <div class="modal-toolbar">
                 <div class="modal-toolbar-left">
-                  <div class="filter-pills" role="tablist" aria-label="登录历史筛选">
+                  <div class="filter-pills" role="tablist" :aria-label="t('settings.loginHistoryFilterAria')">
                     <button
                       class="filter-pill"
                       :class="{ 'filter-pill-active': loginHistoryFilter === 'all' }"
                       type="button"
                       @click="loginHistoryFilter = 'all'"
                     >
-                      全部
+                      {{ t('settings.filterAll') }}
                     </button>
                     <button
                       class="filter-pill"
@@ -519,7 +521,7 @@
                       type="button"
                       @click="loginHistoryFilter = 'failed'"
                     >
-                      仅失败
+                      {{ t('settings.filterFailedOnly') }}
                     </button>
                     <button
                       class="filter-pill"
@@ -527,7 +529,7 @@
                       type="button"
                       @click="loginHistoryFilter = '7d'"
                     >
-                      近 7 天
+                      {{ t('settings.sessionFilterRecent7DaysShort') }}
                     </button>
                   </div>
                 </div>
@@ -540,15 +542,15 @@
                     <input
                       v-model="loginHistorySearch"
                       type="text"
-                      placeholder="搜索设备 / IP"
-                      aria-label="搜索设备或IP"
+                      :placeholder="t('settings.searchDeviceIpPlaceholder')"
+                      :aria-label="t('settings.searchDeviceIpAria')"
                     />
                     <button
                       v-if="loginHistorySearch"
                       class="search-clear"
                       type="button"
                       @click="loginHistorySearch = ''"
-                      aria-label="清空搜索"
+                      :aria-label="t('settings.clearSearchAria')"
                     >
                       ×
                     </button>
@@ -558,8 +560,8 @@
                     type="button"
                     @click="loadLoginHistory({ force: true, isRefresh: true })"
                     :disabled="loadingLoginHistory || refreshingLoginHistory"
-                    aria-label="刷新登录历史"
-                    title="刷新"
+                    :aria-label="t('settings.refreshLoginHistoryAria')"
+                    :title="t('settings.refresh')"
                   >
                     <svg 
                       viewBox="0 0 24 24" 
@@ -602,7 +604,7 @@
                   <p class="app-alert-message">{{ loginHistoryErrorMessage }}</p>
                   <div class="app-alert-actions">
                     <button class="auth-button" type="button" @click="loadLoginHistory({ force: true })">
-                      重试
+                      {{ t('settings.retry') }}
                     </button>
                   </div>
                 </div>
@@ -625,7 +627,7 @@
                   <p class="app-alert-message">{{ loginHistoryErrorMessage }}</p>
                   <div class="app-alert-actions">
                     <button class="auth-button" type="button" @click="loadLoginHistory({ force: true })">
-                      重试
+                      {{ t('settings.retry') }}
                     </button>
                   </div>
                 </div>
@@ -639,10 +641,10 @@
                   </svg>
                 </div>
                 <p class="empty-state-title">
-                  {{ loginHistory.length === 0 ? "当前没有登录记录，一切正常。" : "没有匹配的记录" }}
+                  {{ loginHistory.length === 0 ? t('settings.noLoginRecords') : t('settings.noMatchingRecords') }}
                 </p>
                 <p class="empty-state-subtitle">
-                  {{ loginHistory.length === 0 ? "如发现陌生登录，可前往“活跃会话”撤销相关设备。" : "可尝试调整筛选条件或搜索关键词。" }}
+                  {{ loginHistory.length === 0 ? t('settings.noLoginRecordsHint') : t('settings.noMatchingRecordsHint') }}
                 </p>
               </div>
               <div v-else>
@@ -665,7 +667,7 @@
                   </div>
                   <div class="history-item-content">
                     <div class="history-item-header">
-                      <span class="history-item-status">{{ item.success ? "登录成功" : "登录失败" }}</span>
+                      <span class="history-item-status">{{ item.success ? t('settings.loginSuccess') : t('settings.loginFailed') }}</span>
                       <div class="history-item-header-right">
                         <span class="history-item-time">{{ formatTime(item.created_at) }}</span>
                         <button
@@ -675,18 +677,18 @@
                           :aria-controls="`login-history-details-${item.id}`"
                           @click="toggleLoginHistoryDetails(item.id)"
                         >
-                          {{ expandedLoginHistoryDetailsKey === item.id ? "收起详情" : "展开详情" }}
+                          {{ expandedLoginHistoryDetailsKey === item.id ? t('settings.collapseDetails') : t('settings.expandDetails') }}
                         </button>
                       </div>
                     </div>
                     <!-- 设备 + IP 优先的一行摘要 -->
                     <div class="history-item-primary-meta">
                       <span class="history-item-device">
-                        {{ item.device_type || "未知设备" }}
+                        {{ item.device_type || t('settings.unknownDevice') }}
                       </span>
                       <span class="history-item-separator">•</span>
                       <span class="history-item-ip">
-                        {{ item.ip || "IP 未知" }}
+                        {{ item.ip || t('settings.ipUnknown') }}
                       </span>
                     </div>
                     <!-- 其它信息折行为次级 -->
@@ -702,22 +704,22 @@
                         :id="`login-history-details-${item.id}`"
                       >
                         <div class="history-item-detail history-item-detail-secondary">
-                          <span class="detail-label">登录方式：</span>
+                          <span class="detail-label">{{ t('settings.loginMethodLabel') }}</span>
                           <span class="detail-value">{{ formatLoginMethod(item.login_method) }}</span>
                         </div>
                         <div class="history-item-detail history-item-detail-secondary">
-                          <span class="detail-label">浏览器：</span>
-                          <span class="detail-value">{{ item.browser || "未知" }}</span>
+                          <span class="detail-label">{{ t('settings.browserLabel') }}</span>
+                          <span class="detail-value">{{ item.browser || t('common.unknown') }}</span>
                         </div>
                         <div class="history-item-detail history-item-detail-secondary">
-                          <span class="detail-label">操作系统：</span>
-                          <span class="detail-value">{{ item.os || "未知" }}</span>
+                          <span class="detail-label">{{ t('settings.osLabel') }}</span>
+                          <span class="detail-value">{{ item.os || t('common.unknown') }}</span>
                         </div>
                         <div
                           v-if="item.reason && !item.success"
                           class="history-item-detail history-item-detail-secondary"
                         >
-                          <span class="detail-label">失败原因：</span>
+                          <span class="detail-label">{{ t('settings.failureReasonLabel') }}</span>
                           <span class="detail-value error-text">{{ formatFailureReason(item.reason) }}</span>
                         </div>
                       </div>
@@ -729,8 +731,8 @@
                 <!-- 分页控件 -->
                 <div v-if="totalLoginHistoryPages > 1" class="pagination-container">
                   <div class="pagination-info">
-                    <span>共 {{ filteredLoginHistory.length }} 条记录</span>
-                    <span>第 {{ currentLoginHistoryPage }} / {{ totalLoginHistoryPages }} 页</span>
+                    <span>{{ t('settings.totalRecords', { count: filteredLoginHistory.length }) }}</span>
+                    <span>{{ t('settings.pageInfo', { current: currentLoginHistoryPage, total: totalLoginHistoryPages }) }}</span>
                   </div>
                   <div class="pagination-controls">
                     <button
@@ -793,15 +795,15 @@
           <div class="modal-content glass-card modal-content--lg">
             <div class="modal-header">
               <div class="modal-header-text">
-                <h2 id="sessions-title" ref="sessionsTitleRef" tabindex="-1">活跃会话</h2>
-                <p class="modal-subtitle">管理已登录设备，撤销不认识的会话。</p>
+                <h2 id="sessions-title" ref="sessionsTitleRef" tabindex="-1">{{ t('settings.sessionsModalTitle') }}</h2>
+                <p class="modal-subtitle">{{ t('settings.sessionsModalSubtitle') }}</p>
               </div>
               <div class="modal-header-right">
                 <span class="modal-updated-at" aria-live="polite">{{ sessionsUpdatedLabel }}</span>
                 <button
                   class="modal-close"
                   @click="showSessionsModal = false"
-                  aria-label="关闭"
+                  :aria-label="t('settings.closeAria')"
                 >
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -811,18 +813,18 @@
             </div>
             <div class="modal-body">
               <p class="modal-tip-pill sec-pill sec-pill--warning sec-pill--one-line">
-                建议定期检查并关闭不认识的设备登录。
+                {{ t('settings.sessionsTip') }}
               </p>
               <div class="modal-toolbar">
                 <div class="modal-toolbar-left">
-                  <div class="filter-pills" role="tablist" aria-label="活跃会话筛选">
+                  <div class="filter-pills" role="tablist" :aria-label="t('settings.sessionsFilterAria')">
                     <button
                       class="filter-pill"
                       :class="{ 'filter-pill-active': sessionsFilter === 'all' }"
                       type="button"
                       @click="sessionsFilter = 'all'"
                     >
-                      全部
+                      {{ t('settings.filterAll') }}
                     </button>
                     <button
                       class="filter-pill"
@@ -830,7 +832,7 @@
                       type="button"
                       @click="sessionsFilter = 'abnormal'"
                     >
-                      仅其他设备
+                      {{ t('settings.sessionFilterOtherDevices') }}
                     </button>
                     <button
                       class="filter-pill"
@@ -838,7 +840,7 @@
                       type="button"
                       @click="sessionsFilter = '7d'"
                     >
-                      近 7 天活跃
+                      {{ t('settings.sessionFilterRecent7Days') }}
                     </button>
                   </div>
                 </div>
@@ -851,15 +853,15 @@
                     <input
                       v-model="sessionsSearch"
                       type="text"
-                      placeholder="搜索设备 / IP"
-                      aria-label="搜索设备或IP"
+                      :placeholder="t('settings.searchDeviceIpPlaceholder')"
+                      :aria-label="t('settings.searchDeviceIpAria')"
                     />
                     <button
                       v-if="sessionsSearch"
                       class="search-clear"
                       type="button"
                       @click="sessionsSearch = ''"
-                      aria-label="清空搜索"
+                      :aria-label="t('settings.clearSearchAria')"
                     >
                       ×
                     </button>
@@ -869,8 +871,8 @@
                     type="button"
                     @click="loadSessions({ force: true, isRefresh: true })"
                     :disabled="loadingSessions || refreshingSessions"
-                    aria-label="刷新会话列表"
-                    title="刷新"
+                    :aria-label="t('settings.refreshSessionsAria')"
+                    :title="t('settings.refresh')"
                   >
                     <svg 
                       viewBox="0 0 24 24" 
@@ -913,7 +915,7 @@
                   <p class="app-alert-message">{{ sessionsErrorMessage }}</p>
                   <div class="app-alert-actions">
                     <button class="auth-button" type="button" @click="loadSessions({ force: true })">
-                      重试
+                      {{ t('settings.retry') }}
                     </button>
                   </div>
                 </div>
@@ -936,7 +938,7 @@
                   <p class="app-alert-message">{{ sessionsErrorMessage }}</p>
                   <div class="app-alert-actions">
                     <button class="auth-button" type="button" @click="loadSessions({ force: true })">
-                      重试
+                      {{ t('settings.retry') }}
                     </button>
                   </div>
                 </div>
@@ -949,8 +951,8 @@
                     <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
                   </svg>
                 </div>
-                <p class="empty-state-title">没有匹配的会话</p>
-                <p class="empty-state-subtitle">可尝试调整筛选条件或搜索关键词。</p>
+                <p class="empty-state-title">{{ t('settings.noMatchingSessions') }}</p>
+                <p class="empty-state-subtitle">{{ t('settings.noMatchingSessionsHint') }}</p>
               </div>
               <div v-else>
                 <div class="sessions-list">
@@ -969,13 +971,13 @@
                     <div class="session-item-content">
                       <div class="session-item-header">
                         <div class="session-item-token-row">
-                          <span class="session-item-token-label">Token</span>
+                          <span class="session-item-token-label">{{ t('settings.tokenLabel') }}</span>
                           <Transition name="fade-slide" mode="out-in">
                             <span
                               :key="expandedSessionTokens.has(session.session_id || session.token) ? 'full' : 'short'"
                               class="session-item-token-mono"
                             >
-                              {{ expandedSessionTokens.has(session.session_id || session.token) ? (session.token || "未知") : shortToken(session.token) }}
+                              {{ expandedSessionTokens.has(session.session_id || session.token) ? (session.token || t('common.unknown')) : shortToken(session.token) }}
                             </span>
                           </Transition>
                           <button
@@ -983,8 +985,8 @@
                             type="button"
                             :disabled="!session.token"
                             @click="copyText(session.token)"
-                            aria-label="复制 Token"
-                            title="复制"
+                            :aria-label="t('settings.copyTokenAria')"
+                            :title="t('settings.copy')"
                           >
                             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                               <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/>
@@ -996,10 +998,10 @@
                             type="button"
                             :disabled="!session.token || (session.token || '').length <= 16"
                             @click="toggleSessionToken(session.session_id || session.token)"
-                            aria-label="展开或收起 Token"
-                            title="展开/收起"
+                            :aria-label="t('settings.expandCollapseTokenAria')"
+                            :title="t('settings.expandCollapseToken')"
                           >
-                            {{ expandedSessionTokens.has(session.session_id || session.token) ? "收起" : "展开" }}
+                            {{ expandedSessionTokens.has(session.session_id || session.token) ? t('settings.collapse') : t('settings.expand') }}
                           </button>
                         </div>
                         <button
@@ -1009,9 +1011,9 @@
                           :aria-controls="`session-details-${session.session_id || session.token}`"
                           @click="toggleSessionDetails(session.session_id || session.token)"
                         >
-                          {{ expandedSessionDetailsKey === (session.session_id || session.token) ? "收起详情" : "展开详情" }}
+                          {{ expandedSessionDetailsKey === (session.session_id || session.token) ? t('settings.collapseDetails') : t('settings.expandDetails') }}
                         </button>
-                        <span v-if="session.is_current" class="session-item-badge">当前会话</span>
+                        <span v-if="session.is_current" class="session-item-badge">{{ t('settings.currentSession') }}</span>
                       </div>
                       <Transition
                         name="collapse"
@@ -1025,19 +1027,19 @@
                           :id="`session-details-${session.session_id || session.token}`"
                         >
                           <div class="session-item-detail">
-                            <span class="detail-label">IP地址：</span>
-                            <span class="detail-value">{{ session.ip || "未知" }}</span>
+                            <span class="detail-label">{{ t('settings.ipAddressLabel') }}</span>
+                            <span class="detail-value">{{ session.ip || t('common.unknown') }}</span>
                           </div>
                           <div class="session-item-detail">
-                            <span class="detail-label">设备：</span>
+                            <span class="detail-label">{{ t('settings.deviceLabel') }}</span>
                             <span class="detail-value">{{ parseUserAgent(session.user_agent) }}</span>
                           </div>
                           <div class="session-item-detail">
-                            <span class="detail-label">创建时间：</span>
+                            <span class="detail-label">{{ t('settings.createdAtLabel') }}</span>
                             <span class="detail-value">{{ formatTime(session.created_at) }}</span>
                           </div>
                           <div v-if="session.last_used_at" class="session-item-detail">
-                            <span class="detail-label">最后使用：</span>
+                            <span class="detail-label">{{ t('settings.lastUsedLabel') }}</span>
                             <span class="detail-value">
                               {{ formatRelativeTime(session.last_used_at) }}
                               <span class="detail-subtle">（{{ formatTime(session.last_used_at) }}）</span>
@@ -1054,7 +1056,7 @@
                         :disabled="revokingSession === (session.session_id || session.token)"
                       >
                         <span v-if="revokingSession === (session.session_id || session.token)" class="loading-spinner-small"></span>
-                        <span>{{ revokingSession === (session.session_id || session.token) ? "撤销中..." : "撤销" }}</span>
+                        <span>{{ revokingSession === (session.session_id || session.token) ? t('settings.revoking') : t('settings.revoke') }}</span>
                       </button>
                     </div>
                   </div>
@@ -1063,7 +1065,7 @@
                 <!-- 分页控件：样式与登录历史保持一致 -->
                 <div v-if="totalSessionsPages > 1" class="pagination-container">
                   <div class="pagination-info">
-                    <span>共 {{ filteredSessions.length }} 个会话</span>
+                    <span>{{ t('settings.totalSessions', { count: filteredSessions.length }) }}</span>
                     <span>第 {{ currentSessionsPage }} / {{ totalSessionsPages }} 页</span>
                   </div>
                   <div class="pagination-controls">
@@ -1115,8 +1117,8 @@
                     <span>
                       {{
                         revokingAllSessions
-                          ? "撤销中..."
-                          : (Date.now() < revokeAllConfirmUntil ? "确认撤销（2秒内）" : "撤销所有会话")
+                          ? t('settings.revoking')
+                          : (Date.now() < revokeAllConfirmUntil ? t('settings.confirmRevoke') : t('settings.revokeAllSessions'))
                       }}
                     </span>
                   </button>
@@ -1144,8 +1146,8 @@
           <div class="modal-content glass-card modal-content--md">
             <div class="modal-header">
               <div class="modal-header-text">
-                <h2 id="avatar-modal-title" ref="avatarModalTitleRef" tabindex="-1">编辑头像</h2>
-                <p class="modal-subtitle">上传并调整头像，推荐清晰的正方形图片。</p>
+                <h2 id="avatar-modal-title" ref="avatarModalTitleRef" tabindex="-1">{{ t('settings.avatarModalTitle') }}</h2>
+                <p class="modal-subtitle">{{ t('settings.avatarModalSubtitle') }}</p>
               </div>
               <button
                 class="modal-close"
@@ -1166,7 +1168,7 @@
                         <img
                           v-if="avatarPreviewUrl || userStore.user?.avatar"
                           :src="avatarPreviewUrl || userStore.user?.avatar"
-                          alt="头像预览"
+                          :alt="t('settings.avatarPreviewAlt')"
                           :style="getAvatarTransformStyle()"
                           @pointerdown.prevent="handleAvatarPointerDown"
                           @pointermove.prevent="handleAvatarPointerMove"
@@ -1184,27 +1186,27 @@
                     </div>
                   </div>
                   <p class="avatar-helper-text">
-                    头像将以居中区域裁剪为正方形，适配圆形展示。
+                    {{ t('settings.avatarHelperText') }}
                   </p>
                   <div class="avatar-dual-preview">
                     <div class="avatar-mini-preview">
-                      <div class="avatar-mini-label">圆形</div>
+                      <div class="avatar-mini-label">{{ t('settings.avatarShapeCircle') }}</div>
                       <div class="avatar-mini avatar-mini--circle">
                         <img
                           v-if="avatarPreviewUrl || userStore.user?.avatar"
                           :src="avatarPreviewUrl || userStore.user?.avatar"
-                          alt="圆形预览"
+                          :alt="t('settings.circlePreviewAlt')"
                           :style="getAvatarTransformStyle()"
                         />
                       </div>
                     </div>
                     <div class="avatar-mini-preview">
-                      <div class="avatar-mini-label">方形</div>
+                      <div class="avatar-mini-label">{{ t('settings.avatarShapeSquare') }}</div>
                       <div class="avatar-mini avatar-mini--square">
                         <img
                           v-if="avatarPreviewUrl || userStore.user?.avatar"
                           :src="avatarPreviewUrl || userStore.user?.avatar"
-                          alt="方形预览"
+                          :alt="t('settings.squarePreviewAlt')"
                           :style="getAvatarTransformStyle()"
                         />
                       </div>
@@ -1213,7 +1215,7 @@
                 </div>
                 <div class="avatar-control-panel">
                   <div class="form-group">
-                    <label class="form-label">选择图片</label>
+                    <label class="form-label">{{ t('settings.selectImage') }}</label>
                     <label class="avatar-upload-btn">
                       <input
                         type="file"
@@ -1222,15 +1224,15 @@
                         :aria-invalid="avatarError ? 'true' : 'false'"
                         :aria-describedby="avatarError ? 'avatar-error' : undefined"
                       />
-                      <span>上传图片</span>
+                      <span>{{ t('settings.uploadImage') }}</span>
                     </label>
                     <div v-if="avatarError" id="avatar-error" class="field-error">{{ avatarError }}</div>
-                    <p class="avatar-upload-hint">推荐使用清晰的正方形图片，支持 JPG / PNG，最大 2MB。</p>
+                    <p class="avatar-upload-hint">{{ t('settings.avatarUploadHint') }}</p>
                   </div>
                   <div class="form-group">
-                    <label class="form-label">缩放</label>
+                    <label class="form-label">{{ t('settings.zoom') }}</label>
                     <div class="avatar-zoom-row">
-                      <span class="avatar-zoom-label">缩小</span>
+                      <span class="avatar-zoom-label">{{ t('settings.zoomOut') }}</span>
                       <input
                         type="range"
                         min="1"
@@ -1242,20 +1244,20 @@
                       <span class="avatar-zoom-percentage">
                         {{ Math.round(avatarZoom * 100) }}%
                       </span>
-                      <span class="avatar-zoom-label">放大</span>
+                      <span class="avatar-zoom-label">{{ t('settings.zoomIn') }}</span>
                     </div>
                   </div>
                   <div class="form-group">
-                    <label class="form-label">调整</label>
+                    <label class="form-label">{{ t('settings.adjust') }}</label>
                     <div class="avatar-transform-row">
                       <button class="avatar-tool-btn" type="button" @click="rotateAvatar90" :disabled="!avatarImage">
-                        旋转 90°
+                        {{ t('settings.rotate90') }}
                       </button>
                       <button class="avatar-tool-btn avatar-tool-btn--ghost" type="button" @click="resetAvatarTransform" :disabled="!avatarImage">
-                        重置
+                        {{ t('settings.reset') }}
                       </button>
                     </div>
-                    <p class="avatar-upload-hint">可拖拽预览区移动位置，修正手机照片方向或构图。</p>
+                    <p class="avatar-upload-hint">{{ t('settings.avatarAdjustHint') }}</p>
                   </div>
                   <div class="avatar-actions">
                     <button
@@ -1362,13 +1364,17 @@ const lastSessionsFetchedAt = ref<number>(0);
 const lastLoginHistoryUpdatedAt = ref<number>(0);
 const lastSessionsUpdatedAt = ref<number>(0);
 
+const formatRelativeTime = (timeStr: string) => {
+  return formatRelativeTimeI18n(t, locale.value as string, timeStr);
+};
+
 const formatRelativeFromTs = (ts: number) => {
-  if (!ts) return "未更新";
+  if (!ts) return t('settings.notUpdated');
   return formatRelativeTime(new Date(ts).toISOString());
 };
 
-const loginHistoryUpdatedLabel = computed(() => `最近更新：${formatRelativeFromTs(lastLoginHistoryUpdatedAt.value)}`);
-const sessionsUpdatedLabel = computed(() => `最近更新：${formatRelativeFromTs(lastSessionsUpdatedAt.value)}`);
+const loginHistoryUpdatedLabel = computed(() => `${t('settings.lastUpdated')}${formatRelativeFromTs(lastLoginHistoryUpdatedAt.value)}`);
+const sessionsUpdatedLabel = computed(() => `${t('settings.lastUpdated')}${formatRelativeFromTs(lastSessionsUpdatedAt.value)}`);
 
 const resendingVerification = ref(false);
 
@@ -1616,8 +1622,8 @@ const sessionBadgeVariant = computed<"neutral" | "warning">(() => {
 const sessionBadgeLabel = computed(() => {
   const count = sessions.value?.length || 0;
   if (count <= 0) return "";
-  if (count === 1 && sessionBadgeVariant.value === "neutral") return "仅当前设备";
-  return `${count} 个活跃会话`;
+  if (count === 1 && sessionBadgeVariant.value === "neutral") return t('settings.sessionOnlyCurrentDevice');
+  return t('settings.sessionActiveSessions', { count });
 });
 
 const canChangePassword = computed(() => {
@@ -1728,10 +1734,6 @@ const formatTime = (timeStr: string) => {
   return formatDateTime(locale.value as string, timeStr) || t("common.unknown");
 };
 
-const formatRelativeTime = (timeStr: string) => {
-  return formatRelativeTimeI18n(t, locale.value as string, timeStr);
-};
-
 const shortToken = (token?: string) => {
   const t = (token || "").trim();
   if (!t) return t("common.unknown");
@@ -1816,23 +1818,23 @@ const collapseLeave = (el: Element) => {
 };
 
 const parseUserAgent = (userAgent: string) => {
-  if (!userAgent) return "未知设备";
+  if (!userAgent) return t('settings.unknownDevice');
   // 简单的User-Agent解析（用于会话管理，登录历史使用后端解析的数据）
-  if (userAgent.includes("Chrome")) return "Chrome 浏览器";
-  if (userAgent.includes("Firefox")) return "Firefox 浏览器";
-  if (userAgent.includes("Safari") && !userAgent.includes("Chrome")) return "Safari 浏览器";
-  if (userAgent.includes("Edge")) return "Edge 浏览器";
-  if (userAgent.includes("Mobile")) return "移动设备";
-  return "未知设备";
+  if (userAgent.includes("Chrome")) return t('settings.deviceChrome');
+  if (userAgent.includes("Firefox")) return t('settings.deviceFirefox');
+  if (userAgent.includes("Safari") && !userAgent.includes("Chrome")) return t('settings.deviceSafari');
+  if (userAgent.includes("Edge")) return t('settings.deviceEdge');
+  if (userAgent.includes("Mobile")) return t('settings.deviceMobile');
+  return t('settings.unknownDevice');
 };
 
 const formatLoginMethod = (method: string) => {
   const methodMap: Record<string, string> = {
-    email: "邮箱登录",
-    google: "Google 登录",
-    github: "GitHub 登录",
+    email: t('settings.loginMethodEmail'),
+    google: t('settings.loginMethodGoogle'),
+    github: t('settings.loginMethodGithub'),
   };
-  return methodMap[method] || method || "未知";
+  return methodMap[method] || method || t('settings.loginMethodUnknown');
 };
 
 const openAvatarModal = () => {
@@ -5241,8 +5243,5 @@ onMounted(() => {
 
 .breach-result-danger .breach-result-count {
   color: #92400e;
-}
-
-  color: rgba(148, 163, 184, 0.7) !important;
 }
 </style>
