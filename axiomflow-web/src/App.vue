@@ -133,23 +133,47 @@
               <span>{{ $t('nav.help') }}</span>
             </button>
             <div class="user-menu-divider"></div>
-            <div class="user-menu-item language-selector" @mouseenter="showLanguageMenu = true" @mouseleave="showLanguageMenu = false">
-              <button class="language-selector-button" @click="showLanguageMenu = !showLanguageMenu">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M4 5h16M4 12h9M4 19h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M15 19l2-6 2 6m-3-2h2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
+            <div class="user-menu-item language-selector">
+              <button
+                class="language-selector-button"
+                type="button"
+                :aria-label="$t('nav.language')"
+                aria-haspopup="listbox"
+                :aria-expanded="showLanguageMenu"
+                @click.stop="showLanguageMenu = !showLanguageMenu"
+                @keydown.down.prevent="openLanguageMenuAndMove(1)"
+                @keydown.up.prevent="openLanguageMenuAndMove(-1)"
+                @keydown.enter.prevent="showLanguageMenu = !showLanguageMenu"
+                @keydown.space.prevent="showLanguageMenu = !showLanguageMenu"
+                @keydown.esc.prevent="showLanguageMenu = false"
+              >
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 5h16M4 12h9M4 19h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M15 19l2-6 2 6m-3-2h2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
                 <span>{{ $t('language.label', { lang: currentLanguageLabel }) }}</span>
                 <svg class="language-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </button>
               <Transition name="language-menu-fade">
-                <div v-if="showLanguageMenu" class="language-menu">
+                <div
+                  v-if="showLanguageMenu"
+                  class="language-menu"
+                  role="listbox"
+                  tabindex="-1"
+                  @keydown.down.prevent="moveLanguageSelection(1)"
+                  @keydown.up.prevent="moveLanguageSelection(-1)"
+                  @keydown.enter.prevent="selectActiveLanguage()"
+                  @keydown.esc.prevent="showLanguageMenu = false"
+                >
                   <button
                     v-for="option in languageOptions"
                     :key="option.value"
                     class="language-menu-item"
+                    type="button"
+                    role="option"
+                    :aria-selected="locale === option.value"
                     :class="{ 'active': locale === option.value }"
                     @click="selectLanguage(option.value)"
                   >
@@ -157,16 +181,10 @@
                     <svg v-if="locale === option.value" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                  </button>
+            </button>
                 </div>
               </Transition>
             </div>
-            <button class="user-menu-item" @click="toggleTheme">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 3a9 9 0 0 0 0 18 7 7 0 0 1 0-14 7 7 0 0 0 0-4z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <span>{{ $t('theme.label', { theme: currentThemeLabel }) }}</span>
-            </button>
             <div class="user-menu-divider"></div>
             <button class="user-menu-item" @click="goToSettings">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -214,11 +232,9 @@ const isSettingsPage = computed(() => route.path === "/settings" || route.path.s
 const showMenu = ref(false);
 const isRouteLoading = ref(false);
 const isNavOpen = ref(false);
-const theme = ref<"light" | "dark">("light");
 const showLanguageMenu = ref(false);
+const activeLanguageIndex = ref(0);
 
-// 使用 i18n 的 locale 而不是单独的 language ref
-const currentThemeLabel = computed(() => (theme.value === "dark" ? t("theme.dark") : t("theme.light")));
 const currentLanguageLabel = computed(() => {
   const currentLocale = locale.value as SupportedLocale;
   const localeMap: Record<SupportedLocale, string> = {
@@ -240,6 +256,12 @@ const languageOptions = computed(() => {
     value: loc,
     label: getLanguageLabel(loc),
   }));
+});
+
+watch([showLanguageMenu, locale], () => {
+  if (!showLanguageMenu.value) return;
+  const idx = languageOptions.value.findIndex((o) => o.value === (locale.value as SupportedLocale));
+  activeLanguageIndex.value = idx >= 0 ? idx : 0;
 });
 
 const getLanguageLabel = (loc: SupportedLocale): string => {
@@ -300,30 +322,6 @@ const goToSettings = () => {
   router.push("/settings");
 };
 
-const applyTheme = (value: "light" | "dark") => {
-  theme.value = value;
-  const root = document.documentElement;
-  if (value === "dark") {
-    root.classList.add("theme-dark");
-  } else {
-    root.classList.remove("theme-dark");
-  }
-  localStorage.setItem("theme", value);
-};
-
-const toggleTheme = () => {
-  const newTheme = theme.value === "dark" ? "light" : "dark";
-  applyTheme(newTheme);
-  // 添加主题切换反馈
-  if (typeof window !== 'undefined' && (window as any).showToast) {
-    (window as any).showToast({
-      type: 'success',
-      title: t("theme.switched", { theme: newTheme === "dark" ? t("theme.dark") : t("theme.light") }),
-      duration: 2000,
-    });
-  }
-};
-
 const applyLanguage = (value: SupportedLocale) => {
   locale.value = value;
   localStorage.setItem("language", value);
@@ -346,6 +344,27 @@ const selectLanguage = (newLocale: SupportedLocale) => {
       duration: 2000,
     });
   }
+};
+
+const moveLanguageSelection = (delta: number) => {
+  const n = languageOptions.value.length;
+  if (n <= 0) return;
+  activeLanguageIndex.value = (activeLanguageIndex.value + delta + n) % n;
+};
+
+const openLanguageMenuAndMove = (delta: number) => {
+  if (!showLanguageMenu.value) {
+    showLanguageMenu.value = true;
+    nextTick(() => moveLanguageSelection(delta));
+  } else {
+    moveLanguageSelection(delta);
+  }
+};
+
+const selectActiveLanguage = () => {
+  const opt = languageOptions.value[activeLanguageIndex.value];
+  if (!opt) return;
+  selectLanguage(opt.value);
 };
 
 
@@ -385,6 +404,9 @@ const handleKeydown = (e: KeyboardEvent) => {
         navToggle?.focus();
       });
     }
+    if (showLanguageMenu.value) {
+      showLanguageMenu.value = false;
+    }
   }
 };
 
@@ -410,16 +432,6 @@ onMounted(() => {
   document.addEventListener("click", handleClickOutside);
   document.addEventListener("keydown", handleKeydown);
   userStore.loadUserFromStorage();
-
-  // 初始化主题与语言
-  const storedTheme = (localStorage.getItem("theme") as "light" | "dark" | null);
-  if (storedTheme === "dark" || storedTheme === "light") {
-    applyTheme(storedTheme);
-  } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-    applyTheme("dark");
-  } else {
-    applyTheme("light");
-  }
 
   // 语言设置已在 i18n/index.ts 中自动处理（包括自动检测和从 localStorage 读取）
   // 这里只需要同步到 localStorage（如果 i18n 初始化时没有读取到）

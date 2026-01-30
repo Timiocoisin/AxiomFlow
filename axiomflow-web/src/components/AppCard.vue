@@ -34,6 +34,12 @@
     background-position: 100% 100%;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-card {
+    animation: none;
+  }
+}
 </style>
 
 

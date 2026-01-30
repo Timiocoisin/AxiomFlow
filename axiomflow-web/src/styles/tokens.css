@@ -58,19 +58,3 @@
   --app-surface: var(--color-surface-1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Keep it conservative: define dark tokens without forcing the app to use them yet */
-    --color-text-strong: #f8fafc;
-    --color-text: rgba(248, 250, 252, 0.92);
-    --color-text-muted: rgba(148, 163, 184, 0.92);
-
-    --color-surface-0: #0b1220;
-    --color-surface-1: rgba(15, 23, 42, 0.92);
-    --color-surface-2: rgba(15, 23, 42, 0.72);
-    --color-border: rgba(51, 65, 85, 0.7);
-    --color-border-soft: rgba(51, 65, 85, 0.55);
-  }
-}
-
-

@@ -6,15 +6,15 @@
       <div class="hero-content">
         <img src="/icons/favicon.svg" alt="AxiomFlow" class="hero-icon" />
         <h1 class="hero-title">
-          <span class="hero-title-main">智能 PDF 翻译</span>
+          <span class="hero-title-main">{{ $t('landing.title') }}</span>
         </h1>
         <p class="hero-description">
-          基于 AI 的PDF文档翻译平台，精准保留数学公式、图表布局与排版结构
+          {{ $t('landing.description') }}
         </p>
         <div class="hero-features">
-          <span class="feature-tag">公式识别</span>
-          <span class="feature-tag">版面保留</span>
-          <span class="feature-tag">多语言支持</span>
+          <span class="feature-tag">{{ $t('landing.featureFormula') }}</span>
+          <span class="feature-tag">{{ $t('landing.featureLayout') }}</span>
+          <span class="feature-tag">{{ $t('landing.featureMultiLang') }}</span>
         </div>
       </div>
       <div
@@ -34,8 +34,8 @@
               <path d="M2 17L2 19C2 20.1046 2.89543 21 4 21L20 21C21.1046 21 22 20.1046 22 19L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <div class="upload-text">
-              <span class="upload-text-primary">拖拽 PDF 到这里</span>
-              <span class="upload-text-secondary">或点击选择文件</span>
+              <span class="upload-text-primary">{{ $t('landing.dragPdf') }}</span>
+              <span class="upload-text-secondary">{{ $t('landing.orClick') }}</span>
             </div>
           </div>
         </div>
@@ -48,12 +48,14 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import { useUserStore } from "@/stores/user";
 import { createProject, uploadPdf } from "@/lib/api";
 import Snowflakes from "@/components/Snowflakes.vue";
 import FloatingParticles from "@/components/FloatingParticles.vue";
 
 const router = useRouter();
+const { t } = useI18n();
 const userStore = useUserStore();
 
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -95,7 +97,7 @@ const handleDrop = async (e: DragEvent) => {
   if (pdfFile) {
     uploadFile(pdfFile);
   } else {
-    alert("请上传 PDF 文件");
+    alert(t('landing.uploadPdfOnly'));
   }
 };
 

@@ -3,14 +3,14 @@
     <div class="workbench-main glass-card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:10px">
-          <AppButton @click="goBackToDashboard">返回文档列表</AppButton>
+          <AppButton @click="goBackToDashboard">{{ $t("workbench.backToDocs") }}</AppButton>
           <div style="color:#9ca3af;font-size:12px">
             {{ doc?.document.title }} · {{ doc?.document.lang_in }}→{{ doc?.document.lang_out }}
           </div>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
           <AppButton primary @click="runTranslateAndExport" :disabled="!doc || translating">
-            {{ translating ? "翻译中…" : "一键翻译并生成译文 PDF" }}
+            {{ translating ? $t("workbench.translating") : $t("workbench.translateAndExport") }}
           </AppButton>
           <div v-if="jobStatus" style="color:#9ca3af;font-size:12px">
             {{ jobStatus }}
@@ -20,7 +20,7 @@
 
       <div class="workbench-columns">
         <div class="pane pane-original">
-          <h3>原文 PDF</h3>
+          <h3>{{ $t("workbench.sourcePdf") }}</h3>
           <div v-if="doc" style="height: calc(100% - 30px);">
             <PdfCanvasViewer
               :pdf-url="sourcePdfUrl"
@@ -31,11 +31,11 @@
               :continuous="true"
             />
           </div>
-          <p v-else class="demo-block" style="color: #9ca3af">加载文档后将显示原文 PDF</p>
+          <p v-else class="demo-block" style="color: #9ca3af">{{ $t("workbench.sourcePdfHint") }}</p>
         </div>
 
         <div class="pane pane-translation">
-          <h3>译文 PDF</h3>
+          <h3>{{ $t("workbench.translatedPdf") }}</h3>
           <div v-if="translatedPdfUrl" style="height: calc(100% - 30px);">
             <PdfCanvasViewer
               :pdf-url="translatedPdfUrl"
@@ -47,7 +47,7 @@
             />
           </div>
           <div v-else class="demo-block" style="color:#9ca3af">
-            暂无译文 PDF，请先点击右上角「一键翻译并生成译文 PDF」，原文会先加载，译文生成后会自动显示在此处。
+            {{ $t("workbench.translatedPdfHint") }}
           </div>
         </div>
       </div>
@@ -58,12 +58,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import AppButton from "@/components/AppButton.vue";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer.vue";
 import { exportDocument, getDocument, getJob, getSourcePdfUrl, StructuredDoc, translateDocument } from "@/lib/api";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const documentId = computed(() => String(route.params.id || ""));
 
 const doc = ref<StructuredDoc | null>(null);
@@ -84,7 +86,7 @@ const pollJob = async (id: string) => {
     try {
       const j = await getJob(id);
       const pct = Math.round((j?.progress ?? 0) * 100);
-      const eta = j?.eta_s != null ? ` · ETA ${Math.round(j.eta_s)}s` : "";
+      const eta = j?.eta_s != null ? ` · ${t("workbench.eta", { sec: Math.round(j.eta_s) })}` : "";
       const done = j?.done != null && j?.total != null ? ` · ${j.done}/${j.total}` : "";
       jobStatus.value = `${j?.stage ?? "unknown"} · ${pct}%${done}${eta}`;
       if (j?.stage === "success" || j?.stage === "failed" || j?.stage === "canceled") break;

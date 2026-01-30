@@ -6,21 +6,21 @@
           <img src="/icons/favicon.svg" alt="AxiomFlow" class="auth-logo-image" />
           <div class="auth-logo-text">AxiomFlow</div>
         </div>
-        <h1 class="auth-title">{{ isLogin ? "欢迎回来" : "创建账户" }}</h1>
-        <p class="auth-subtitle">{{ isLogin ? "登录以继续使用" : "注册新账户开始使用" }}</p>
+        <h1 class="auth-title">{{ isLogin ? $t('auth.welcomeBack') : $t('auth.createAccount') }}</h1>
+        <p class="auth-subtitle">{{ isLogin ? $t('auth.loginToContinue') : $t('auth.registerToStart') }}</p>
       </div>
 
       <div class="auth-form">
         <form @submit.prevent="handleSubmit">
           <div v-if="!isLogin" class="form-group">
-            <label class="form-label">用户名</label>
+            <label class="form-label">{{ $t('auth.username') }}</label>
             <div class="input-wrapper">
               <input
                 v-model="formData.name"
                 type="text"
                 class="form-input"
                 :class="{ 'input-error': nameError, 'input-valid': nameValid }"
-                placeholder="请输入用户名"
+                :placeholder="$t('auth.enterUsername')"
                 autocomplete="username"
                 aria-required="true"
                 aria-invalid="!!nameError"
@@ -45,14 +45,14 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">邮箱</label>
+            <label class="form-label">{{ $t('auth.email') }}</label>
             <div class="input-wrapper">
               <input
                 v-model="formData.email"
                 type="email"
                 class="form-input"
                 :class="{ 'input-error': emailError, 'input-valid': emailValid }"
-                placeholder="请输入邮箱地址"
+                :placeholder="$t('auth.enterEmail')"
                 autocomplete="email"
                 aria-required="true"
                 aria-invalid="!!emailError"
@@ -78,15 +78,15 @@
 
           <div class="form-group password-group" ref="passwordGroupRef">
             <label class="form-label password-label-row">
-              <span>密码</span>
+              <span>{{ $t('auth.password') }}</span>
               <button
                 v-if="!isLogin"
                 type="button"
                 class="password-tips-trigger"
                 @click="togglePasswordTips"
                 :aria-expanded="showPasswordTips ? 'true' : 'false'"
-                aria-label="查看密码要求"
-                title="密码要求"
+                :aria-label="$t('auth.viewPasswordRequirements')"
+                :title="$t('auth.passwordRequirement')"
               >
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                   <path d="M12 17h.01M12 13a3 3 0 1 0-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -100,7 +100,7 @@
                 :type="showPassword ? 'text' : 'password'"
                 class="form-input"
                 :class="{ 'input-error': passwordError, 'input-valid': passwordValid && formData.password }"
-                placeholder="请输入密码"
+                :placeholder="$t('auth.enterPassword')"
                 autocomplete="current-password"
                 aria-required="true"
                 aria-invalid="!!passwordError"
@@ -137,18 +137,18 @@
                 class="password-tips-popover"
                 :class="`place-${passwordPopoverPlacement}`"
                 role="dialog"
-                aria-label="密码要求提示"
+                :aria-label="$t('auth.passwordRequirement')"
                 @mousedown.prevent
               >
                 <div class="password-tips-head">
-                  <div class="password-tips-title">密码要求</div>
+                  <div class="password-tips-title">{{ $t('auth.passwordRequirement') }}</div>
                   <div v-if="formData.password" class="password-strength-pill" :class="passwordStrengthClass">
-                    强度：{{ passwordStrengthText || "弱" }}
+                    {{ $t('auth.passwordStrength') }}：{{ passwordStrengthText || $t('auth.passwordWeak') }}
                   </div>
                 </div>
                 <ul class="password-tips-list">
                   <li :class="{ met: passwordRuleStatus.len8 }">
-                    <span class="tip-text">至少 <strong>8 个字符</strong></span>
+                    <span class="tip-text">{{ $t('auth.passwordRequirementLength') }}</span>
                     <span class="rule-meter" aria-hidden="true">
                       <span
                         class="rule-meter-fill"
@@ -158,7 +158,7 @@
                     </span>
                   </li>
                   <li :class="{ met: passwordRuleStatus.cases }">
-                    <span class="tip-text">同时包含 <strong>大写</strong> 与 <strong>小写</strong></span>
+                    <span class="tip-text">{{ $t('auth.passwordRequirementLetter') }}</span>
                     <span class="rule-meter" aria-hidden="true">
                       <span
                         class="rule-meter-fill"
@@ -168,7 +168,7 @@
                     </span>
                   </li>
                   <li :class="{ met: passwordRuleStatus.digit }">
-                    <span class="tip-text">包含 <strong>数字</strong></span>
+                    <span class="tip-text">{{ $t('auth.passwordRequirementNumber') }}</span>
                     <span class="rule-meter" aria-hidden="true">
                       <span
                         class="rule-meter-fill"
@@ -178,7 +178,7 @@
                     </span>
                   </li>
                   <li class="recommended" :class="{ met: passwordRuleStatus.symbol }">
-                    <span class="tip-text">包含 <strong>符号</strong>（推荐）</span>
+                    <span class="tip-text">{{ $t('auth.passwordRequirementSpecial') }}</span>
                     <span class="rule-meter" aria-hidden="true">
                       <span
                         class="rule-meter-fill"
@@ -194,14 +194,14 @@
 
 
           <div v-if="!isLogin" class="form-group">
-            <label class="form-label">确认密码</label>
+            <label class="form-label">{{ $t('auth.confirmPassword') }}</label>
             <div class="password-input-wrapper">
               <input
                 v-model="formData.confirmPassword"
                 :type="showConfirmPassword ? 'text' : 'password'"
                 class="form-input"
                 :class="{ 'input-error': confirmPasswordError, 'input-valid': confirmPasswordValid && formData.confirmPassword }"
-                placeholder="请再次输入密码"
+                :placeholder="$t('auth.enterConfirmPassword')"
                 autocomplete="new-password"
                 aria-required="true"
                 aria-invalid="!!confirmPasswordError"
@@ -232,7 +232,7 @@
 
           <!-- 验证码（注册和登录时显示） -->
           <div class="form-group">
-            <label class="form-label">验证码</label>
+            <label class="form-label">{{ $t('auth.captcha') }}</label>
             <div class="captcha-wrapper">
               <div class="input-wrapper" style="flex: 1;">
                 <input
@@ -240,10 +240,10 @@
                   type="text"
                   class="form-input"
                   :class="{ 'input-error': captchaError, 'input-valid': captchaCode && !captchaError }"
-                  placeholder="请输入验证码"
+                  :placeholder="$t('auth.enterCaptcha')"
                   maxlength="4"
                   autocomplete="off"
-                  aria-label="验证码输入"
+                  :aria-label="$t('auth.captcha')"
                   @keyup.enter="handleSubmit"
                 />
                 <div v-if="captchaCode && !captchaError" class="input-status-icon input-status-success">
@@ -261,15 +261,15 @@
                 <img
                   v-if="captchaImage"
                   :src="captchaImage"
-                  alt="验证码"
+                  :alt="$t('auth.captcha')"
                   class="captcha-image"
                   @click="loadCaptcha"
                   role="button"
                   tabindex="0"
-                  aria-label="点击刷新验证码"
+                  :aria-label="$t('auth.refreshCaptcha')"
                   @keyup.enter="loadCaptcha"
                 />
-                <div v-else class="captcha-placeholder" @click="loadCaptcha" role="button" tabindex="0" aria-label="点击加载验证码">
+                <div v-else class="captcha-placeholder" @click="loadCaptcha" role="button" tabindex="0" :aria-label="$t('auth.refreshCaptcha')">
                   <svg v-if="loadingCaptcha" class="captcha-loading" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416" stroke-dashoffset="31.416">
                       <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416;0 31.416" repeatCount="indefinite"/>
@@ -283,8 +283,8 @@
                   class="captcha-refresh"
                   @click="loadCaptcha"
                   :disabled="loadingCaptcha"
-                  aria-label="刷新验证码"
-                  title="刷新验证码"
+                  :aria-label="$t('auth.refreshCaptcha')"
+                  :title="$t('auth.refreshCaptcha')"
                 >
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M3 12C3 7.03 7.03 3 12 3C16.97 3 21 7.03 21 12M21 12L17 8M21 12L17 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -302,19 +302,19 @@
                 type="checkbox" 
                 v-model="rememberMe"
                 class="checkbox-input"
-                aria-label="记住我"
+                :aria-label="$t('auth.rememberMe')"
               />
               <span class="checkbox-custom"></span>
-              <span class="checkbox-text">记住我</span>
+              <span class="checkbox-text">{{ $t('auth.rememberMe') }}</span>
             </label>
             <button
               type="button"
               class="forgot-password-link"
               @click="handleOpenForgotPasswordModal"
               :disabled="loading"
-              aria-label="忘记密码"
+              :aria-label="$t('auth.forgotPassword')"
             >
-              忘记密码？
+              {{ $t('auth.forgotPassword') }}
             </button>
           </div>
 
@@ -326,12 +326,12 @@
             aria-label="提交表单"
           >
             <span v-if="loading" class="loading-spinner" aria-hidden="true"></span>
-            <span>{{ loading ? (isLogin ? "登录中..." : "注册中...") : (isLogin ? "登录" : "注册") }}</span>
+            <span>{{ loading ? (isLogin ? $t('auth.loggingIn') : $t('auth.registering')) : (isLogin ? $t('auth.login') : $t('auth.register')) }}</span>
           </button>
         </form>
 
         <div class="auth-divider">
-          <span>或</span>
+          <span>{{ $t('auth.or') }}</span>
         </div>
 
         <div class="social-login">
@@ -758,6 +758,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import { useUserStore } from "@/stores/user";
 import {
   API_BASE,
@@ -775,6 +776,7 @@ import {
 } from "@/lib/api";
 
 const router = useRouter();
+const { t } = useI18n();
 const userStore = useUserStore();
 
 const isLogin = ref(true);
@@ -1059,9 +1061,9 @@ const passwordStrength = computed(() => {
   if (/\d/.test(password)) strength++;
   if (/[^a-zA-Z0-9]/.test(password)) strength++;
   
-  if (strength <= 2) return { level: 1, text: "弱" };
-  if (strength <= 3) return { level: 2, text: "中" };
-  return { level: 3, text: "强" };
+  if (strength <= 2) return { level: 1, text: t('auth.passwordWeak') };
+  if (strength <= 3) return { level: 2, text: t('auth.passwordMedium') };
+  return { level: 3, text: t('auth.passwordStrong') };
 });
 
 const passwordStrengthClass = computed(() => {
@@ -1542,7 +1544,7 @@ const handleGoogleCredentialResponse = async (response: { credential: string }) 
       }
     } else {
       // 普通错误提示
-      showToast("error", "登录失败", errorMessage);
+      showToast("error", t('auth.loginFailed'), errorMessage);
     }
   } finally {
     loading.value = false;
@@ -1653,29 +1655,29 @@ const toggleMode = () => {
 const normalizeAuthError = (raw: any, isLoginFlow: boolean): string => {
   const msg = (raw && typeof raw.message === "string" && raw.message.trim()) || "";
   if (!msg) {
-    return isLoginFlow ? "登录失败，请稍后重试。" : "注册失败，请稍后重试。";
+    return isLoginFlow ? t('auth.loginFailed') : t('auth.registerFailed');
   }
 
   // 登录相关常见错误
-  if (msg.includes("邮箱或密码错误")) {
-    return "邮箱或密码错误，请检查后重试。";
+  if (msg.includes("邮箱或密码错误") || msg.includes("email or password") || msg.includes("Email or password")) {
+    return t('auth.emailOrPasswordWrong');
   }
-  if (msg.includes("暂时锁定") || msg.includes("账户已被暂时锁定")) {
-    return "由于多次密码错误，账户已被暂时锁定，请稍后重试或通过邮箱验证码解锁。";
+  if (msg.includes("暂时锁定") || msg.includes("账户已被暂时锁定") || msg.includes("locked") || msg.includes("Locked")) {
+    return t('auth.accountLocked');
   }
-  if (msg.includes("登录请求过于频繁") || msg.includes("尝试次数过多")) {
-    return "登录请求过于频繁，请稍后再试。";
+  if (msg.includes("登录请求过于频繁") || msg.includes("尝试次数过多") || msg.includes("too frequent") || msg.includes("Too frequent")) {
+    return t('auth.loginTooFrequent');
   }
-  if (msg.includes("验证码无效") || msg.includes("验证码已过期") || msg.includes("验证码错误")) {
-    return "验证码无效或已过期，请刷新后重新输入。";
+  if (msg.includes("验证码无效") || msg.includes("验证码已过期") || msg.includes("验证码错误") || msg.includes("captcha") || msg.includes("Captcha")) {
+    return t('auth.captchaInvalid');
   }
 
   // 注册相关常见错误
-  if (msg.includes("邮箱已被注册") || msg.includes("已存在同名邮箱")) {
-    return "该邮箱已注册，如忘记密码可使用“忘记密码”功能找回。";
+  if (msg.includes("邮箱已被注册") || msg.includes("已存在同名邮箱") || msg.includes("already registered") || msg.includes("Already registered")) {
+    return t('auth.emailRegistered');
   }
-  if (msg.includes("注册请求过于频繁") || msg.includes("当前网络环境注册请求过于频繁")) {
-    return "注册请求过于频繁，请稍后再试。";
+  if (msg.includes("注册请求过于频繁") || msg.includes("当前网络环境注册请求过于频繁") || msg.includes("register too frequent")) {
+    return t('auth.registerTooFrequent');
   }
 
   // 兜底：直接返回后端文案
@@ -1832,7 +1834,7 @@ const handleSubmit = async () => {
       }
     } else {
       // 普通错误提示（已通过 normalizeAuthError 做过统一文案处理）
-      showToast("error", isLogin.value ? "登录失败" : "注册失败", errorMessage);
+      showToast("error", isLogin.value ? t('auth.loginFailed') : t('auth.registerFailed'), errorMessage);
     }
   } finally {
     loading.value = false;

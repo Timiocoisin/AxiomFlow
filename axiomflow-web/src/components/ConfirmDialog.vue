@@ -36,7 +36,7 @@
               @click="handleCancel"
               :disabled="loading"
             >
-              {{ cancelText }}
+              {{ cancelTextComputed }}
             </button>
             <button
               class="confirm-dialog-button confirm-dialog-button--confirm"
@@ -44,7 +44,7 @@
               @click="handleConfirm"
               :disabled="loading"
             >
-              {{ confirmText }}
+              {{ confirmTextComputed }}
             </button>
           </div>
         </div>
@@ -54,7 +54,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, watch } from "vue";
+import { useI18n } from "vue-i18n";
 
 export interface ConfirmDialogProps {
   visible: boolean;
@@ -68,10 +69,12 @@ export interface ConfirmDialogProps {
 
 const props = withDefaults(defineProps<ConfirmDialogProps>(), {
   type: "danger",
-  confirmText: "确认",
-  cancelText: "取消",
   loading: false,
 });
+
+const { t } = useI18n();
+const confirmTextComputed = computed(() => props.confirmText || t("common.confirm"));
+const cancelTextComputed = computed(() => props.cancelText || t("common.cancel"));
 
 const emit = defineEmits<{
   confirm: [];
@@ -332,5 +335,6 @@ watch(() => props.visible, (newVal) => {
     0 2px 8px rgba(59, 130, 246, 0.25),
     0 1px 4px rgba(59, 130, 246, 0.15);
 }
+
 </style>
 

@@ -353,5 +353,6 @@ onUnmounted(() => {
     max-width: none;
   }
 }
+
 </style>
 

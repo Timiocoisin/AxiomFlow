@@ -1282,7 +1282,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import { useUserStore } from "@/stores/user";
+import { formatDateTime, formatRelativeTime as formatRelativeTimeI18n } from "@/i18n/utils";
 import {
   changePassword,
   getLoginHistory,
@@ -1298,6 +1300,7 @@ import {
 
 const router = useRouter();
 const userStore = useUserStore();
+const { t, locale } = useI18n();
 
 const showChangePasswordModal = ref(false);
 const showLoginHistoryModal = ref(false);
@@ -1721,42 +1724,17 @@ const goToSessionsPage = (page: number) => {
 };
 
 const formatTime = (timeStr: string) => {
-  if (!timeStr) return "未知";
-  try {
-    const date = new Date(timeStr);
-    return date.toLocaleString("zh-CN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return timeStr;
-  }
+  if (!timeStr) return t("common.unknown");
+  return formatDateTime(locale.value as string, timeStr) || t("common.unknown");
 };
 
 const formatRelativeTime = (timeStr: string) => {
-  if (!timeStr) return "未知";
-  const t = new Date(timeStr).getTime();
-  if (!Number.isFinite(t)) return timeStr;
-  const diff = Date.now() - t;
-  if (diff < 0) return "刚刚";
-  const sec = Math.floor(diff / 1000);
-  if (sec < 60) return "刚刚";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} 分钟前`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} 小时前`;
-  const day = Math.floor(hr / 24);
-  if (day < 7) return `${day} 天前`;
-  // 超过一周回落到绝对时间，避免“32天前”不直观
-  return formatTime(timeStr);
+  return formatRelativeTimeI18n(t, locale.value as string, timeStr);
 };
 
 const shortToken = (token?: string) => {
   const t = (token || "").trim();
-  if (!t) return "未知";
+  if (!t) return t("common.unknown");
   if (t.length <= 16) return t;
   return `${t.slice(0, 6)}…${t.slice(-6)}`;
 };
@@ -1766,7 +1744,7 @@ const copyText = async (text: string) => {
   if (!v) return;
   try {
     await navigator.clipboard.writeText(v);
-    showToast("success", "已复制", "已复制到剪贴板");
+    showToast("success", t("common.copied"), t("common.copiedToClipboard"));
   } catch {
     try {
       const ta = document.createElement("textarea");
@@ -1777,9 +1755,9 @@ const copyText = async (text: string) => {
       ta.select();
       document.execCommand("copy");
       document.body.removeChild(ta);
-      showToast("success", "已复制", "已复制到剪贴板");
+      showToast("success", t("common.copied"), t("common.copiedToClipboard"));
     } catch {
-      showToast("error", "复制失败", "请手动复制");
+      showToast("error", t("common.copyFailed"), t("common.copyFailedHint"));
     }
   }
 };
@@ -5263,5 +5241,8 @@ onMounted(() => {
 
 .breach-result-danger .breach-result-count {
   color: #92400e;
+}
+
+  color: rgba(148, 163, 184, 0.7) !important;
 }
 </style>

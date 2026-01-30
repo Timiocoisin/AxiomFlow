@@ -6,27 +6,29 @@
       style="display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:10px"
     >
       <div style="display:flex;gap:8px;align-items:center">
-        <AppButton @click="prevPage" :disabled="pageIndex <= 0">上一页</AppButton>
-        <AppButton @click="nextPage" :disabled="pageIndex >= numPages - 1">下一页</AppButton>
-        <div style="color:#9ca3af;font-size:12px">第 {{ pageIndex + 1 }} / {{ numPages }} 页</div>
+        <AppButton @click="prevPage" :disabled="pageIndex <= 0">{{ $t("pdf.prevPage") }}</AppButton>
+        <AppButton @click="nextPage" :disabled="pageIndex >= numPages - 1">{{ $t("pdf.nextPage") }}</AppButton>
+        <div style="color:#9ca3af;font-size:12px">
+          {{ $t("pdf.pageXofY", { x: pageIndex + 1, y: numPages }) }}
+        </div>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         <label style="display:flex;gap:8px;align-items:center;color:#9ca3af;font-size:12px">
           <input type="checkbox" v-model="onlyIssues" />
-          只看异常
+          {{ $t("pdf.onlyIssues") }}
         </label>
         <select class="simple-input" v-model="filterType" style="padding:8px 10px">
-          <option value="">全部类型</option>
-          <option value="heading">标题</option>
-          <option value="paragraph">正文</option>
-          <option value="caption">图表说明</option>
-          <option value="formula">公式</option>
-          <option value="figure">图</option>
-          <option value="table">表</option>
+          <option value="">{{ $t("pdf.typeAll") }}</option>
+          <option value="heading">{{ $t("pdf.typeHeading") }}</option>
+          <option value="paragraph">{{ $t("pdf.typeParagraph") }}</option>
+          <option value="caption">{{ $t("pdf.typeCaption") }}</option>
+          <option value="formula">{{ $t("pdf.typeFormula") }}</option>
+          <option value="figure">{{ $t("pdf.typeFigure") }}</option>
+          <option value="table">{{ $t("pdf.typeTable") }}</option>
         </select>
         <label style="display:flex;gap:8px;align-items:center;color:#9ca3af;font-size:12px">
           <input type="checkbox" v-model="bilingual" />
-          双语叠加
+          {{ $t("pdf.bilingualOverlay") }}
         </label>
       </div>
     </div>
@@ -74,10 +76,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import AppButton from "@/components/AppButton.vue";
 // 使用 legacy ESM 构建 + workerPort，避免私有字段和打包器兼容问题
 // @ts-ignore
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+// i18n (template uses $t; keep composer for future programmatic translations)
+useI18n();
 // @ts-ignore
 import PdfWorker from "pdfjs-dist/legacy/build/pdf.worker.mjs?worker";
 

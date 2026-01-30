@@ -42,6 +42,7 @@ defineProps<{ primary?: boolean }>();
   transform: translateY(-2px);
   border-color: rgba(59, 130, 246, 0.8);
 }
+
 </style>
 
 

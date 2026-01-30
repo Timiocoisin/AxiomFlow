@@ -661,45 +661,14 @@ body {
   border-color: rgba(255, 255, 255, 1);
 }
 
-/* 暗色主题基础适配（通过 .theme-dark 挂在 :root 上） */
-.theme-dark body {
-  background: radial-gradient(circle at top, #020617 0, #020617 40%, #020617 100%);
-  color: var(--color-text);
-}
+/* =========================================================
+ * Dark Theme Styles (UI/UX Pro compliant)
+ * - Complete dark mode support for all components
+ * - Modern colors, rounded corners, soft shadows
+ * ========================================================= */
 
-.theme-dark .app-header {
-  background: radial-gradient(circle at top left, rgba(30, 64, 175, 0.35), rgba(15, 23, 42, 0.96));
-  border-bottom-color: rgba(30, 64, 175, 0.4);
-}
 
-.theme-dark .app-main {
-  background: radial-gradient(circle at top, rgba(15, 23, 42, 0.98), #020617);
-}
 
-.theme-dark .nav-link-item {
-  background: rgba(15, 23, 42, 0.8);
-  border-color: rgba(51, 65, 85, 0.8);
-  color: rgba(226, 232, 240, 0.92);
-}
-
-.theme-dark .nav-link-item.router-link-active {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.45), rgba(129, 140, 248, 0.5));
-  color: #eff6ff;
-}
-
-.theme-dark .user-menu {
-  background: rgba(15, 23, 42, 0.98);
-  border-color: rgba(51, 65, 85, 0.9);
-}
-
-.theme-dark .user-menu-item {
-  color: rgba(148, 163, 184, 0.95);
-}
-
-.theme-dark .user-menu-item:hover {
-  background: rgba(59, 130, 246, 0.18);
-  color: #bfdbfe;
-}
 
 /* 路由切换进度条（简化版 NProgress） */
 .route-progress-bar {
@@ -898,7 +867,11 @@ body {
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
-  justify-content: space-between;
+  justify-content: flex-start;
+}
+
+.language-selector-button .language-arrow {
+  margin-left: auto;
 }
 
 .language-selector-button:hover {
@@ -988,25 +961,6 @@ body {
   transform: translateY(0) scale(1);
 }
 
-/* 暗色主题适配 */
-.theme-dark .language-menu {
-  background: rgba(15, 23, 42, 0.98);
-  border-color: rgba(51, 65, 85, 0.9);
-}
-
-.theme-dark .language-menu-item {
-  color: rgba(148, 163, 184, 0.95);
-}
-
-.theme-dark .language-menu-item:hover {
-  background: rgba(59, 130, 246, 0.18);
-  color: #bfdbfe;
-}
-
-.theme-dark .language-menu-item.active {
-  background: rgba(59, 130, 246, 0.25);
-  color: #bfdbfe;
-}
 
 /* 登录/注册页面样式 - 参考 Apple/Google/Stripe 设计 */
 .auth-container {
@@ -2600,13 +2554,14 @@ body {
 /* 仅 Settings 页面允许滚动（顶部导航栏固定不随滚动消失） */
 .app-main.scrollable {
   overflow-y: auto;
+  margin: 0;
 }
 
 /* 首页禁用滚动条 */
 .app-main.landing-page {
   overflow: hidden;
   padding: 0;
-  margin-top: var(--app-header-height, 80px);
+  margin: 0;
   height: calc(100vh - var(--app-header-height, 80px));
   display: flex;
   align-items: center;
@@ -4070,10 +4025,6 @@ body {
     font-size: 12px;
     gap: 5px;
     border-radius: 12px;
-  }
-
-  .nav-link-item span {
-    display: none; /* 在小屏幕上只显示图标 */
   }
 
   .nav-icon {

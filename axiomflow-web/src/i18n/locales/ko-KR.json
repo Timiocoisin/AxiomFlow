@@ -38,6 +38,16 @@
   "app": {
     "title": "AxiomFlow - PDF 수학 문서 번역 및 조판 도구",
     "error": "프론트엔드 실행 오류"
+  },
+  "landing": {
+    "title": "PDF 수학 문서 번역 및 조판 도구",
+    "description": "지능형 수식 인식, 정확한 번역, 자동 조판으로 학술 문서 번역을 간단하고 효율적으로",
+    "featureFormula": "스마트 수식 인식",
+    "featureLayout": "자동 조판",
+    "featureMultiLang": "다국어 지원",
+    "dragPdf": "PDF 파일을 여기에 드래그",
+    "orClick": "또는 클릭하여 업로드",
+    "uploadPdfOnly": "PDF 파일을 업로드해주세요"
   }
 }
 

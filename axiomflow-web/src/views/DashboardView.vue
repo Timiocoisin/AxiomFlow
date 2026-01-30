@@ -13,8 +13,8 @@
         >
           <div class="modal-content glass-card security-guide-modal">
             <div class="modal-header">
-              <h2 id="security-guide-title">账户安全建议</h2>
-              <button class="modal-close" @click="closeSecurityGuide" aria-label="关闭">
+              <h2 id="security-guide-title">{{ $t('dashboard.securityGuide.title') }}</h2>
+              <button class="modal-close" @click="closeSecurityGuide" :aria-label="$t('common.close')">
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
@@ -22,18 +22,18 @@
             </div>
             <div class="modal-body">
         <p class="modal-description">
-          当前邮箱未验证，部分安全操作将受限，建议尽快完成验证。
+          {{ $t('dashboard.securityGuide.description') }}
         </p>
               <ul class="security-guide-list">
-                <li>1. 前往「设置 &gt; 安全设置」检查邮箱验证状态，如未收到邮件可重新发送验证邮件。</li>
-                <li>2. 定期检查「活跃会话」列表，及时撤销不认识的设备登录。</li>
+                <li>1. {{ $t('dashboard.securityGuide.step1') }}</li>
+                <li>2. {{ $t('dashboard.securityGuide.step2') }}</li>
               </ul>
               <div class="security-guide-actions">
                 <button class="security-guide-primary" @click="goToSecuritySettings">
-                  前往安全设置
+                  {{ $t('dashboard.securityGuide.goToSecuritySettings') }}
                 </button>
                 <button class="security-guide-secondary" @click="closeSecurityGuide">
-                  暂时跳过
+                  {{ $t('dashboard.securityGuide.skipForNow') }}
                 </button>
               </div>
             </div>
@@ -52,25 +52,25 @@
           </svg>
         </div>
         <div class="app-alert-content">
-          <p class="app-alert-title">当前邮箱未验证</p>
-          <p class="app-alert-message">当前邮箱未验证，部分安全操作将受限，建议尽快完成验证。</p>
+          <p class="app-alert-title">{{ $t('dashboard.emailNotVerified') }}</p>
+          <p class="app-alert-message">{{ $t('dashboard.emailNotVerifiedDesc') }}</p>
           <div class="app-alert-actions">
             <button class="email-verification-btn ripple" @click="handleResendVerification" :disabled="resendingVerification">
               <span v-if="resendingVerification" class="loading-spinner-small"></span>
-              <span>{{ resendingVerification ? "发送中..." : "重新发送验证邮件" }}</span>
+              <span>{{ resendingVerification ? $t('dashboard.sendingVerification') : $t('dashboard.resendVerification') }}</span>
             </button>
           </div>
         </div>
       </div>
     </div>
     <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
-      <h2 style="margin: 0">我的文档</h2>
+      <h2 style="margin: 0">{{ $t('dashboard.myDocuments') }}</h2>
       <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap">
         <button
           class="dashboard-refresh-icon-btn"
           :class="{ 'is-spinning': isRefreshingList }"
           :disabled="isRefreshingList"
-          title="刷新列表"
+          :title="$t('dashboard.refreshList')"
           @click="refreshList"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -101,31 +101,31 @@
           <input
             class="simple-input dashboard-search-input"
             v-model="searchQuery"
-            placeholder="搜索文件名…"
+            :placeholder="$t('dashboard.searchPlaceholder')"
           />
         </div>
-        <AppButton class="action-btn" @click="pickFile">上传PDF（单个）</AppButton>
-        <AppButton class="action-btn action-btn--gradient" @click="pickFiles">批量上传PDF</AppButton>
+        <AppButton class="action-btn" @click="pickFile">{{ $t('dashboard.uploadPdf') }}</AppButton>
+        <AppButton class="action-btn action-btn--gradient" @click="pickFiles">{{ $t('dashboard.uploadMultiplePdf') }}</AppButton>
         <AppButton 
           v-if="selectedDocuments.size > 0"
           class="action-btn action-btn--danger"
           @click="handleBatchDelete"
         >
-          批量删除 ({{ selectedDocuments.size }})
+          {{ $t('dashboard.deleteSelected') }} ({{ selectedDocuments.size }})
         </AppButton>
         <AppButton 
           v-if="isSelectionMode"
           @click="exitSelectionMode"
           class="action-btn action-btn--muted"
         >
-          取消选择
+          {{ $t('dashboard.cancelSelect') }}
         </AppButton>
         <AppButton 
           v-else-if="docs.length > 0"
           @click="enterSelectionMode"
           class="action-btn action-btn--primary"
         >
-          批量选择
+          {{ $t('dashboard.selectAll') }}
         </AppButton>
         <input ref="fileInput" type="file" accept="application/pdf" style="display: none" @change="onFileChange" />
         <input ref="filesInput" type="file" accept="application/pdf" multiple style="display: none" @change="onFilesChange" />
@@ -147,8 +147,8 @@
             </defs>
           </svg>
         </div>
-        <h3 class="empty-state-title">暂无文档</h3>
-        <p class="empty-state-description">开始上传您的第一个 PDF 文档，让我们帮您解析和翻译</p>
+        <h3 class="empty-state-title">{{ $t('dashboard.noDocuments') }}</h3>
+        <p class="empty-state-description">{{ $t('dashboard.noDocumentsDesc') }}</p>
       </div>
     </div>
     <div v-else-if="filteredDocs.length === 0" class="empty-state">
@@ -165,10 +165,10 @@
             </defs>
           </svg>
         </div>
-        <h3 class="empty-state-title">未找到匹配的文件名</h3>
-        <p class="empty-state-description">尝试修改关键字，或清除搜索条件查看全部文档。</p>
+        <h3 class="empty-state-title">{{ $t('dashboard.noDocuments') }}</h3>
+        <p class="empty-state-description">{{ $t('dashboard.noDocumentsDesc') }}</p>
         <AppButton class="action-btn action-btn--muted" @click="clearSearch">
-          清除搜索条件
+          {{ $t('common.clear') }}
         </AppButton>
       </div>
     </div>
@@ -210,8 +210,8 @@
           <!-- 解析中的遮罩层 -->
           <div v-if="d.status !== 'ready'" class="doc-thumbnail-overlay">
             <div class="doc-processing-badge">
-              <span v-if="d.status === 'uploading'">上传中</span>
-              <span v-else-if="d.status === 'parsing'">解析中</span>
+              <span v-if="d.status === 'uploading'">{{ $t('dashboard.uploading') }}</span>
+              <span v-else-if="d.status === 'parsing'">{{ $t('dashboard.parsing') }}</span>
             </div>
           </div>
           <!-- 删除按钮（右上角，非选择模式下显示） -->
@@ -220,7 +220,7 @@
             class="doc-delete-button"
             @click.stop="handleDeleteDocument(d.document_id, d.title)"
             :disabled="deletingDocumentId === d.document_id"
-            title="删除文档"
+            :title="$t('dashboard.deleteDocument')"
           >
             <svg v-if="deletingDocumentId !== d.document_id" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M3 6H5H21M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -236,9 +236,9 @@
               <div class="progress-fill" :style="{ width: `${d.progress || 0}%` }"></div>
             </div>
             <div class="progress-text">
-              <span v-if="d.status === 'uploading'">上传中... {{ formatProgress(d.progress) }}%</span>
+              <span v-if="d.status === 'uploading'">{{ $t('dashboard.uploading') }}... {{ formatProgress(d.progress) }}%</span>
               <span v-else-if="d.status === 'parsing'">
-                解析中... {{ formatProgress(d.progress) }}%
+                {{ $t('dashboard.parsing') }}... {{ formatProgress(d.progress) }}%
               </span>
             </div>
           </div>
@@ -249,13 +249,13 @@
           <div class="doc-title-footer">{{ d.title }}</div>
           <div class="doc-meta-footer">
             <span v-if="d.status === 'uploading'">
-              正在上传中...
+              {{ $t('dashboard.uploading') }}...
             </span>
             <span v-else-if="d.status === 'parsing'">
-              <span v-if="d.num_pages && d.num_pages > 0">{{ d.num_pages }} 页 · </span>解析中...
+              <span v-if="d.num_pages && d.num_pages > 0">{{ d.num_pages }} {{ $t('common.pages') }} · </span>{{ $t('dashboard.parsing') }}...
             </span>
             <span v-else>
-              {{ d.num_pages || '?' }} 页 · {{ d.lang_in }} → {{ d.lang_out }} · 已解析
+              {{ d.num_pages || '?' }} {{ $t('common.pages') }} · {{ d.lang_in }} → {{ d.lang_out }} · {{ $t('dashboard.ready') }}
             </span>
           </div>
         </div>
@@ -267,8 +267,8 @@
       :title="deleteDialogTitle"
       :message="deleteDialogMessage"
       type="danger"
-      confirm-text="删除"
-      cancel-text="取消"
+      :confirm-text="$t('common.delete')"
+      :cancel-text="$t('common.cancel')"
       :loading="deletingDocumentId !== null"
       @confirm="confirmDeleteDocument"
       @cancel="cancelDeleteDocument"
@@ -278,6 +278,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch, onUnmounted, nextTick, computed } from "vue";
+import { useI18n } from "vue-i18n";
 import AppCard from "@/components/AppCard.vue";
 import AppButton from "@/components/AppButton.vue";
 import LoadingIcon from "@/components/LoadingIcon.vue";
@@ -287,6 +288,8 @@ import { showToast } from "@/components/Toast";
 import { useRouter, useRoute } from "vue-router";
 import { DocumentProgressWebSocket } from "@/lib/websocket";
 import { useUserStore } from "@/stores/user";
+
+const { t } = useI18n();
 
 const router = useRouter();
 const route = useRoute();
@@ -344,7 +347,7 @@ const debouncedSearchQuery = ref("");
 let searchDebounceTimer: number | undefined;
 const fileInput = ref<HTMLInputElement | null>(null);
 const filesInput = ref<HTMLInputElement | null>(null);
-const projectName = ref("我的项目");
+const projectName = ref(t("dashboard.defaultProjectName"));
 const currentProjectId = ref<string | null>(null); // 当前项目ID
 const activeWebSockets = new Map<string, DocumentProgressWebSocket>(); // document_id -> WebSocket
 const parsingStartAt = new Map<string, number>(); // document_id -> 首次解析开始时间
@@ -462,9 +465,9 @@ const refreshList = async () => {
     } else {
       await loadUserDocuments(true);
     }
-    showToast("success", "已刷新", "文档列表已更新");
+    showToast("success", t("dashboard.refreshSuccess"), t("dashboard.refreshSuccessMessage"));
   } catch (e: any) {
-    showToast("error", "刷新失败", e?.message || "请稍后重试");
+    showToast("error", t("dashboard.refreshFailed"), e?.message || t("dashboard.pleaseRetry"));
   } finally {
     isRefreshingList.value = false;
   }
@@ -497,7 +500,7 @@ const finalizeReady = async (
         status: "parsing",
         progress: Math.max(docs.value[idx].progress || 0, 90),
       });
-      showToast("info", "后台同步中", "解析结果尚未生成，请稍后刷新");
+      showToast("info", t("dashboard.syncInProgress"), t("dashboard.syncInProgressMessage"));
       return;
     }
   } catch (error) {
@@ -510,7 +513,7 @@ const finalizeReady = async (
       });
       shouldDisconnect = true;
     } else {
-      showToast("warning", "状态未更新", "尚未获取到解析结果，请稍后重试或刷新状态");
+      showToast("warning", t("dashboard.statusNotUpdated"), t("dashboard.statusNotUpdatedMessage"));
       return;
     }
   } finally {
@@ -637,14 +640,14 @@ const attachProgressWS = (document_id: string, options: { projectId?: string } =
   ws.onError((error) => {
     debugWarn("WebSocket 错误:", error);
     updateDoc(document_id, { status: "parsing", progress: Math.max((docs.value.find(d => d.document_id === document_id)?.progress || 0), 50) });
-    showToast("warning", "实时进度连接异常", "文档实时进度可能无法更新，可稍后刷新查看。");
+    showToast("warning", t("dashboard.wsError"), t("dashboard.wsErrorMessage"));
   });
   ws.onClose(() => {
     activeWebSockets.delete(document_id);
   });
   ws.connect().catch((error) => {
     debugWarn("WebSocket 连接失败:", error);
-    showToast("warning", "实时进度连接失败", "文档上传已开始，但实时进度连接中断，可稍后刷新查看状态。");
+    showToast("warning", t("dashboard.wsConnectionFailed"), t("dashboard.wsConnectionFailedMessage"));
   });
   return ws;
 };
@@ -748,7 +751,7 @@ const loadUserDocuments = async (merge: boolean = false) => {
 const pickFile = () => {
   // 检查邮箱验证状态
   if (userStore.user && !userStore.user.email_verified) {
-    showToast("warning", "请先验证邮箱", "未验证账户无法上传文档，请先验证您的邮箱地址。");
+    showToast("warning", t("dashboard.verifyEmailFirst"), t("dashboard.verifyEmailFirstMessage"));
     return;
   }
   fileInput.value?.click();
@@ -757,7 +760,7 @@ const pickFile = () => {
 const pickFiles = () => {
   // 检查邮箱验证状态
   if (userStore.user && !userStore.user.email_verified) {
-    showToast("warning", "请先验证邮箱", "未验证账户无法上传文档，请先验证您的邮箱地址。");
+    showToast("warning", t("dashboard.verifyEmailFirst"), t("dashboard.verifyEmailFirstMessage"));
     return;
   }
   filesInput.value?.click();
@@ -765,19 +768,19 @@ const pickFiles = () => {
 
 const handleResendVerification = async () => {
   if (!userStore.user?.email) {
-    showToast("error", "错误", "无法获取邮箱地址");
+    showToast("error", t("dashboard.error"), t("dashboard.cannotGetEmail"));
     return;
   }
   
   resendingVerification.value = true;
   try {
     const result = await sendEmailVerification({ email: userStore.user.email });
-    showToast("success", "发送成功", result.message);
+    showToast("success", t("dashboard.sendSuccess"), result.message);
     if (result.verification_url) {
-      showToast("info", "开发环境提示", `验证链接：${result.verification_url}`);
+      showToast("info", t("dashboard.devHint"), t("dashboard.verificationLink", { url: result.verification_url }));
     }
   } catch (err: any) {
-    showToast("error", "发送失败", err.message);
+    showToast("error", t("dashboard.sendFailed"), err.message);
   } finally {
     resendingVerification.value = false;
   }
@@ -823,8 +826,8 @@ const handleThumbnailLoad = (document_id: string) => {
 const handleDeleteDocument = (document_id: string, title: string) => {
   pendingDeleteDocumentId.value = document_id;
   pendingDeleteTitle.value = title;
-  deleteDialogTitle.value = "确认删除文档";
-  deleteDialogMessage.value = `确定要删除文档 "${title}" 吗？此操作无法撤销，文档及其所有相关数据将被永久删除。`;
+  deleteDialogTitle.value = t("dashboard.confirmDeleteDocument");
+  deleteDialogMessage.value = t("dashboard.confirmDeleteDocumentMessage", { title });
   showDeleteDialog.value = true;
 };
 
@@ -868,8 +871,8 @@ const handleBatchDelete = () => {
   
   const count = selectedDocuments.value.size;
   isBatchDelete.value = true;
-  deleteDialogTitle.value = "确认批量删除";
-  deleteDialogMessage.value = `确定要删除选中的 ${count} 个文档吗？此操作无法撤销，文档及其所有相关数据将被永久删除。`;
+  deleteDialogTitle.value = t("dashboard.confirmBatchDelete");
+  deleteDialogMessage.value = t("dashboard.confirmBatchDeleteMessage", { count });
   showDeleteDialog.value = true;
 };
 
@@ -892,7 +895,7 @@ const confirmSingleDelete = async () => {
   deletingDocumentId.value = document_id;
   try {
     await deleteDocument(document_id);
-    showToast("success", "删除成功", `文档 "${title}" 已删除`);
+    showToast("success", t("dashboard.deleteSuccess"), t("dashboard.deleteSuccessMessage", { title }));
     
     // 从列表中移除文档
     const docIndex = docs.value.findIndex(d => d.document_id === document_id);
@@ -912,7 +915,7 @@ const confirmSingleDelete = async () => {
     pendingDeleteDocumentId.value = null;
     pendingDeleteTitle.value = "";
   } catch (error: any) {
-    showToast("error", "删除失败", error.message || "请稍后重试");
+    showToast("error", t("dashboard.deleteFailed"), error.message || t("dashboard.pleaseRetry"));
   } finally {
     deletingDocumentId.value = null;
   }
@@ -929,7 +932,7 @@ const confirmBatchDelete = async () => {
     const result = await batchDeleteDocuments(documentIds);
     
     if (result.success_count > 0) {
-      showToast("success", "批量删除成功", `成功删除 ${result.success_count} 个文档`);
+      showToast("success", t("dashboard.batchDeleteSuccess"), t("dashboard.batchDeleteSuccessMessage", { count: result.success_count }));
       
       // 从列表中移除成功删除的文档
       result.success_ids.forEach(docId => {
@@ -949,11 +952,11 @@ const confirmBatchDelete = async () => {
       // 显示失败的文档
       if (result.failed_count > 0) {
         const failedMessages = result.failed_ids.map(f => `${f.document_id}: ${f.reason}`).join("\n");
-        showToast("error", "部分删除失败", `有 ${result.failed_count} 个文档删除失败`);
+        showToast("error", t("dashboard.partialDeleteFailed"), t("dashboard.partialDeleteFailedMessage", { count: result.failed_count }));
         console.error("删除失败的文档:", result.failed_ids);
       }
     } else {
-      showToast("error", "批量删除失败", "没有文档被成功删除");
+      showToast("error", t("dashboard.batchDeleteFailed"), t("dashboard.batchDeleteFailedMessage"));
     }
     
     // 清空选择并退出选择模式
@@ -962,7 +965,7 @@ const confirmBatchDelete = async () => {
     showDeleteDialog.value = false;
     isBatchDelete.value = false;
   } catch (error: any) {
-    showToast("error", "批量删除失败", error.message || "请稍后重试");
+    showToast("error", t("dashboard.batchDeleteFailed"), error.message || t("dashboard.pleaseRetry"));
   } finally {
     deletingDocumentId.value = null;
   }
@@ -989,7 +992,7 @@ const onFileChange = async (e: Event) => {
     // 如果没有当前项目，创建新项目
     let project_id = currentProjectId.value;
     if (!project_id) {
-      const projectRes = await createProject(projectName.value || "我的项目");
+      const projectRes = await createProject(projectName.value || t("dashboard.defaultProjectName"));
       project_id = projectRes.project_id;
       currentProjectId.value = project_id;
     }
@@ -1044,7 +1047,7 @@ const onFilesChange = async (e: Event) => {
   });
 
   try {
-    const res = await batchUpload({ project_name: projectName.value || "批量项目", files, lang_in: LANG_IN_DEFAULT, lang_out: LANG_OUT_DEFAULT });
+    const res = await batchUpload({ project_name: projectName.value || t("dashboard.batchProjectName"), files, lang_in: LANG_IN_DEFAULT, lang_out: LANG_OUT_DEFAULT });
     
     // 设置当前项目ID
     if (res.project_id) {
@@ -1121,7 +1124,7 @@ const handlePendingUpload = async () => {
     // 开始实际上传（使用当前项目ID，如果没有则创建新项目）
     let project_id = currentProjectId.value;
     if (!project_id) {
-      const project = await createProject("我的项目");
+      const project = await createProject(t("dashboard.defaultProjectName"));
       project_id = project.project_id;
       currentProjectId.value = project_id;
     }
@@ -1147,7 +1150,7 @@ const handlePendingUpload = async () => {
     
   } catch (error) {
     console.error("Upload failed:", error);
-    showToast("error", "上传失败", "请稍后重试");
+    showToast("error", t("dashboard.uploadFailed"), t("dashboard.pleaseRetry"));
     docs.value = docs.value.filter((d) => d.document_id !== uploadingDoc.document_id);
     router.replace('/app');
     delete (window as any).__pendingUploadFile;
@@ -1182,7 +1185,7 @@ const loadDocumentFromQuery = async () => {
     // 创建临时文档，等待 WebSocket 发送初始状态
     doc = {
       document_id: documentId,
-      title: filename ? decodeURIComponent(filename) : "处理中...",
+      title: filename ? decodeURIComponent(filename) : t("dashboard.processing"),
       lang_in: LANG_IN_DEFAULT,
       lang_out: LANG_OUT_DEFAULT,
       status: isUploading ? "uploading" : "parsing",
@@ -1210,14 +1213,14 @@ onMounted(async () => {
       await loadUserDocuments(false);
       // 如果加载后没有文档，且没有当前项目ID，创建一个默认项目
       if (docs.value.length === 0 && !currentProjectId.value) {
-        const { project_id } = await createProject(projectName.value || "我的项目");
+        const { project_id } = await createProject(projectName.value || t("dashboard.defaultProjectName"));
         currentProjectId.value = project_id;
       }
     } catch (error) {
       console.error("加载用户文档失败:", error);
       // 如果加载失败，尝试创建或获取默认项目
       try {
-        const { project_id } = await createProject(projectName.value || "我的项目");
+        const { project_id } = await createProject(projectName.value || t("dashboard.defaultProjectName"));
         currentProjectId.value = project_id;
         await loadProjectDocuments(project_id);
       } catch (createError) {
@@ -1241,7 +1244,7 @@ onMounted(async () => {
         const started = parsingStartAt.get(d.document_id) || now;
         if (!parsingWarned.has(d.document_id) && now - started > PARSING_WARN_THRESHOLD_MS) {
           parsingWarned.add(d.document_id);
-          showToast("warning", "解析耗时较长", "可点击“刷新状态”或稍后再查看进度");
+          showToast("warning", t("dashboard.parsingTimeout"), t("dashboard.parsingTimeoutMessage"));
         }
       }
     });
@@ -1405,5 +1408,6 @@ onUnmounted(() => {
     /* unified in global styles.css */
   }
 }
+
 </style>
 
