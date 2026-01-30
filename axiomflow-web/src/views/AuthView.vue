@@ -1358,6 +1358,13 @@ const handleVerifyLoginUnlock = async () => {
 };
 
 onMounted(() => {
+  // 如果已经登录，自动跳转到应用页面
+  if (userStore.isLoggedIn) {
+    const redirect = (router.currentRoute.value.query.redirect as string) || "/app";
+    router.replace(redirect);
+    return;
+  }
+  
   // 检查URL中是否有重置密码token
   if (typeof window !== "undefined") {
     const url = new URL(window.location.href);
@@ -1490,7 +1497,7 @@ const handleGoogleCredentialResponse = async (response: { credential: string }) 
         showToast(
           "warning",
           "邮箱未验证",
-          "当前账户邮箱尚未完成验证，部分安全功能（修改邮箱、开启 2FA 等）将受到限制。已为您自动尝试重发验证邮件。"
+          "当前账户邮箱尚未完成验证，部分安全功能（修改密码等）将受到限制。已为您自动尝试重发验证邮件。"
         );
         try {
           const resend = await sendEmailVerification({ email: result.user.email });
@@ -1593,7 +1600,7 @@ const handleVerify2FA = async () => {
       showToast(
         "warning",
         "邮箱未验证",
-        "当前账户邮箱尚未完成验证，部分安全功能（修改邮箱、开启 2FA 等）将受到限制。已为您自动尝试重发验证邮件。"
+        "当前账户邮箱尚未完成验证，部分安全功能（修改密码等）将受到限制。已为您自动尝试重发验证邮件。"
       );
       try {
         const resend = await sendEmailVerification({ email: result.user.email });
@@ -1617,8 +1624,8 @@ const handleVerify2FA = async () => {
       showToast("info", "上次登录信息", `上次成功登录时间：${display}`);
     }
 
-    const redirect = (router.currentRoute.value.query.redirect as string) || "/";
-    router.push(redirect);
+      const redirect = (router.currentRoute.value.query.redirect as string) || "/app";
+      router.push(redirect);
   } catch (err: any) {
     console.error("2FA verify error:", err);
     twoFAError.value = err.message || "验证失败，请稍后重试";
@@ -1737,7 +1744,7 @@ const handleSubmit = async () => {
           showToast(
             "warning",
             "邮箱未验证",
-            "当前账户邮箱尚未完成验证，部分安全功能（修改邮箱、开启 2FA 等）将受到限制。已为您自动尝试重发验证邮件。"
+            "当前账户邮箱尚未完成验证，部分安全功能（修改密码等）将受到限制。已为您自动尝试重发验证邮件。"
           );
           try {
             const resend = await sendEmailVerification({ email: result.user.email });
@@ -1803,8 +1810,8 @@ const handleSubmit = async () => {
       return;
     }
 
-    // 登录场景：跳转到首页或之前的页面
-    const redirect = (router.currentRoute.value.query.redirect as string) || "/";
+    // 登录场景：跳转到应用页面或之前的页面
+    const redirect = (router.currentRoute.value.query.redirect as string) || "/app";
     router.push(redirect);
   } catch (err: any) {
     console.error("Auth error:", err);
