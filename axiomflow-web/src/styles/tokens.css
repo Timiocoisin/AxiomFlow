@@ -50,6 +50,58 @@
   --sat-lg: 180%;
   --sat-xl: 200%;
 
+  /* ---------- Spacing & Sizing ---------- */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+  --spacing-3xl: 48px;
+
+  /* ---------- Border Radius ---------- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+  --radius-3xl: 36px;
+  --radius-4xl: 44px;
+  --radius-full: 999px;
+
+  /* ---------- Transitions & Timing ---------- */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
+  --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---------- Glass Card Gradients ---------- */
+  --glass-card-bg: 
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(250, 245, 255, 0.88) 25%, rgba(240, 249, 255, 0.88) 50%, rgba(250, 245, 255, 0.88) 75%, rgba(255, 255, 255, 0.92) 100%),
+    radial-gradient(circle at 30% 20%, rgba(99, 102, 241, 0.05) 0%, transparent 60%),
+    radial-gradient(circle at 70% 80%, rgba(139, 92, 246, 0.04) 0%, transparent 60%);
+
+  /* ---------- Upload Dropzone Colors ---------- */
+  --upload-border-default: rgba(148, 163, 184, 0.35);
+  --upload-border-hover: rgba(99, 102, 241, 0.5);
+  --upload-border-dragover: rgba(99, 102, 241, 0.7);
+  --upload-bg-gradient: 
+    linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(250, 245, 255, 0.65) 25%, rgba(240, 249, 255, 0.65) 50%, rgba(250, 245, 255, 0.65) 75%, rgba(255, 255, 255, 0.75) 100%),
+    radial-gradient(circle at center, rgba(99, 102, 241, 0.04) 0%, transparent 70%);
+  --upload-bg-hover: 
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(250, 245, 255, 0.8) 25%, rgba(240, 249, 255, 0.8) 50%, rgba(250, 245, 255, 0.8) 75%, rgba(255, 255, 255, 0.9) 100%),
+    radial-gradient(circle at center, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+  --upload-glow: radial-gradient(circle at center, rgba(59, 130, 246, 0.04) 0%, transparent 70%);
+  --upload-glow-hover: radial-gradient(circle at center, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+
+  /* ---------- Hero Title Gradient ---------- */
+  --hero-title-gradient: linear-gradient(135deg, 
+    #1e293b 0%, 
+    #334155 25%,
+    #3b82f6 50%, 
+    #8b5cf6 75%,
+    #6366f1 100%);
+
   /* ---------- Aliases for existing code (compat layer) ---------- */
   --app-text: var(--color-text);
   --app-text-strong: var(--color-text-strong);
@@ -100,6 +152,33 @@
   --shadow-sm: 0 6px 18px rgba(15, 23, 42, 0.8);
   --shadow-md: 0 16px 40px rgba(15, 23, 42, 0.85);
   --shadow-lg: 0 32px 80px rgba(15, 23, 42, 0.9);
+
+  /* Glass Card Gradients (dark theme) */
+  --glass-card-bg: 
+    linear-gradient(135deg, rgba(15, 23, 42, 0.92) 0%, rgba(30, 41, 59, 0.88) 25%, rgba(15, 23, 42, 0.88) 50%, rgba(30, 41, 59, 0.88) 75%, rgba(15, 23, 42, 0.92) 100%),
+    radial-gradient(circle at 30% 20%, rgba(59, 130, 246, 0.15) 0%, transparent 60%),
+    radial-gradient(circle at 70% 80%, rgba(147, 51, 234, 0.12) 0%, transparent 60%);
+
+  /* Upload Dropzone Colors (dark theme) */
+  --upload-border-default: rgba(75, 85, 99, 0.5);
+  --upload-border-hover: rgba(99, 102, 241, 0.6);
+  --upload-border-dragover: rgba(99, 102, 241, 0.8);
+  --upload-bg-gradient: 
+    linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(30, 41, 59, 0.65) 25%, rgba(15, 23, 42, 0.65) 50%, rgba(30, 41, 59, 0.65) 75%, rgba(15, 23, 42, 0.75) 100%),
+    radial-gradient(circle at center, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+  --upload-bg-hover: 
+    linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 25%, rgba(15, 23, 42, 0.8) 50%, rgba(30, 41, 59, 0.8) 75%, rgba(15, 23, 42, 0.9) 100%),
+    radial-gradient(circle at center, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+  --upload-glow: radial-gradient(circle at center, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+  --upload-glow-hover: radial-gradient(circle at center, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
+
+  /* Hero Title Gradient (dark theme) */
+  --hero-title-gradient: linear-gradient(135deg, 
+    #e5e7eb 0%, 
+    #d1d5db 25%,
+    #60a5fa 50%, 
+    #a855f7 75%,
+    #818cf8 100%);
 
   /* Aliases */
   --app-text: var(--color-text);

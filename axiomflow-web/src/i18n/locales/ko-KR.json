@@ -50,7 +50,18 @@
     "featureMultiLang": "다국어 지원",
     "dragPdf": "PDF 파일을 여기에 드래그",
     "orClick": "또는 클릭하여 업로드",
-    "uploadPdfOnly": "PDF 파일을 업로드해주세요"
+    "uploadPdfOnly": "PDF 파일을 업로드해주세요",
+    "uploadAreaLabel": "PDF 파일 업로드 영역",
+    "fileTypeHint": "PDF 파일만 지원됩니다",
+    "fileSizeHint": "최대 파일 크기: 50MB",
+    "fileInputLabel": "PDF 파일 선택",
+    "uploading": "업로드 중...",
+    "dismissError": "오류 닫기",
+    "fileTooLarge": "파일 크기가 {maxSizeMB}MB 제한을 초과합니다",
+    "fileEmpty": "선택한 파일이 비어 있습니다",
+    "closePreview": "미리보기 닫기",
+    "cancel": "취소",
+    "confirmUpload": "업로드 확인"
   },
   "time": {
     "justNow": "방금",

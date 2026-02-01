@@ -141,6 +141,8 @@ onMounted(() => {
   justify-content: center;
   padding: 20px;
   background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 50%, #f3e8ff 100%);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .verify-email-card {
@@ -148,6 +150,57 @@ onMounted(() => {
   max-width: 500px;
   padding: 48px 40px;
   text-align: center;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .verify-email-container {
+    padding: 16px;
+  }
+
+  .verify-email-card {
+    padding: 32px 24px;
+  }
+
+  .verify-email-title {
+    font-size: 22px;
+  }
+
+  .verify-email-subtitle {
+    font-size: 14px;
+  }
+
+  .verify-email-icon,
+  .success-icon {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .verify-email-container {
+    padding: 12px;
+  }
+
+  .verify-email-card {
+    padding: 28px 20px;
+  }
+
+  .verify-email-title {
+    font-size: 20px;
+  }
+
+  .verify-email-subtitle {
+    font-size: 13px;
+  }
+
+  .verify-email-icon,
+  .success-icon {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 16px;
+  }
 }
 
 .verify-email-header {

@@ -1,0 +1,142 @@
+/* =========================================================
+ * Base Styles
+ * - Reset, HTML, Body, Global utilities
+ * ========================================================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* =========================================================
+ * A11y: Global focus ring (keyboard only via :focus-visible)
+ * - Keep specificity low so component styles can override.
+ * - Uses global tokens from ./tokens.css
+ * ========================================================= */
+:where(
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  summary,
+  [role="button"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-primary, #6366f1) 55%, transparent);
+  outline-offset: 2px;
+}
+
+:where(button, [role="button"], input, textarea, select, summary):focus-visible {
+  border-radius: var(--radius-md, 12px);
+}
+
+/* =========================================================
+ * Interaction: ripple effect (CSS-only)
+ * ========================================================= */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), rgba(255, 255, 255, 0.55), transparent 40%);
+  opacity: 0;
+  transform: scale(1.1);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+  pointer-events: none;
+}
+
+.ripple:active::after {
+  opacity: 1;
+  transform: scale(0.92);
+  transition: opacity 0s, transform 0s;
+}
+
+.ripple.ripple--dark::after {
+  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), rgba(15, 23, 42, 0.18), transparent 45%);
+}
+
+html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+/* 隐藏所有滚动条 */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* =========================================================
+ * A11y: Skip Link (跳转到主内容)
+ * - 帮助键盘用户快速跳过导航
+ * ========================================================= */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-primary, #6366f1);
+  color: white;
+  padding: 8px 16px;
+  z-index: 10000;
+  text-decoration: none;
+  border-radius: var(--radius-md, 12px);
+  font-size: 14px;
+  font-weight: 500;
+  transition: top 0.2s ease;
+}
+
+.skip-link:focus {
+  top: 8px;
+  outline: 3px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .skip-link {
+  background: var(--color-primary, #818cf8);
+}
+
+/* 首页时禁用滚动 */
+body.landing-page {
+  overflow: hidden;
+  height: 100vh;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  background: var(--app-bg);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 200%;
+  background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  animation: gradient-shift-bg 25s ease infinite;
+  color: var(--app-text, #1e293b);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+@keyframes gradient-shift-bg {
+  0%, 100% {
+    background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+  }
+  50% {
+    background-position: 0% 0%, 0% 0%, 0% 0%, 0% 50%;
+  }
+}
+

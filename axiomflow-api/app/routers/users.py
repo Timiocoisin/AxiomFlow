@@ -5,6 +5,7 @@
 
 from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File
 from fastapi import Request as FastAPIRequest
+from fastapi.responses import Response
 from pydantic import BaseModel
 import bcrypt
 import time
@@ -12,6 +13,8 @@ from typing import List, Optional
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
+import httpx
+from urllib.parse import urlparse
 
 from ..core.dependencies import get_current_user, require_verified_email
 from ..core.user_db import (
@@ -330,4 +333,58 @@ async def update_profile(
         session.add(user)
 
     return UpdateProfileResponse(message="资料已更新", name=name)
+
+
+@router.get("/avatar-proxy")
+async def proxy_avatar(url: str):
+    """
+    代理获取外部头像（如Google、GitHub头像），解决需要代理才能访问的问题
+    """
+    if not url:
+        raise HTTPException(status_code=400, detail="头像URL不能为空")
+    
+    # 验证URL格式，只允许http/https
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="不支持的URL协议")
+    
+    # 只允许特定域名的头像，防止滥用
+    allowed_domains = [
+        "lh3.googleusercontent.com",  # Google头像
+        "avatars.githubusercontent.com",  # GitHub头像
+        "github.com",  # GitHub备用
+        "googleusercontent.com",  # Google备用
+    ]
+    
+    if not any(domain in parsed.netloc for domain in allowed_domains):
+        raise HTTPException(status_code=403, detail="不允许的域名")
+    
+    try:
+        # 使用httpx异步获取头像
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, follow_redirects=True)
+            response.raise_for_status()
+            
+            # 验证内容类型
+            content_type = response.headers.get("content-type", "")
+            if not content_type.startswith("image/"):
+                raise HTTPException(status_code=400, detail="返回的不是图片")
+            
+            # 限制图片大小（5MB）
+            if len(response.content) > 5 * 1024 * 1024:
+                raise HTTPException(status_code=400, detail="图片过大")
+            
+            return Response(
+                content=response.content,
+                media_type=content_type,
+                headers={
+                    "Cache-Control": "public, max-age=86400",  # 缓存1天
+                }
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="获取头像超时")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail="获取头像失败")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"代理头像失败: {str(e)}")
 

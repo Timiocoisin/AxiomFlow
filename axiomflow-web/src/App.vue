@@ -1,5 +1,7 @@
 <template>
   <div class="app-shell">
+    <!-- 跳过链接：可访问性改进 -->
+    <a href="#main-content" class="skip-link">{{ $t('common.skipToContent') || '跳转到主内容' }}</a>
     <header class="app-header">
       <button
         class="logo"
@@ -13,24 +15,12 @@
           <span class="logo-badge">Beta</span>
         </span>
       </button>
-      <button
-        class="nav-toggle"
-        type="button"
-        :aria-label="isNavOpen ? $t('nav.closeNavMenu') : $t('nav.openNavMenu')"
-        :aria-expanded="isNavOpen"
-        @click="isNavOpen = !isNavOpen"
-      >
-        <span class="nav-toggle-line"></span>
-        <span class="nav-toggle-line"></span>
-        <span class="nav-toggle-line"></span>
-      </button>
-      <nav class="nav-links" :class="{ 'nav-links-open': isNavOpen }">
+      <nav class="nav-links">
         <RouterLink
           to="/"
           class="nav-link-item"
           active-class=""
           exact-active-class="router-link-active"
-          @click="isNavOpen = false"
         >
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -43,7 +33,6 @@
           class="nav-link-item"
           active-class=""
           exact-active-class="router-link-active"
-          @click="isNavOpen = false"
         >
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -61,9 +50,10 @@
             class="nav-language-button"
             type="button"
             :aria-label="$t('nav.language')"
+            :title="$t('nav.language')"
             aria-haspopup="listbox"
             :aria-expanded="showLanguageMenu"
-            @click.stop="showLanguageMenu = !showLanguageMenu"
+            @click="handleLanguageButtonClick"
             @keydown.down.prevent="openLanguageMenuAndMove(1)"
             @keydown.up.prevent="openLanguageMenuAndMove(-1)"
             @keydown.enter.prevent="showLanguageMenu = !showLanguageMenu"
@@ -98,7 +88,7 @@
                 role="option"
                 :aria-selected="locale === option.value"
                 :class="{ 'active': locale === option.value }"
-                @click="selectLanguage(option.value)"
+                @click.stop="selectLanguage(option.value)"
               >
                 <span>{{ option.label }}</span>
                 <svg v-if="locale === option.value" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -107,15 +97,6 @@
               </button>
             </div>
           </Transition>
-        </div>
-        <!-- 主题切换按钮：浅色 / 深色 -->
-        <div class="theme-toggle-wrapper">
-          <ThemeToggleButton
-            :model-value="isDarkMode ? 'dark' : 'light'"
-            :size="1.5"
-            @update:model-value="handleThemeChange"
-            @change="handleThemeChange"
-          />
         </div>
         <button
           v-if="!userStore.isLoggedIn"
@@ -132,8 +113,8 @@
         <div
           v-else
           class="user-menu-wrapper"
-          @mouseenter="showMenu = true"
-          @mouseleave="showMenu = false"
+          @mouseenter="!isMobile() && (showMenu = true)"
+          @mouseleave="!isMobile() && (showMenu = false)"
           @focusin="showMenu = true"
           @focusout="handleMenuFocusOut"
         >
@@ -144,13 +125,13 @@
             :aria-expanded="showMenu"
             aria-haspopup="true"
             :title="$t('nav.accountMenu')"
-            @click="showMenu = !showMenu"
+            @click.stop="handleUserMenuClick"
             @keydown.enter="showMenu = !showMenu"
             @keydown.space.prevent="showMenu = !showMenu"
           >
             <img
-              v-if="userStore.user?.avatar"
-              :src="userStore.user.avatar"
+              v-if="avatarUrl"
+              :src="avatarUrl"
               :alt="userStore.user?.name || 'User'"
               class="user-avatar-image"
               @error="handleAvatarError"
@@ -163,8 +144,8 @@
             <div class="user-menu-header">
               <div class="user-menu-avatar">
                 <img
-                  v-if="userStore.user?.avatar"
-                  :src="userStore.user.avatar"
+                  v-if="avatarUrl"
+                  :src="avatarUrl"
                   :alt="userStore.user?.name || 'User'"
                   class="user-menu-avatar-image"
                   @error="handleAvatarError"
@@ -215,10 +196,27 @@
           </div>
           </Transition>
         </div>
+        <!-- 主题切换按钮：浅色 / 深色 -->
+        <div class="theme-toggle-wrapper">
+          <ThemeToggleButton
+            :model-value="isDarkMode ? 'dark' : 'light'"
+            @update:model-value="handleThemeChange"
+            @change="handleThemeChange"
+          />
+        </div>
       </nav>
     </header>
     <div v-if="isRouteLoading" class="route-progress-bar"></div>
-    <main class="app-main" :class="{ 'landing-page': isLandingPage, scrollable: isSettingsPage }">
+    <!-- 离线状态提示 -->
+    <div v-if="!isOnline" class="offline-banner" role="alert" aria-live="assertive">
+      <div class="offline-banner-content">
+        <svg class="offline-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1.42 9a16 16 0 0 1 21.16 0M5 12.55a11 11 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 15a16 16 0 0 0 21.16 0M5 11.45a11 11 0 0 0 5.17 2.39M10.71 18.95A16 16 0 0 0 22.58 15M12 20h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>{{ $t('common.offline') || '您当前处于离线状态，部分功能可能不可用' }}</span>
+      </div>
+    </div>
+    <main id="main-content" class="app-main" :class="{ 'landing-page': isLandingPage, scrollable: isSettingsPage }" tabindex="-1">
       <RouterView />
     </main>
     <Toast />
@@ -234,6 +232,8 @@ import { supportedLocales, type SupportedLocale } from "@/i18n";
 import { useUserStore } from "@/stores/user";
 import Toast from "@/components/Toast.vue";
 import ThemeToggleButton from "@/components/ThemeToggleButton.vue";
+import { getAvatarProxyUrl } from "@/lib/api";
+import { onNetworkStatusChange } from "@/utils/fetchWithRetry";
 
 const route = useRoute();
 const router = useRouter();
@@ -243,12 +243,15 @@ const isLandingPage = computed(() => route.path === "/");
 const isSettingsPage = computed(() => route.path === "/settings" || route.path.startsWith("/settings/"));
 const showMenu = ref(false);
 const isRouteLoading = ref(false);
-const isNavOpen = ref(false);
 const showLanguageMenu = ref(false);
 const activeLanguageIndex = ref(0);
+const isOnline = ref(navigator.onLine);
 
 // 主题状态（浅色 / 深色）
 const isDarkMode = ref(false);
+
+// 获取代理后的头像URL（用于Google/GitHub头像）
+const avatarUrl = computed(() => getAvatarProxyUrl(userStore.user?.avatar || null));
 
 const currentLanguageLabel = computed(() => {
   const currentLocale = locale.value as SupportedLocale;
@@ -277,6 +280,25 @@ watch([showLanguageMenu, locale], () => {
   if (!showLanguageMenu.value) return;
   const idx = languageOptions.value.findIndex((o) => o.value === (locale.value as SupportedLocale));
   activeLanguageIndex.value = idx >= 0 ? idx : 0;
+});
+
+// 同步 RTL 方向
+const syncRTL = () => {
+  if (typeof document === "undefined") return;
+  const html = document.documentElement;
+  const currentLocale = locale.value as string;
+  const rtlLocales = ['ar', 'he', 'fa', 'ur'];
+  const isRTL = rtlLocales.some(rtl => currentLocale.toLowerCase().includes(rtl));
+  if (isRTL) {
+    html.setAttribute('dir', 'rtl');
+  } else {
+    html.setAttribute('dir', 'ltr');
+  }
+};
+
+// 监听语言变化，更新 RTL
+watch(locale, () => {
+  syncRTL();
 });
 
 const getLanguageLabel = (loc: SupportedLocale): string => {
@@ -413,21 +435,116 @@ const selectActiveLanguage = () => {
 
 
 
+// 检测是否为移动设备
+const isMobile = () => {
+  return typeof window !== 'undefined' && window.innerWidth <= 768;
+};
+
+// 动态定位语言菜单（移动端）
+const positionLanguageMenu = () => {
+  if (!isMobile()) return;
+  nextTick(() => {
+    const button = document.querySelector('.nav-language-button') as HTMLElement;
+    const menu = document.querySelector('.nav-language-menu') as HTMLElement;
+    if (button && menu && showLanguageMenu.value) {
+      const rect = button.getBoundingClientRect();
+      menu.style.left = `${rect.left}px`;
+      menu.style.top = `${rect.bottom + 6}px`;
+      // 确保菜单不超出屏幕
+      setTimeout(() => {
+        const menuRect = menu.getBoundingClientRect();
+        if (menuRect.right > window.innerWidth) {
+          menu.style.left = `${window.innerWidth - menuRect.width - 12}px`;
+        }
+        if (menuRect.left < 0) {
+          menu.style.left = '12px';
+        }
+      }, 0);
+    }
+  });
+};
+
+// 动态定位用户菜单（移动端）
+const positionUserMenu = () => {
+  if (!isMobile()) return;
+  nextTick(() => {
+    const button = document.querySelector('.user-avatar-button') as HTMLElement;
+    const menu = document.querySelector('.user-menu') as HTMLElement;
+    if (button && menu && showMenu.value) {
+      const rect = button.getBoundingClientRect();
+      menu.style.left = `${rect.left}px`;
+      menu.style.top = `${rect.bottom + 6}px`;
+      // 确保菜单不超出屏幕
+      setTimeout(() => {
+        const menuRect = menu.getBoundingClientRect();
+        if (menuRect.right > window.innerWidth) {
+          menu.style.left = `${window.innerWidth - menuRect.width - 12}px`;
+        }
+        if (menuRect.left < 0) {
+          menu.style.left = '12px';
+        }
+      }, 0);
+    }
+  });
+};
+
+// 处理语言按钮点击
+const handleLanguageButtonClick = (e: Event) => {
+  e.stopPropagation();
+  showLanguageMenu.value = !showLanguageMenu.value;
+  if (showLanguageMenu.value) {
+    nextTick(() => {
+      positionLanguageMenu();
+    });
+  }
+};
+
+// 处理用户菜单按钮点击
+const handleUserMenuClick = (e: Event) => {
+  e.stopPropagation();
+  showMenu.value = !showMenu.value;
+  if (showMenu.value) {
+    nextTick(() => {
+      positionUserMenu();
+    });
+  }
+};
+
 const handleClickOutside = (e: MouseEvent) => {
   const target = e.target as HTMLElement;
   // 用户菜单点击外部关闭
-  if (!target.closest(".user-menu-wrapper")) {
+  if (!target.closest(".user-menu-wrapper") && !target.closest(".user-menu")) {
     showMenu.value = false;
   }
   // 语言菜单点击外部关闭
-  if (!target.closest(".nav-language-selector")) {
+  if (!target.closest(".nav-language-selector") && !target.closest(".nav-language-menu")) {
     showLanguageMenu.value = false;
   }
-  // 中优先级：移动端菜单点击外部关闭
-  if (!target.closest(".nav-links") && !target.closest(".nav-toggle")) {
-    isNavOpen.value = false;
-  }
 };
+
+// 监听语言菜单显示状态
+watch(showLanguageMenu, (newVal) => {
+  if (newVal) {
+    positionLanguageMenu();
+    window.addEventListener('resize', positionLanguageMenu);
+    window.addEventListener('scroll', positionLanguageMenu, true);
+  } else {
+    window.removeEventListener('resize', positionLanguageMenu);
+    window.removeEventListener('scroll', positionLanguageMenu, true);
+  }
+});
+
+// 监听用户菜单显示状态
+watch(showMenu, (newVal) => {
+  if (newVal) {
+    positionUserMenu();
+    window.addEventListener('resize', positionUserMenu);
+    window.addEventListener('scroll', positionUserMenu, true);
+  } else {
+    window.removeEventListener('resize', positionUserMenu);
+    window.removeEventListener('scroll', positionUserMenu, true);
+  }
+});
 
 // 中优先级：键盘导航支持
 const handleKeydown = (e: KeyboardEvent) => {
@@ -439,14 +556,6 @@ const handleKeydown = (e: KeyboardEvent) => {
       nextTick(() => {
         const avatarButton = document.querySelector('.user-avatar-button') as HTMLElement;
         avatarButton?.focus();
-      });
-    }
-    if (isNavOpen.value) {
-      isNavOpen.value = false;
-      // 将焦点返回到切换按钮
-      nextTick(() => {
-        const navToggle = document.querySelector('.nav-toggle') as HTMLElement;
-        navToggle?.focus();
       });
     }
     if (showLanguageMenu.value) {
@@ -468,14 +577,26 @@ const handleMenuFocusOut = (e: FocusEvent) => {
 let removeBeforeGuard: (() => void) | null = null;
 let removeAfterGuard: (() => void) | null = null;
 
-// 中优先级：路由切换时关闭移动端菜单
-watch(() => route.path, () => {
-  isNavOpen.value = false;
-});
+// 滚动监听 - 实现滚动时的导航栏样式变化
+const handleScroll = () => {
+  const headerElement = document.querySelector('.app-header') as HTMLElement;
+  if (!headerElement) return;
+  
+  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+  if (scrollTop > 10) {
+    headerElement.classList.add('scrolled');
+  } else {
+    headerElement.classList.remove('scrolled');
+  }
+};
 
 onMounted(() => {
   document.addEventListener("click", handleClickOutside);
   document.addEventListener("keydown", handleKeydown);
+  // 添加滚动监听
+  window.addEventListener('scroll', handleScroll, { passive: true });
+  // 初始化检查滚动位置
+  handleScroll();
   userStore.loadUserFromStorage();
 
   // 语言设置已在 i18n/index.ts 中自动处理（包括自动检测和从 localStorage 读取）
@@ -488,8 +609,14 @@ onMounted(() => {
     localStorage.setItem("language", locale.value as string);
   }
 
-    // 初始化主题状态（与 main.ts 中 DOM 状态保持一致）
-    syncThemeFromDom();
+  // 初始化主题状态（与 main.ts 中 DOM 状态保持一致）
+  syncThemeFromDom();
+  
+  // 初始化 RTL 方向
+  syncRTL();
+  
+  // 初始化 RTL 方向
+  syncRTL();
 
   // 路由切换进度条
   removeBeforeGuard = router.beforeEach((to, from, next) => {
@@ -505,11 +632,39 @@ onMounted(() => {
       isRouteLoading.value = false;
     }, 200);
   });
+  
+  // 监听网络状态变化
+  const removeNetworkListener = onNetworkStatusChange((online) => {
+    isOnline.value = online;
+    if (online) {
+      // 网络恢复时显示提示
+      const { showToast } = window as any;
+      if (typeof showToast === 'function') {
+        showToast({
+          type: 'success',
+          title: t('common.online') || '网络已恢复',
+          message: t('common.onlineMessage') || '您的网络连接已恢复',
+        });
+      }
+    }
+  });
+  
+  // 清理网络监听器
+  onUnmounted(() => {
+    if (removeNetworkListener) {
+      removeNetworkListener();
+    }
+  });
 });
 
 onUnmounted(() => {
   document.removeEventListener("click", handleClickOutside);
   document.removeEventListener("keydown", handleKeydown);
+  window.removeEventListener('scroll', handleScroll);
+  window.removeEventListener('resize', positionLanguageMenu);
+  window.removeEventListener('scroll', positionLanguageMenu, true);
+  window.removeEventListener('resize', positionUserMenu);
+  window.removeEventListener('scroll', positionUserMenu, true);
   if (removeBeforeGuard) removeBeforeGuard();
   if (removeAfterGuard) removeAfterGuard();
 });

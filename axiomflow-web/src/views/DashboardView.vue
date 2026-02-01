@@ -63,14 +63,32 @@
         </div>
       </div>
     </div>
+    <!-- 批量操作进度条 -->
+    <div v-if="batchProgressVisible" class="batch-progress-bar" role="progressbar" :aria-valuenow="batchProgress" aria-valuemin="0" aria-valuemax="100" :aria-label="batchProgressText">
+      <div class="batch-progress-content">
+        <div class="batch-progress-text">{{ batchProgressText }}</div>
+        <div class="batch-progress-percent">{{ Math.round(batchProgress) }}%</div>
+      </div>
+      <div class="batch-progress-fill" :style="{ width: `${batchProgress}%` }"></div>
+    </div>
     <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
       <h2 style="margin: 0">{{ $t('dashboard.myDocuments') }}</h2>
       <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap">
+        <button
+          class="dashboard-help-btn"
+          @click="showShortcuts = true"
+          :title="$t('shortcuts.showShortcuts') || '显示快捷键 (?)'"
+          :aria-label="$t('shortcuts.showShortcuts') || '显示快捷键'"
+        >
+          <kbd>?</kbd>
+        </button>
         <button
           class="dashboard-refresh-icon-btn"
           :class="{ 'is-spinning': isRefreshingList }"
           :disabled="isRefreshingList"
           :title="$t('dashboard.refreshList')"
+          :aria-label="$t('dashboard.refreshList')"
+          :aria-busy="isRefreshingList"
           @click="refreshList"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -117,6 +135,7 @@
           v-if="isSelectionMode"
           @click="exitSelectionMode"
           class="action-btn action-btn--muted"
+          :aria-label="$t('dashboard.cancelSelect')"
         >
           {{ $t('dashboard.cancelSelect') }}
         </AppButton>
@@ -124,6 +143,7 @@
           v-else-if="docs.length > 0"
           @click="enterSelectionMode"
           class="action-btn action-btn--primary"
+          :aria-label="$t('dashboard.selectAll')"
         >
           {{ $t('dashboard.selectAll') }}
         </AppButton>
@@ -131,7 +151,20 @@
         <input ref="filesInput" type="file" accept="application/pdf" multiple style="display: none" @change="onFilesChange" />
       </div>
     </div>
-    <div class="empty-state" v-if="docs.length === 0">
+    <!-- 初始加载骨架屏 -->
+    <div v-if="initialLoading" class="dashboard-skeleton" role="status" aria-live="polite" aria-label="Loading documents">
+      <div class="skeleton-grid">
+        <div v-for="n in 6" :key="n" class="skeleton-card">
+          <div class="skeleton-thumbnail"></div>
+          <div class="skeleton-content">
+            <div class="skeleton-line skeleton-line--lg"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line skeleton-line--sm"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div v-else-if="docs.length === 0" class="empty-state">
       <div class="empty-state-content">
         <div class="empty-state-icon">
           <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -172,17 +205,32 @@
         </AppButton>
       </div>
     </div>
-    <div class="card-grid" v-else>
+    <div class="card-grid" v-else role="grid" aria-label="Document list">
       <AppCard
-        v-for="d in filteredDocs"
+        v-for="(d, index) in filteredDocs"
         :key="d.document_id"
         class="doc-card"
         :class="{ 
           'doc-card--parsing': d.status === 'parsing', 
           'doc-card--ready': d.status === 'ready',
-          'doc-card--selected': isSelectionMode && selectedDocuments.has(d.document_id)
+          'doc-card--selected': isSelectionMode && selectedDocuments.has(d.document_id),
+          'doc-card--dragging': draggedIndex === index,
+          'doc-card--drag-over': dragOverIndex === index
         }"
+        role="gridcell"
+        :data-document-id="d.document_id"
+        :data-index="index"
+        :aria-label="`${d.title}, ${d.status === 'ready' ? $t('dashboard.ready') : d.status === 'uploading' ? $t('dashboard.uploading') : $t('dashboard.parsing')}, ${d.num_pages || '?'} ${$t('common.pages')}`"
+        :tabindex="d.status === 'ready' ? 0 : -1"
+        :draggable="d.status === 'ready' && !isSelectionMode && !d.document_id.startsWith('temp-')"
+        @dragstart="handleDragStart($event, index)"
+        @dragend="handleDragEnd"
+        @dragover.prevent="handleDragOver($event, index)"
+        @dragleave="handleDragLeave(index)"
+        @drop.prevent="handleDrop($event, index)"
         @click="isSelectionMode ? toggleDocumentSelection(d.document_id) : (d.status === 'ready' ? openDoc(d.document_id) : undefined)"
+        @keydown.enter="isSelectionMode ? toggleDocumentSelection(d.document_id) : (d.status === 'ready' ? openDoc(d.document_id) : undefined)"
+        @keydown.space.prevent="isSelectionMode ? toggleDocumentSelection(d.document_id) : (d.status === 'ready' ? openDoc(d.document_id) : undefined)"
       >
         <!-- 选择复选框（选择模式下显示） -->
         <div v-if="isSelectionMode && d.status === 'ready' && !d.document_id.startsWith('temp-')" class="doc-checkbox-container">
@@ -201,6 +249,7 @@
             :alt="d.title"
             class="doc-thumbnail"
             :class="{ 'doc-thumbnail--loading': d.status !== 'ready' }"
+            loading="lazy"
             @error="(e) => handleThumbnailError(e, d.document_id)"
             @load="handleThumbnailLoad(d.document_id)"
           />
@@ -221,6 +270,7 @@
             @click.stop="handleDeleteDocument(d.document_id, d.title)"
             :disabled="deletingDocumentId === d.document_id"
             :title="$t('dashboard.deleteDocument')"
+            :aria-label="$t('dashboard.deleteDocument') + ': ' + d.title"
           >
             <svg v-if="deletingDocumentId !== d.document_id" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M3 6H5H21M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -273,6 +323,9 @@
       @confirm="confirmDeleteDocument"
       @cancel="cancelDeleteDocument"
     />
+    
+    <!-- 快捷键提示 -->
+    <KeyboardShortcuts v-model:visible="showShortcuts" />
   </section>
 </template>
 
@@ -283,6 +336,7 @@ import AppCard from "@/components/AppCard.vue";
 import AppButton from "@/components/AppButton.vue";
 import LoadingIcon from "@/components/LoadingIcon.vue";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
+import KeyboardShortcuts from "@/components/KeyboardShortcuts.vue";
 import { batchUpload, createProject, uploadPdf, getDocument, getProjectDocuments, getUserDocuments, deleteDocument, batchDeleteDocuments, sendEmailVerification } from "@/lib/api";
 import { showToast } from "@/components/Toast";
 import { useRouter, useRoute } from "vue-router";
@@ -366,6 +420,16 @@ const isBatchDelete = ref(false); // 是否是批量删除
 //（已移除卡片内“刷新状态”按钮，仅保留右上角刷新列表 icon）
 const isRefreshingList = ref(false); // 右上角刷新列表按钮状态
 const resendingVerification = ref(false); // 重新发送验证邮件状态
+const initialLoading = ref(true); // 初始加载状态
+const showShortcuts = ref(false); // 显示快捷键对话框
+const deletedDocs = ref<Doc[]>([]); // 已删除的文档（用于撤销）
+const undoTimeout = ref<number | null>(null); // 撤销超时定时器
+const batchProgress = ref(0); // 批量操作进度 (0-100)
+const batchProgressVisible = ref(false); // 是否显示批量进度条
+const batchProgressText = ref(""); // 批量操作文本
+const draggedIndex = ref<number | null>(null); // 正在拖拽的文档索引
+const dragOverIndex = ref<number | null>(null); // 拖拽悬停的文档索引
+const documentOrder = ref<string[]>([]); // 文档顺序（用于保存到 localStorage）
 
 // 安全向导：仅在登录后且邮箱未验证时给出一次性弹窗提示
 const showSecurityGuide = ref(false);
@@ -388,6 +452,7 @@ const goToSecuritySettings = () => {
 };
 
 // Dashboard 顶部搜索快捷键处理：/、Ctrl/Cmd+F 聚焦搜索框，Esc 清空搜索与选择
+// 增强键盘导航：方向键导航文档卡片，Enter/Space 打开，Delete 删除选中
 const keyHandler = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement | null;
   const isEditableTarget =
@@ -397,6 +462,7 @@ const keyHandler = (e: KeyboardEvent) => {
       (target as HTMLElement).isContentEditable ||
       target.tagName === "SELECT");
   if (isEditableTarget) return;
+  
   // 聚焦搜索：/ 或 Ctrl/Cmd+F
   if (
     (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) ||
@@ -407,12 +473,72 @@ const keyHandler = (e: KeyboardEvent) => {
     input?.focus();
     return;
   }
+  
   // Esc 清空搜索并清理选择
   if (e.key === "Escape") {
     if (searchQuery.value) {
       searchQuery.value = "";
     }
     selectedDocuments.value.clear();
+    if (isSelectionMode.value) {
+      isSelectionMode.value = false;
+    }
+    return;
+  }
+  
+  // 方向键导航文档卡片（仅在非输入状态下）
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+    const cards = Array.from(document.querySelectorAll(".doc-card[tabindex='0']")) as HTMLElement[];
+    if (cards.length === 0) return;
+    
+    const currentIndex = cards.findIndex(card => card === document.activeElement);
+    if (currentIndex === -1) {
+      // 如果没有焦点，聚焦第一个卡片
+      cards[0]?.focus();
+      return;
+    }
+    
+    let nextIndex = currentIndex;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      nextIndex = (currentIndex + 1) % cards.length;
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      nextIndex = (currentIndex - 1 + cards.length) % cards.length;
+    }
+    
+    e.preventDefault();
+    cards[nextIndex]?.focus();
+    return;
+  }
+  
+  // Delete 键删除当前聚焦的文档（仅在非输入状态下）
+  if (e.key === "Delete" && !isSelectionMode.value) {
+    const focusedCard = document.activeElement as HTMLElement;
+    if (focusedCard?.classList.contains("doc-card")) {
+      const docId = focusedCard.getAttribute("data-document-id");
+      if (docId) {
+        const doc = filteredDocs.value.find(d => d.document_id === docId);
+        if (doc && doc.status === "ready" && !doc.document_id.startsWith("temp-")) {
+          e.preventDefault();
+          handleDeleteDocument(doc.document_id, doc.title);
+        }
+      }
+    }
+    return;
+  }
+  
+  // ? 键显示快捷键帮助
+  if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey && !isEditableTarget) {
+    e.preventDefault();
+    showShortcuts.value = true;
+    return;
+  }
+  
+  // Ctrl/Cmd+A 进入选择模式
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a" && !isEditableTarget) {
+    if (docs.value.length > 0 && !isSelectionMode.value) {
+      e.preventDefault();
+      enterSelectionMode();
+    }
     return;
   }
 };
@@ -688,6 +814,19 @@ const loadProjectDocuments = async (project_id: string, merge: boolean = false) 
       // 完全替换模式
       docs.value = apiDocs;
     }
+    
+    // 应用保存的顺序
+    if (documentOrder.value.length > 0) {
+      docs.value.sort((a, b) => {
+        const aIndex = documentOrder.value.indexOf(a.document_id);
+        const bIndex = documentOrder.value.indexOf(b.document_id);
+        if (aIndex === -1 && bIndex === -1) return 0;
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+      });
+    }
+    
     currentProjectId.value = project_id;
   } catch (error) {
     console.error("加载文档列表失败:", error);
@@ -892,16 +1031,35 @@ const confirmSingleDelete = async () => {
   const document_id = pendingDeleteDocumentId.value;
   const title = pendingDeleteTitle.value;
   
+  // 保存文档用于撤销
+  const docToDelete = docs.value.find(d => d.document_id === document_id);
+  if (docToDelete) {
+    deletedDocs.value.push({ ...docToDelete });
+  }
+  
   deletingDocumentId.value = document_id;
   try {
     await deleteDocument(document_id);
-    showToast("success", t("dashboard.deleteSuccess"), t("dashboard.deleteSuccessMessage", { title }));
     
     // 从列表中移除文档
     const docIndex = docs.value.findIndex(d => d.document_id === document_id);
     if (docIndex >= 0) {
       docs.value.splice(docIndex, 1);
     }
+    
+    // 显示撤销提示（5秒内可撤销）
+    showToast("success", t("dashboard.deleteSuccess"), t("dashboard.deleteSuccessMessage", { title }) + " " + (t("dashboard.undoHint") || "(5秒内可撤销)"));
+    
+    // 5秒后清除撤销选项
+    if (undoTimeout.value) {
+      clearTimeout(undoTimeout.value);
+    }
+    undoTimeout.value = window.setTimeout(() => {
+      const index = deletedDocs.value.findIndex(d => d.document_id === document_id);
+      if (index >= 0) {
+        deletedDocs.value.splice(index, 1);
+      }
+    }, 5000);
     
     // 关闭相关的 WebSocket 连接
     const ws = activeWebSockets.get(document_id);
@@ -921,15 +1079,155 @@ const confirmSingleDelete = async () => {
   }
 };
 
+// 拖拽排序功能
+const handleDragStart = (e: DragEvent, index: number) => {
+  if (!e.dataTransfer) return;
+  draggedIndex.value = index;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(index));
+  // 添加拖拽时的视觉反馈
+  if (e.target instanceof HTMLElement) {
+    e.target.style.opacity = '0.5';
+  }
+};
+
+const handleDragEnd = (e: DragEvent) => {
+  draggedIndex.value = null;
+  dragOverIndex.value = null;
+  if (e.target instanceof HTMLElement) {
+    e.target.style.opacity = '1';
+  }
+};
+
+const handleDragOver = (e: DragEvent, index: number) => {
+  if (draggedIndex.value === null || draggedIndex.value === index) return;
+  e.dataTransfer!.dropEffect = 'move';
+  dragOverIndex.value = index;
+};
+
+const handleDragLeave = (index: number) => {
+  if (dragOverIndex.value === index) {
+    dragOverIndex.value = null;
+  }
+};
+
+const handleDrop = (e: DragEvent, dropIndex: number) => {
+  if (draggedIndex.value === null || draggedIndex.value === dropIndex) return;
+  
+  const fromIndex = draggedIndex.value;
+  const toIndex = dropIndex;
+  
+  // 重新排序文档
+  const newDocs = [...filteredDocs.value];
+  const [movedDoc] = newDocs.splice(fromIndex, 1);
+  newDocs.splice(toIndex, 0, movedDoc);
+  
+  // 更新文档列表（保持 filteredDocs 和 docs 同步）
+  if (searchQuery.value.trim()) {
+    // 如果正在搜索，只更新 filteredDocs 的显示顺序
+    // 但实际顺序应该保存在 docs 中
+    const docIds = newDocs.map(d => d.document_id);
+    docs.value.sort((a, b) => {
+      const aIndex = docIds.indexOf(a.document_id);
+      const bIndex = docIds.indexOf(b.document_id);
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
+  } else {
+    // 直接更新 docs
+    docs.value = newDocs;
+  }
+  
+  // 保存顺序到 localStorage
+  saveDocumentOrder();
+  
+  draggedIndex.value = null;
+  dragOverIndex.value = null;
+  
+  showToast("success", t("dashboard.orderUpdated") || "顺序已更新", t("dashboard.orderUpdatedMessage") || "文档顺序已保存");
+};
+
+// 保存文档顺序到 localStorage
+const saveDocumentOrder = () => {
+  try {
+    const order = docs.value.map(d => d.document_id);
+    localStorage.setItem('document_order', JSON.stringify(order));
+  } catch (error) {
+    console.warn('保存文档顺序失败:', error);
+  }
+};
+
+// 从 localStorage 加载文档顺序
+const loadDocumentOrder = () => {
+  try {
+    const saved = localStorage.getItem('document_order');
+    if (saved) {
+      const order = JSON.parse(saved) as string[];
+      documentOrder.value = order;
+      
+      // 根据保存的顺序重新排序文档
+      if (order.length > 0) {
+        docs.value.sort((a, b) => {
+          const aIndex = order.indexOf(a.document_id);
+          const bIndex = order.indexOf(b.document_id);
+          if (aIndex === -1 && bIndex === -1) return 0;
+          if (aIndex === -1) return 1;
+          if (bIndex === -1) return -1;
+          return aIndex - bIndex;
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('加载文档顺序失败:', error);
+  }
+};
+
+// 撤销删除操作
+const undoDelete = async (document_id: string) => {
+  const deletedDoc = deletedDocs.value.find(d => d.document_id === document_id);
+  if (!deletedDoc) return;
+  
+  try {
+    // 恢复文档到列表（插入到原位置或末尾）
+    docs.value.push(deletedDoc);
+    
+    // 从已删除列表中移除
+    const index = deletedDocs.value.findIndex(d => d.document_id === document_id);
+    if (index >= 0) {
+      deletedDocs.value.splice(index, 1);
+    }
+    
+    // 清除撤销超时
+    if (undoTimeout.value) {
+      clearTimeout(undoTimeout.value);
+      undoTimeout.value = null;
+    }
+    
+    showToast("success", t("dashboard.undoSuccess") || "已撤销", t("dashboard.undoSuccessMessage") || "文档已恢复");
+  } catch (error: any) {
+    showToast("error", t("dashboard.undoFailed") || "撤销失败", error.message || t("dashboard.pleaseRetry"));
+  }
+};
+
 // 确认批量删除
 const confirmBatchDelete = async () => {
   if (selectedDocuments.value.size === 0) return;
   
   const documentIds = Array.from(selectedDocuments.value);
+  const total = documentIds.length;
+  
+  // 显示批量删除进度
+  batchProgressVisible.value = true;
+  batchProgress.value = 0;
+  batchProgressText.value = t("dashboard.batchDeleting") || `正在删除 ${total} 个文档...`;
   
   deletingDocumentId.value = "batch"; // 使用特殊值表示批量删除
   try {
     const result = await batchDeleteDocuments(documentIds);
+    
+    // 更新进度
+    batchProgress.value = 100;
     
     if (result.success_count > 0) {
       showToast("success", t("dashboard.batchDeleteSuccess"), t("dashboard.batchDeleteSuccessMessage", { count: result.success_count }));
@@ -964,8 +1262,17 @@ const confirmBatchDelete = async () => {
     isSelectionMode.value = false;
     showDeleteDialog.value = false;
     isBatchDelete.value = false;
+    
+    // 3秒后隐藏进度条
+    setTimeout(() => {
+      batchProgressVisible.value = false;
+      batchProgress.value = 0;
+    }, 3000);
   } catch (error: any) {
     showToast("error", t("dashboard.batchDeleteFailed"), error.message || t("dashboard.pleaseRetry"));
+    // 隐藏进度条
+    batchProgressVisible.value = false;
+    batchProgress.value = 0;
   } finally {
     deletingDocumentId.value = null;
   }
@@ -1017,6 +1324,11 @@ const onFilesChange = async (e: Event) => {
   const input = e.target as HTMLInputElement;
   const files = Array.from(input.files ?? []);
   if (files.length === 0) return;
+
+  // 显示批量上传进度
+  batchProgressVisible.value = true;
+  batchProgress.value = 0;
+  batchProgressText.value = t("dashboard.batchUploading") || `正在上传 ${files.length} 个文件...`;
 
   // 立即添加所有文件到列表
   const tempDocs: Doc[] = files.map((file, idx) => ({
@@ -1070,6 +1382,16 @@ const onFilesChange = async (e: Event) => {
       }
     });
     
+    // 更新批量进度
+    batchProgress.value = 100;
+    batchProgressText.value = t("dashboard.batchUploadComplete") || `已成功上传 ${files.length} 个文件`;
+    
+    // 3秒后隐藏进度条
+    setTimeout(() => {
+      batchProgressVisible.value = false;
+      batchProgress.value = 0;
+    }, 3000);
+    
     // 不跳转到批次页面，保持在主页面显示所有文档
     // router.push(`/batch/${res.batch_id}`);
   } catch (error) {
@@ -1079,6 +1401,10 @@ const onFilesChange = async (e: Event) => {
     tempDocs.forEach((doc) => {
       docs.value = docs.value.filter((d) => d.document_id !== doc.document_id);
     });
+    
+    // 隐藏进度条
+    batchProgressVisible.value = false;
+    batchProgress.value = 0;
   }
   
   input.value = "";
@@ -1201,6 +1527,11 @@ const loadDocumentFromQuery = async () => {
 };
 
 onMounted(async () => {
+  initialLoading.value = true;
+  
+  // 加载保存的文档顺序
+  loadDocumentOrder();
+  
   // 尝试从 URL 参数获取项目ID
   const projectIdFromQuery = route.query.project_id as string | undefined;
   
@@ -1230,6 +1561,7 @@ onMounted(async () => {
   }
   
   await loadDocumentFromQuery();
+  initialLoading.value = false;
   window.addEventListener("keydown", keyHandler);
 
   // 解析超时监控：定期检查解析耗时，超过阈值给出提示（每5秒检查一次）
@@ -1269,6 +1601,92 @@ onUnmounted(() => {
 .dashboard {
   position: relative;
   min-height: calc(100vh - 200px);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .dashboard {
+    padding: 16px 0;
+  }
+
+  .dashboard > div:first-of-type {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .dashboard h2 {
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard {
+    padding: 12px 0;
+  }
+
+  .dashboard h2 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+}
+
+/* 批量操作进度条 */
+.batch-progress-bar {
+  position: relative;
+  width: 100%;
+  height: 48px;
+  background: var(--color-surface-2, rgba(255, 255, 255, 0.75));
+  border: 1px solid var(--color-border, rgba(226, 232, 240, 0.8));
+  border-radius: var(--radius-lg, 14px);
+  margin-bottom: var(--spacing-lg, 16px);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm, 0 4px 16px rgba(0, 0, 0, 0.05));
+}
+
+.batch-progress-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md, 12px) var(--spacing-lg, 16px);
+  height: 100%;
+}
+
+.batch-progress-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text, #1e293b);
+}
+
+.batch-progress-percent {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary, #6366f1);
+  font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
+}
+
+.batch-progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary, #6366f1), var(--color-primary-2, #8b5cf6));
+  transition: width 0.3s ease;
+  opacity: 0.15;
+}
+
+[data-theme="dark"] .batch-progress-bar {
+  background: var(--color-surface-2, rgba(30, 41, 59, 0.9));
+  border-color: var(--color-border, rgba(51, 65, 85, 0.9));
+}
+
+[data-theme="dark"] .batch-progress-text {
+  color: var(--color-text, #e5e7eb);
 }
 
 .email-verification-banner {
@@ -1288,9 +1706,40 @@ onUnmounted(() => {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  will-change: transform;
+  transform: translateZ(0); /* 启用硬件加速 */
   display: flex;
-  align-items: center;
-  gap: 8px;
+  position: relative;
+}
+
+/* 拖拽排序样式 */
+.doc-card[draggable="true"] {
+  cursor: grab;
+}
+
+.doc-card[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.doc-card--dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+  z-index: 1000;
+}
+
+.doc-card--drag-over {
+  border: 2px dashed var(--color-primary, #6366f1);
+  transform: scale(1.02);
+}
+
+.doc-card--drag-over::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: var(--radius-lg, 14px);
+  background: color-mix(in srgb, var(--color-primary, #6366f1) 10%, transparent);
+  pointer-events: none;
+  z-index: -1;
 }
 
 .email-verification-btn:hover:not(:disabled) {
@@ -1306,6 +1755,90 @@ onUnmounted(() => {
 
 .loading-spinner-small {
   /* unified in global styles.css */
+}
+
+/* Dashboard 骨架屏样式 */
+.dashboard-skeleton {
+  width: 100%;
+  padding: 24px 0;
+}
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.skeleton-card {
+  background: var(--color-surface-1, rgba(255, 255, 255, 0.95));
+  border: 1px solid var(--color-border, rgba(226, 232, 240, 0.8));
+  border-radius: var(--radius-lg, 14px);
+  padding: 16px;
+  box-shadow: var(--shadow-sm, 0 4px 16px rgba(0, 0, 0, 0.05));
+}
+
+.skeleton-thumbnail {
+  width: 100%;
+  height: 200px;
+  border-radius: var(--radius-md, 12px);
+  background: linear-gradient(90deg, rgba(226,232,240,0.9) 25%, rgba(241,245,249,0.9) 50%, rgba(226,232,240,0.9) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+  margin-bottom: 12px;
+}
+
+.skeleton-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(226,232,240,0.9) 25%, rgba(241,245,249,0.9) 50%, rgba(226,232,240,0.9) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+
+.skeleton-line--lg {
+  width: 70%;
+  height: 14px;
+}
+
+.skeleton-line--sm {
+  width: 50%;
+  height: 10px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+[data-theme="dark"] .skeleton-card {
+  background: var(--color-surface-1, rgba(15, 23, 42, 0.96));
+  border-color: var(--color-border, rgba(51, 65, 85, 0.9));
+}
+
+[data-theme="dark"] .skeleton-thumbnail,
+[data-theme="dark"] .skeleton-line {
+  background: linear-gradient(90deg, rgba(51,65,85,0.9) 25%, rgba(71,85,105,0.9) 50%, rgba(51,65,85,0.9) 75%);
+  background-size: 200% 100%;
+}
+
+@media (max-width: 768px) {
+  .skeleton-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .skeleton-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }
 
 .empty-state {
@@ -1355,6 +1888,59 @@ onUnmounted(() => {
 .dashboard-refresh-icon-btn svg {
   width: 18px;
   height: 18px;
+}
+
+/* 快捷键帮助按钮 */
+.dashboard-help-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  color: #334155;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92));
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow:
+    0 10px 22px rgba(15, 23, 42, 0.06),
+    0 2px 6px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+  font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dashboard-help-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(99, 102, 241, 0.35);
+  color: #1e293b;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.10), rgba(59, 130, 246, 0.08));
+  box-shadow:
+    0 14px 28px rgba(99, 102, 241, 0.16),
+    0 6px 12px rgba(59, 130, 246, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.dashboard-help-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow:
+    0 6px 12px rgba(99, 102, 241, 0.12),
+    0 2px 4px rgba(59, 130, 246, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.dashboard-help-btn kbd {
+  display: inline-block;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
 }
 
 .dashboard-refresh-icon-btn:hover:not(:disabled) {

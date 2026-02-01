@@ -1,5 +1,29 @@
 export const API_BASE = "http://localhost:8000/v1";
 
+/**
+ * 将外部头像URL（Google/GitHub）转换为代理URL，解决需要代理才能访问的问题
+ * @param avatarUrl 原始头像URL
+ * @returns 如果是外部URL则返回代理URL，否则返回原URL
+ */
+export function getAvatarProxyUrl(avatarUrl: string | null | undefined): string | null {
+  if (!avatarUrl) return null;
+  
+  // 检查是否是外部头像URL（Google/GitHub）
+  const isExternalAvatar = 
+    avatarUrl.includes("lh3.googleusercontent.com") ||
+    avatarUrl.includes("avatars.githubusercontent.com") ||
+    avatarUrl.includes("googleusercontent.com") ||
+    (avatarUrl.includes("github.com") && avatarUrl.includes("avatar"));
+  
+  if (isExternalAvatar) {
+    // 使用代理端点
+    return `${API_BASE}/users/avatar-proxy?url=${encodeURIComponent(avatarUrl)}`;
+  }
+  
+  // 本地头像或已上传的头像直接返回
+  return avatarUrl;
+}
+
 // 获取认证token
 function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;

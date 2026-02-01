@@ -6,6 +6,9 @@ import { i18n } from "./i18n";
 
 import "./styles.css";
 
+// RTL 语言列表
+const rtlLocales = ['ar', 'he', 'fa', 'ur'];
+
 // 初始化主题（light / dark），基于 localStorage 或系统偏好
 function initTheme() {
   try {
@@ -31,6 +34,24 @@ function initTheme() {
 }
 
 initTheme();
+
+// 初始化 RTL 支持
+function initRTL() {
+  try {
+    const locale = i18n.global.locale.value;
+    const isRTL = rtlLocales.some(rtl => locale.toLowerCase().includes(rtl));
+    const html = document.documentElement;
+    if (isRTL) {
+      html.setAttribute('dir', 'rtl');
+    } else {
+      html.setAttribute('dir', 'ltr');
+    }
+  } catch {
+    // 安全兜底
+  }
+}
+
+initRTL();
 
 const app = createApp(App);
 

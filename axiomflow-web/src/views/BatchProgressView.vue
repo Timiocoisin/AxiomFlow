@@ -35,6 +35,67 @@
   </section>
 </template>
 
+<style scoped>
+@media (max-width: 768px) {
+  section {
+    padding: 16px !important;
+  }
+
+  section > div:first-of-type {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 12px;
+  }
+
+  section > div:first-of-type > div:first-of-type h2 {
+    font-size: 18px;
+  }
+
+  section > div:first-of-type > div:first-of-type > div {
+    font-size: 11px;
+  }
+
+  section > div:last-of-type > div {
+    padding: 10px !important;
+    gap: 10px !important;
+  }
+
+  section > div:last-of-type > div > div:first-of-type {
+    min-width: 0;
+    flex: 1;
+  }
+
+  section > div:last-of-type > div > div:first-of-type > div:first-of-type {
+    font-size: 14px;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  section > div:last-of-type > div > div:first-of-type > div:last-of-type {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  section {
+    padding: 12px !important;
+  }
+
+  section > div:first-of-type > div:first-of-type h2 {
+    font-size: 16px;
+  }
+
+  section > div:last-of-type > div {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  section > div:last-of-type > div > div:last-of-type {
+    width: 100%;
+  }
+}
+</style>
+
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";

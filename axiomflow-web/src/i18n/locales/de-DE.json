@@ -50,7 +50,18 @@
     "featureMultiLang": "Mehrsprachige Unterstützung",
     "dragPdf": "PDF-Datei hierher ziehen",
     "orClick": "oder klicken zum Hochladen",
-    "uploadPdfOnly": "Bitte laden Sie eine PDF-Datei hoch"
+    "uploadPdfOnly": "Bitte laden Sie eine PDF-Datei hoch",
+    "uploadAreaLabel": "PDF-Datei-Upload-Bereich",
+    "fileTypeHint": "Nur PDF-Dateien werden unterstützt",
+    "fileSizeHint": "Maximale Dateigröße: 50MB",
+    "fileInputLabel": "PDF-Datei auswählen",
+    "uploading": "Wird hochgeladen...",
+    "dismissError": "Fehler schließen",
+    "fileTooLarge": "Die Dateigröße überschreitet das {maxSizeMB}MB-Limit",
+    "fileEmpty": "Die ausgewählte Datei ist leer",
+    "closePreview": "Vorschau schließen",
+    "cancel": "Abbrechen",
+    "confirmUpload": "Hochladen bestätigen"
   },
   "time": {
     "justNow": "Gerade eben",

@@ -50,7 +50,18 @@
     "featureMultiLang": "Support multilingue",
     "dragPdf": "Glissez le fichier PDF ici",
     "orClick": "ou cliquez pour télécharger",
-    "uploadPdfOnly": "Veuillez télécharger un fichier PDF"
+    "uploadPdfOnly": "Veuillez télécharger un fichier PDF",
+    "uploadAreaLabel": "Zone de téléchargement de fichier PDF",
+    "fileTypeHint": "Seuls les fichiers PDF sont pris en charge",
+    "fileSizeHint": "Taille maximale du fichier : 50MB",
+    "fileInputLabel": "Sélectionner un fichier PDF",
+    "uploading": "Téléchargement en cours...",
+    "dismissError": "Fermer l'erreur",
+    "fileTooLarge": "La taille du fichier dépasse la limite de {maxSizeMB}MB",
+    "fileEmpty": "Le fichier sélectionné est vide",
+    "closePreview": "Fermer l'aperçu",
+    "cancel": "Annuler",
+    "confirmUpload": "Confirmer le téléchargement"
   },
   "time": {
     "justNow": "À l'instant",

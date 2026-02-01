@@ -50,7 +50,18 @@
     "featureMultiLang": "多語言支援",
     "dragPdf": "拖拽 PDF 檔案到此處",
     "orClick": "或點擊上傳",
-    "uploadPdfOnly": "請上傳 PDF 檔案"
+    "uploadPdfOnly": "請上傳 PDF 檔案",
+    "uploadAreaLabel": "上傳 PDF 檔案區域",
+    "fileTypeHint": "僅支援 PDF 檔案",
+    "fileSizeHint": "最大檔案大小：50MB",
+    "fileInputLabel": "選擇 PDF 檔案",
+    "uploading": "上傳中...",
+    "dismissError": "關閉錯誤提示",
+    "fileTooLarge": "檔案大小超過 {maxSizeMB}MB 限制",
+    "fileEmpty": "所選檔案為空",
+    "closePreview": "關閉預覽",
+    "cancel": "取消",
+    "confirmUpload": "確認上傳"
   },
   "common": {
     "unknown": "未知",

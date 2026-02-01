@@ -1,0 +1,230 @@
+/* =========================================================
+ * RTL (Right-to-Left) Language Support
+ * - Styles for Arabic, Hebrew, Persian, Urdu, etc.
+ * ========================================================= */
+
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .app-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .nav-links {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .nav-link-item {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .nav-icon {
+  margin-right: 0;
+  margin-left: 8px;
+}
+
+[dir="rtl"] .user-menu {
+  right: auto;
+  left: 0;
+}
+
+[dir="rtl"] .nav-language-menu {
+  right: auto;
+  left: 0;
+}
+
+[dir="rtl"] .card-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .doc-card {
+  direction: ltr; /* 保持卡片内容为 LTR */
+  text-align: left;
+}
+
+[dir="rtl"] .upload-dropzone {
+  direction: rtl;
+}
+
+[dir="rtl"] .hero-features {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .shortcuts-item {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .shortcuts-keys {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .workbench-columns {
+  direction: rtl;
+}
+
+[dir="rtl"] .pane {
+  direction: ltr; /* 保持 PDF 查看器为 LTR */
+}
+
+[dir="rtl"] .dashboard-search {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .dashboard-search-icon {
+  margin-right: 0;
+  margin-left: 8px;
+}
+
+[dir="rtl"] .batch-progress-content {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .empty-state-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .modal-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .modal-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .modal-close {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+[dir="rtl"] .app-alert {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .app-alert-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .app-alert-actions {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .toast-container {
+  right: auto;
+  left: 24px;
+}
+
+[dir="rtl"] .toast {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .toast-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .toast-close {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+/* 确保数字和代码保持 LTR */
+[dir="rtl"] .shortcut-key,
+[dir="rtl"] kbd,
+[dir="rtl"] code,
+[dir="rtl"] .doc-meta-footer {
+  direction: ltr;
+  text-align: left;
+  display: inline-block;
+}
+
+/* 表单元素在 RTL 中的调整 */
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select {
+  text-align: right;
+}
+
+[dir="rtl"] input[type="number"],
+[dir="rtl"] input[type="email"],
+[dir="rtl"] input[type="url"] {
+  direction: ltr;
+  text-align: left;
+}
+
+/* 按钮组在 RTL 中的调整 */
+[dir="rtl"] .action-btn-group {
+  flex-direction: row-reverse;
+}
+
+/* 列表项在 RTL 中的调整 */
+[dir="rtl"] ul,
+[dir="rtl"] ol {
+  padding-right: 20px;
+  padding-left: 0;
+}
+
+[dir="rtl"] li {
+  text-align: right;
+}
+
+/* 图标和文本的间距调整 */
+[dir="rtl"] .icon-text {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .icon-text svg {
+  margin-right: 0;
+  margin-left: 8px;
+}
+
+/* 工具提示在 RTL 中的位置 */
+[dir="rtl"] .tooltip {
+  right: auto;
+  left: 50%;
+  transform: translateX(50%);
+}
+
+/* 下拉菜单在 RTL 中的位置 */
+[dir="rtl"] .dropdown-menu {
+  right: auto;
+  left: 0;
+}
+
+/* 进度条在 RTL 中的方向 */
+[dir="rtl"] .progress-bar {
+  direction: rtl;
+}
+
+[dir="rtl"] .progress-fill {
+  right: 0;
+  left: auto;
+}
+
+/* 分页在 RTL 中的调整 */
+[dir="rtl"] .pagination {
+  flex-direction: row-reverse;
+}
+
+/* 标签页在 RTL 中的调整 */
+[dir="rtl"] .tabs {
+  flex-direction: row-reverse;
+}
+
+/* 面包屑导航在 RTL 中的调整 */
+[dir="rtl"] .breadcrumb {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .breadcrumb-item::after {
+  content: "←";
+  margin-left: 0;
+  margin-right: 8px;
+}
+
+[dir="rtl"] .breadcrumb-item:last-child::after {
+  display: none;
+}
+

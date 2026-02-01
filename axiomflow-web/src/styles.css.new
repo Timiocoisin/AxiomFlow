@@ -1,0 +1,70 @@
+/* =========================================================
+ * Main Stylesheet - Modular Architecture
+ * - Imports all modular style files
+ * - Maintains backward compatibility
+ * ========================================================= */
+
+/* 1. Design Tokens (must be first) */
+@import "./styles/tokens.css";
+
+/* 2. Base Styles */
+@import "./styles/base.css";
+
+/* 3. Animations */
+@import "./styles/animations.css";
+
+/* 4. Components */
+@import "./styles/components/buttons.css";
+@import "./styles/components/forms.css";
+@import "./styles/components/glass-card.css";
+@import "./styles/components/landing.css";
+
+/* 5. Compatibility & Fallbacks */
+@import "./styles/compatibility.css";
+
+/* =========================================================
+ * Global App Layout
+ * - App shell, header, main content area
+ * ========================================================= */
+
+.app-shell {
+  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.app-main {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: var(--spacing-xl, 24px) var(--spacing-2xl, 32px);
+  box-sizing: border-box;
+  position: relative;
+}
+
+.app-main.landing-page {
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+  height: calc(100vh - var(--app-header-height, 80px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-main.scrollable {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* =========================================================
+ * Note: Header, Navigation, Dashboard, Settings, Auth, 
+ * Workbench, and other component styles remain in the 
+ * original styles.css file for now. They can be further 
+ * modularized as needed.
+ * ========================================================= */
+

@@ -1,0 +1,68 @@
+/* =========================================================
+ * Form Components
+ * - Inputs, search boxes, form elements
+ * ========================================================= */
+
+.simple-input {
+  border-radius: var(--radius-lg, 14px);
+  border: 1px solid var(--color-border-soft, rgba(203, 213, 225, 0.8));
+  background: var(--color-surface-2, rgba(255, 255, 255, 0.9));
+  color: var(--color-text, #1e293b);
+  padding: 10px 12px;
+  outline: none;
+  transition: all var(--transition-base, 0.2s ease);
+}
+
+.simple-input::placeholder {
+  color: var(--color-text-muted, rgba(148, 163, 184, 0.7));
+}
+
+.simple-input:focus {
+  border-color: rgba(59, 130, 246, 0.6);
+  background: var(--color-surface-0, rgba(255, 255, 255, 1));
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Dashboard 顶部搜索框（文件名搜索） */
+.dashboard-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 260px;
+  max-width: 320px;
+}
+
+.dashboard-search-input {
+  width: 100%;
+  padding-left: 38px !important;
+  border-radius: var(--radius-full, 999px);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 255, 0.98));
+  box-shadow:
+    0 10px 30px rgba(148, 163, 184, 0.25),
+    0 2px 8px rgba(148, 163, 184, 0.25);
+}
+
+.dashboard-search-input::placeholder {
+  color: rgba(148, 163, 184, 0.8);
+}
+
+.dashboard-search-input:focus {
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.18),
+    0 14px 36px rgba(148, 163, 184, 0.35);
+}
+
+.dashboard-search-icon {
+  position: absolute;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.dashboard-search-icon svg {
+  width: 16px;
+  height: 16px;
+}
+

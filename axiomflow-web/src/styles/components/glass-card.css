@@ -1,0 +1,54 @@
+/* =========================================================
+ * Glass Card Component
+ * - Glassmorphism card with animated gradients
+ * ========================================================= */
+
+.glass-card {
+  background: var(--glass-card-bg, 
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(250, 245, 255, 0.88) 25%, rgba(240, 249, 255, 0.88) 50%, rgba(250, 245, 255, 0.88) 75%, rgba(255, 255, 255, 0.92) 100%),
+    radial-gradient(circle at 30% 20%, rgba(99, 102, 241, 0.05) 0%, transparent 60%),
+    radial-gradient(circle at 70% 80%, rgba(139, 92, 246, 0.04) 0%, transparent 60%));
+  background-size: 200% 200%, 100% 100%, 100% 100%;
+  background-position: 0% 0%, 0% 0%, 0% 0%;
+  animation: gradient-shift-card 15s ease infinite;
+  border-radius: var(--radius-4xl, 44px);
+  box-shadow: 
+    0 24px 72px rgba(99, 102, 241, 0.08),
+    0 12px 32px rgba(139, 92, 246, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.03);
+  border: none;
+  backdrop-filter: blur(var(--blur-lg, 20px)) saturate(var(--sat-xl, 200%));
+  -webkit-backdrop-filter: blur(var(--blur-lg, 20px)) saturate(var(--sat-xl, 200%));
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-slow, 0.6s cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.glass-card::before {
+  display: none; /* 隐藏顶部横线 */
+}
+
+.glass-card::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.02) 0%, transparent 70%);
+  animation: rotate 20s linear infinite;
+  pointer-events: none;
+}
+
+/* Auth 页：允许密码 Popover 悬浮到卡片外 */
+.auth-card.glass-card {
+  overflow: visible;
+}
+
+/* 但保留玻璃拟态的旋转光斑在卡片内部 */
+.auth-card.glass-card::after {
+  overflow: hidden;
+  border-radius: inherit;
+  clip-path: inset(0 round 44px);
+}
+

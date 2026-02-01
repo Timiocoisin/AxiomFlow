@@ -50,7 +50,18 @@
     "featureMultiLang": "多言語対応",
     "dragPdf": "PDFファイルをここにドラッグ",
     "orClick": "またはクリックしてアップロード",
-    "uploadPdfOnly": "PDFファイルをアップロードしてください"
+    "uploadPdfOnly": "PDFファイルをアップロードしてください",
+    "uploadAreaLabel": "PDFファイルアップロード領域",
+    "fileTypeHint": "PDFファイルのみサポート",
+    "fileSizeHint": "最大ファイルサイズ：50MB",
+    "fileInputLabel": "PDFファイルを選択",
+    "uploading": "アップロード中...",
+    "dismissError": "エラーを閉じる",
+    "fileTooLarge": "ファイルサイズが{maxSizeMB}MB制限を超えています",
+    "fileEmpty": "選択されたファイルが空です",
+    "closePreview": "プレビューを閉じる",
+    "cancel": "キャンセル",
+    "confirmUpload": "アップロードを確認"
   },
   "common": {
     "unknown": "不明",

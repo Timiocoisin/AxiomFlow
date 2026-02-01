@@ -80,8 +80,8 @@
                   ref="avatarTriggerRef"
                   :aria-label="t('settings.editAvatarAria')"
                 >
-                  <div class="user-avatar" v-if="userStore.user?.avatar">
-                    <img :src="userStore.user.avatar" :alt="userStore.user?.name || t('settings.userAvatarAlt')" />
+                  <div class="user-avatar" v-if="avatarUrl">
+                    <img :src="avatarUrl" :alt="userStore.user?.name || t('settings.userAvatarAlt')" />
                   </div>
                   <div class="user-avatar-placeholder" v-else>
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1166,8 +1166,8 @@
                     <div class="avatar-preview-mask">
                       <div class="avatar-preview-circle">
                         <img
-                          v-if="avatarPreviewUrl || userStore.user?.avatar"
-                          :src="avatarPreviewUrl || userStore.user?.avatar"
+                          v-if="avatarPreviewUrl || avatarUrl"
+                          :src="avatarPreviewUrl || avatarUrl"
                           :alt="t('settings.avatarPreviewAlt')"
                           :style="getAvatarTransformStyle()"
                           @pointerdown.prevent="handleAvatarPointerDown"
@@ -1193,8 +1193,8 @@
                       <div class="avatar-mini-label">{{ t('settings.avatarShapeCircle') }}</div>
                       <div class="avatar-mini avatar-mini--circle">
                         <img
-                          v-if="avatarPreviewUrl || userStore.user?.avatar"
-                          :src="avatarPreviewUrl || userStore.user?.avatar"
+                          v-if="avatarPreviewUrl || avatarUrl"
+                          :src="avatarPreviewUrl || avatarUrl"
                           :alt="t('settings.circlePreviewAlt')"
                           :style="getAvatarTransformStyle()"
                         />
@@ -1204,8 +1204,8 @@
                       <div class="avatar-mini-label">{{ t('settings.avatarShapeSquare') }}</div>
                       <div class="avatar-mini avatar-mini--square">
                         <img
-                          v-if="avatarPreviewUrl || userStore.user?.avatar"
-                          :src="avatarPreviewUrl || userStore.user?.avatar"
+                          v-if="avatarPreviewUrl || avatarUrl"
+                          :src="avatarPreviewUrl || avatarUrl"
                           :alt="t('settings.squarePreviewAlt')"
                           :style="getAvatarTransformStyle()"
                         />
@@ -1296,6 +1296,7 @@ import {
   sendEmailVerification,
   uploadAvatar,
   updateProfile,
+  getAvatarProxyUrl,
   type LoginHistoryItem,
   type SessionInfo,
 } from "@/lib/api";
@@ -1303,6 +1304,9 @@ import {
 const router = useRouter();
 const userStore = useUserStore();
 const { t, locale } = useI18n();
+
+// 获取代理后的头像URL（用于Google/GitHub头像）
+const avatarUrl = computed(() => getAvatarProxyUrl(userStore.user?.avatar || null));
 
 const showChangePasswordModal = ref(false);
 const showLoginHistoryModal = ref(false);
@@ -1840,7 +1844,7 @@ const formatLoginMethod = (method: string) => {
 const openAvatarModal = () => {
   resetAvatarTransform();
   avatarError.value = "";
-  avatarPreviewUrl.value = userStore.user?.avatar || null;
+  avatarPreviewUrl.value = avatarUrl.value || null;
   avatarImage.value = null;
   showAvatarModal.value = true;
   lockBodyScroll();

@@ -50,7 +50,18 @@
     "featureMultiLang": "Soporte multiidioma",
     "dragPdf": "Arrastre el archivo PDF aquí",
     "orClick": "o haga clic para cargar",
-    "uploadPdfOnly": "Por favor, cargue un archivo PDF"
+    "uploadPdfOnly": "Por favor, cargue un archivo PDF",
+    "uploadAreaLabel": "Área de carga de archivo PDF",
+    "fileTypeHint": "Solo se admiten archivos PDF",
+    "fileSizeHint": "Tamaño máximo de archivo: 50MB",
+    "fileInputLabel": "Seleccionar archivo PDF",
+    "uploading": "Subiendo...",
+    "dismissError": "Cerrar error",
+    "fileTooLarge": "El tamaño del archivo excede el límite de {maxSizeMB}MB",
+    "fileEmpty": "El archivo seleccionado está vacío",
+    "closePreview": "Cerrar vista previa",
+    "cancel": "Cancelar",
+    "confirmUpload": "Confirmar carga"
   },
   "time": {
     "justNow": "Justo ahora",
