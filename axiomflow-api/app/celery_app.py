@@ -10,6 +10,15 @@ from celery import Celery
 from celery.schedules import crontab
 
 from .core.config import settings
+from .db.schema import ensure_mysql_database
+
+# 在创建 Celery 应用之前，确保结果库 / broker 对应的 MySQL 数据库已存在
+try:
+    ensure_mysql_database(settings.celery_broker_url)
+    ensure_mysql_database(settings.celery_result_backend)
+except Exception:
+    # 即使这里出错，Celery 仍会在后续连接时报出更详细的错误
+    pass
 
 # 创建 Celery 应用
 celery_app = Celery(

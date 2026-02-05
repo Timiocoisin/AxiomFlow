@@ -9,10 +9,23 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Column, Float, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine, Boolean
+from sqlalchemy import (
+    JSON,
+    Column,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    create_engine,
+    Boolean,
+    text,
+)
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.engine.url import make_url
 
 Base = declarative_base()
 
@@ -360,6 +373,56 @@ class RateLimitBucket(Base):
     )
 
 
+def ensure_mysql_database(database_url: str) -> None:
+    """
+    如果使用的是 MySQL，并且数据库不存在，则自动创建数据库。
+
+    仅在 driver 中包含 "mysql" 且 URL 中带有 database 名时生效。
+    对于 SQLite / 其它数据库，不做任何处理。
+    """
+    if not database_url:
+        return
+
+    try:
+        url = make_url(database_url)
+    except Exception:
+        # 无法解析 URL 时直接跳过
+        return
+
+    # 仅在使用 MySQL 时尝试自动建库（包含 sqla+mysql+pymysql / db+mysql+pymysql 等变体）
+    driver = (url.drivername or "").lower()
+    if "mysql" not in driver:
+        return
+
+    db_name = url.database
+    if not db_name:
+        return
+
+    base_url = url
+
+    # Celery 会使用 sqla+mysql+pymysql / db+mysql+pymysql 这样的 drivername，
+    # 这并不是 SQLAlchemy 原生方言，这里转换成 mysql+pymysql 再执行建库 SQL。
+    if driver.startswith("sqla+mysql") or driver.startswith("db+mysql"):
+        base_url = url.set(drivername="mysql+pymysql")
+
+    # 构造不带数据库名的连接 URL，用于连接到 MySQL 服务器级别
+    server_url = base_url.set(database=None)
+
+    try:
+        server_engine = create_engine(server_url)
+        with server_engine.connect() as conn:
+            # 使用 IF NOT EXISTS，避免并发或重复创建时报错
+            conn.execute(
+                text(
+                    f"CREATE DATABASE IF NOT EXISTS `{db_name}` "
+                    "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+                )
+            )
+        server_engine.dispose()
+    except Exception:
+        # 建库失败不阻塞主流程，后续真正连接时仍会抛出具体错误
+        return
+
 def init_db(database_url: str) -> tuple[Any, Any]:
     """
     初始化数据库连接和会话工厂
@@ -372,6 +435,9 @@ def init_db(database_url: str) -> tuple[Any, Any]:
     Returns:
         (engine, SessionLocal) 元组
     """
+    # 若是 MySQL，先确保数据库已创建（避免 Unknown database 错误）
+    ensure_mysql_database(database_url)
+
     # 对于 SQLite，启用外键约束
     connect_args = {}
     if database_url.startswith("sqlite"):

@@ -175,7 +175,8 @@ watch(documentId, refresh);
 <style scoped>
 .workbench {
   display: flex;
-  height: calc(100vh - 80px);
+  /* 使用 min-height 而不是固定高度，让内容可以随着子元素增高 */
+  min-height: calc(100vh - 80px);
   padding: 0;
   margin: 0;
 }

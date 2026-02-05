@@ -35,24 +35,6 @@ function initTheme() {
 
 initTheme();
 
-// 初始化 RTL 支持
-function initRTL() {
-  try {
-    const locale = i18n.global.locale.value;
-    const isRTL = rtlLocales.some(rtl => locale.toLowerCase().includes(rtl));
-    const html = document.documentElement;
-    if (isRTL) {
-      html.setAttribute('dir', 'rtl');
-    } else {
-      html.setAttribute('dir', 'ltr');
-    }
-  } catch {
-    // 安全兜底
-  }
-}
-
-initRTL();
-
 const app = createApp(App);
 
 // 全局错误兜底：避免页面"白屏"但控制台才有报错的情况
@@ -70,9 +52,28 @@ app.config.errorHandler = (err, instance, info) => {
   }
 };
 
+// 必须先注册插件，然后才能使用
 app.use(createPinia());
 app.use(router);
 app.use(i18n);
+
+// 初始化 RTL 支持（必须在 i18n 注册之后）
+function initRTL() {
+  try {
+    const locale = i18n.global.locale.value;
+    const isRTL = rtlLocales.some(rtl => locale.toLowerCase().includes(rtl));
+    const html = document.documentElement;
+    if (isRTL) {
+      html.setAttribute('dir', 'rtl');
+    } else {
+      html.setAttribute('dir', 'ltr');
+    }
+  } catch {
+    // 安全兜底
+  }
+}
+
+initRTL();
 
 app.mount("#app");
 

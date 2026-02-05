@@ -12,6 +12,7 @@ except Exception:
 
 from .core.config import settings
 from .core.observability import setup_logging
+from .db.schema import ensure_mysql_database
 from .routers import (
     health,
     auth,
@@ -30,6 +31,13 @@ from .routers import (
 
 
 def create_app() -> FastAPI:
+    # 在应用启动前，确保主数据库已创建（仅对 MySQL 生效）
+    try:
+        ensure_mysql_database(getattr(settings, "database_url", ""))
+    except Exception:
+        # 如果这里失败，后续真正连接数据库时仍会报出更详细的错误
+        pass
+
     setup_logging(json_logs=bool(getattr(settings, "log_json", False)))
     app = FastAPI(
         title="AxiomFlow API",

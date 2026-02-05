@@ -225,7 +225,6 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, nextTick, watch } from "vue";
-import { Teleport } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { supportedLocales, type SupportedLocale } from "@/i18n";
@@ -614,9 +613,6 @@ onMounted(() => {
   
   // 初始化 RTL 方向
   syncRTL();
-  
-  // 初始化 RTL 方向
-  syncRTL();
 
   // 路由切换进度条
   removeBeforeGuard = router.beforeEach((to, from, next) => {
@@ -654,19 +650,16 @@ onMounted(() => {
     if (removeNetworkListener) {
       removeNetworkListener();
     }
+    document.removeEventListener("click", handleClickOutside);
+    document.removeEventListener("keydown", handleKeydown);
+    window.removeEventListener('scroll', handleScroll);
+    window.removeEventListener('resize', positionLanguageMenu);
+    window.removeEventListener('scroll', positionLanguageMenu, true);
+    window.removeEventListener('resize', positionUserMenu);
+    window.removeEventListener('scroll', positionUserMenu, true);
+    if (removeBeforeGuard) removeBeforeGuard();
+    if (removeAfterGuard) removeAfterGuard();
   });
-});
-
-onUnmounted(() => {
-  document.removeEventListener("click", handleClickOutside);
-  document.removeEventListener("keydown", handleKeydown);
-  window.removeEventListener('scroll', handleScroll);
-  window.removeEventListener('resize', positionLanguageMenu);
-  window.removeEventListener('scroll', positionLanguageMenu, true);
-  window.removeEventListener('resize', positionUserMenu);
-  window.removeEventListener('scroll', positionUserMenu, true);
-  if (removeBeforeGuard) removeBeforeGuard();
-  if (removeAfterGuard) removeAfterGuard();
 });
 
 // 根据路由动态设置 body 类名

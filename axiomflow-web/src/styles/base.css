@@ -66,7 +66,8 @@ html {
   padding: 0;
   height: 100%;
   overflow-x: hidden;
-  overflow-y: hidden;
+  /* 允许垂直滚动，由具体页面决定是否需要覆盖 */
+  overflow-y: auto;
 }
 
 /* 隐藏所有滚动条 */
@@ -108,10 +109,9 @@ html {
   background: var(--color-primary, #818cf8);
 }
 
-/* 首页时禁用滚动 */
+/* 首页：背景仍为全屏，但不强制禁止滚动，便于小屏查看完整内容 */
 body.landing-page {
-  overflow: hidden;
-  height: 100vh;
+  min-height: 100vh;
 }
 
 body {
@@ -128,7 +128,8 @@ body {
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
-  overflow-y: hidden;
+  /* 默认允许垂直滚动，必要时由具体页面覆盖 */
+  overflow-y: auto;
 }
 
 @keyframes gradient-shift-bg {

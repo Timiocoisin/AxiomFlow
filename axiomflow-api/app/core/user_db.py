@@ -14,10 +14,13 @@ from ..db.schema import User, init_db, Base
 from ..core.config import settings
 
 
-# 初始化数据库连接
+# 初始化数据库连接并自动创建所有表（包括验证码等 auth_* 表）
 _database_url = getattr(settings, "database_url", "")
 if _database_url:
     _engine, _SessionLocal = init_db(_database_url)
+    # 确保所有 ORM 模型对应的表已创建（幂等，多次调用也安全）
+    if _engine is not None:
+        Base.metadata.create_all(bind=_engine)
 else:
     _engine = None
     _SessionLocal = None
