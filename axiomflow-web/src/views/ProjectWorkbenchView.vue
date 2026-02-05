@@ -1,6 +1,23 @@
 <template>
   <section class="workbench">
     <div class="workbench-main glass-card">
+      <!-- Demo 项目预期说明 -->
+      <div
+        v-if="isDemoProject"
+        class="app-alert app-alert--info"
+        role="status"
+        aria-live="polite"
+        style="margin-bottom: 12px"
+      >
+        <div class="app-alert-content">
+          <p class="app-alert-title">
+            {{ $t("workbench.demoBannerTitle") }}
+          </p>
+          <p class="app-alert-message">
+            {{ $t("workbench.demoBannerDesc") }}
+          </p>
+        </div>
+      </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:10px">
           <AppButton 
@@ -98,6 +115,7 @@ const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
 const documentId = computed(() => String(route.params.id || ""));
+const isDemoProject = computed(() => documentId.value === "demo");
 
 const doc = ref<StructuredDoc | null>(null);
 const loading = ref(true);

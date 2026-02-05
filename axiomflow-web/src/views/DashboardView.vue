@@ -71,6 +71,20 @@
       </div>
       <div class="batch-progress-fill" :style="{ width: `${batchProgress}%` }"></div>
     </div>
+    <!-- 首页上传跳转后的“正在导入”提示 -->
+    <div
+      v-if="pendingUploadBanner"
+      class="app-alert app-alert--info"
+      role="status"
+      aria-live="polite"
+      style="margin-bottom: 12px"
+    >
+      <div class="app-alert-content">
+        <p class="app-alert-title">
+          {{ pendingUploadBanner }}
+        </p>
+      </div>
+    </div>
     <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
       <h2 style="margin: 0">{{ $t('dashboard.myDocuments') }}</h2>
       <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap">
@@ -427,6 +441,7 @@ const undoTimeout = ref<number | null>(null); // 撤销超时定时器
 const batchProgress = ref(0); // 批量操作进度 (0-100)
 const batchProgressVisible = ref(false); // 是否显示批量进度条
 const batchProgressText = ref(""); // 批量操作文本
+const pendingUploadBanner = ref<string | null>(null); // 从首页跳转后，提示“正在导入 X.pdf…”
 const draggedIndex = ref<number | null>(null); // 正在拖拽的文档索引
 const dragOverIndex = ref<number | null>(null); // 拖拽悬停的文档索引
 const documentOrder = ref<string[]>([]); // 文档顺序（用于保存到 localStorage）
@@ -1432,6 +1447,9 @@ const handlePendingUpload = async () => {
   }
   
   const decodedFilename = decodeURIComponent(filename);
+
+  // 显示顶部“正在导入”提示，让用户知道上传已接上
+  pendingUploadBanner.value = t("dashboard.pendingUploadBanner", { filename: decodedFilename });
   
   // 立即显示上传中的文档卡片
   const uploadingDoc: Doc = {
@@ -1480,6 +1498,7 @@ const handlePendingUpload = async () => {
     docs.value = docs.value.filter((d) => d.document_id !== uploadingDoc.document_id);
     router.replace('/app');
     delete (window as any).__pendingUploadFile;
+    pendingUploadBanner.value = null;
   }
 };
 

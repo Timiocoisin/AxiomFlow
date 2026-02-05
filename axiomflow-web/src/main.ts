@@ -77,4 +77,25 @@ initRTL();
 
 app.mount("#app");
 
+// 清理遗留的 Service Worker，避免第三方脚本（如 Google 登录）被错误拦截导致控制台报错
+if ("serviceWorker" in navigator) {
+  try {
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((regs) => {
+        regs.forEach((reg) => {
+          // 如果未来你有自己的 PWA，可以在这里加条件过滤要保留的 sw
+          reg.unregister().catch(() => {
+            // 忽略单个 unregister 失败
+          });
+        });
+      })
+      .catch(() => {
+        // getRegistrations 失败时忽略，不影响正常运行
+      });
+  } catch {
+    // 某些老环境下直接访问 navigator.serviceWorker 可能抛错，这里做兜底
+  }
+}
+
 

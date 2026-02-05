@@ -40,6 +40,8 @@
   flex-direction: column;
   position: relative;
   overflow-x: hidden;
+  /* 为固定在顶部的导航栏预留空间，避免内容被遮挡 */
+  padding-top: var(--app-header-height, 80px);
 }
 
 .app-main {
@@ -145,111 +147,6 @@
  * ========================================================= */
 
 /* Base styles, animations, and form components are imported above */
-
-/* =========================================================
- * A11y: Global focus ring (keyboard only via :focus-visible)
- * - Keep specificity low so component styles can override.
- * - Uses global tokens from ./styles/tokens.css
- * ========================================================= */
-:where(
-  a,
-  button,
-  input,
-  textarea,
-  select,
-  summary,
-  [role="button"],
-  [tabindex]:not([tabindex="-1"])
-):focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--color-primary, #6366f1) 55%, transparent);
-  outline-offset: 2px;
-}
-
-:where(button, [role="button"], input, textarea, select, summary):focus-visible {
-  border-radius: 12px;
-}
-
-/* =========================================================
- * Interaction: ripple effect (CSS-only)
- * - Add class "ripple" to buttons you want to have ripple.
- * - Uses currentColor-based accent via tokens.
- * ========================================================= */
-.ripple {
-  position: relative;
-  overflow: hidden;
-}
-
-.ripple::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), rgba(255, 255, 255, 0.55), transparent 40%);
-  opacity: 0;
-  transform: scale(1.1);
-  transition: opacity 0.55s ease, transform 0.55s ease;
-  pointer-events: none;
-}
-
-.ripple:active::after {
-  opacity: 1;
-  transform: scale(0.92);
-  transition: opacity 0s, transform 0s;
-}
-
-.ripple.ripple--dark::after {
-  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), rgba(15, 23, 42, 0.18), transparent 45%);
-}
-
-html {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  overflow-x: hidden;
-  /* 允许页面根据内容高度滚动，避免小屏幕内容被裁剪 */
-  overflow-y: auto;
-}
-
-/* 闅愯棌鎵€鏈夋粴鍔ㄦ潯 */
-* {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
-}
-
-*::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
-}
-
-/* 首页：保持全屏背景，但不强制禁止滚动，方便小屏查看完整内容 */
-body.landing-page {
-  min-height: 100vh;
-}
-
-body {
-  margin: 0;
-  padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
-  background: var(--app-bg);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 200%;
-  background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%;
-  background-attachment: fixed;
-  background-repeat: no-repeat;
-  animation: gradient-shift-bg 25s ease infinite;
-  color: var(--app-text, #1e293b);
-  min-height: 100vh;
-  position: relative;
-  overflow-x: hidden;
-  /* 默认允许垂直滚动，具体页面可按需覆盖 */
-  overflow-y: auto;
-}
-
-@keyframes gradient-shift-bg {
-  0%, 100% {
-    background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%;
-  }
-  50% {
-    background-position: 0% 0%, 0% 0%, 0% 0%, 0% 50%;
-  }
-}
 
 .simple-input {
   border-radius: 14px;
