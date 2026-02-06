@@ -39,14 +39,14 @@
     "switchTheme": "Changer de thème (gauche: clair, droite: sombre)"
   },
   "app": {
-    "title": "AxiomFlow - Outil de traduction et de mise en page de documents mathématiques PDF",
+    "title": "AxiomFlow - Outil de traduction de documents mathématiques PDF",
     "error": "Erreur d'exécution frontend"
   },
   "landing": {
-    "title": "Outil de traduction et de mise en page de documents mathématiques PDF",
-    "description": "Reconnaissance intelligente des formules mathématiques, traduction précise, mise en page automatique - rendre la traduction de documents académiques simple et efficace",
+    "title": "Outil de traduction de documents mathématiques PDF",
+    "description": "Reconnaissance intelligente des formules mathématiques, traduction précise, préservation de la structure - rendre la traduction de documents académiques simple et efficace",
     "featureFormula": "Reconnaissance intelligente des formules",
-    "featureLayout": "Mise en page automatique",
+    "featureLayout": "Préservation de la structure",
     "featureMultiLang": "Support multilingue",
     "dragPdf": "Glissez le fichier PDF ici",
     "orClick": "ou cliquez pour télécharger",

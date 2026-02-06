@@ -39,14 +39,14 @@
     "switchTheme": "Design wechseln (links: hell, rechts: dunkel)"
   },
   "app": {
-    "title": "AxiomFlow - PDF-Mathematikdokument-Übersetzungs- und Satztool",
+    "title": "AxiomFlow - PDF-Mathematikdokument-Übersetzungstool",
     "error": "Frontend-Laufzeitfehler"
   },
   "landing": {
-    "title": "PDF-Mathematikdokument-Übersetzungs- und Satztool",
-    "description": "Intelligente Formelerkennung, präzise Übersetzung, automatischer Satz - macht die Übersetzung akademischer Dokumente einfach und effizient",
+    "title": "PDF-Mathematikdokument-Übersetzungstool",
+    "description": "Intelligente Formelerkennung, präzise Übersetzung, Strukturerhaltung - macht die Übersetzung akademischer Dokumente einfach und effizient",
     "featureFormula": "Intelligente Formelerkennung",
-    "featureLayout": "Automatischer Satz",
+    "featureLayout": "Strukturerhaltung",
     "featureMultiLang": "Mehrsprachige Unterstützung",
     "dragPdf": "PDF-Datei hierher ziehen",
     "orClick": "oder klicken zum Hochladen",

@@ -39,14 +39,14 @@
     "switchTheme": "切換主題（左側：淺色，右側：深色）"
   },
   "app": {
-    "title": "AxiomFlow - PDF 數學文件翻譯與排版工具",
+    "title": "AxiomFlow - PDF 數學文件翻譯工具",
     "error": "前端執行錯誤"
   },
   "landing": {
-    "title": "PDF 數學文件翻譯與排版工具",
-    "description": "智能識別數學公式，精準翻譯，自動排版，讓學術文件翻譯變得簡單高效",
+    "title": "PDF 數學文件翻譯工具",
+    "description": "智能識別數學公式，精準翻譯，保持結構，讓學術文件翻譯變得簡單高效",
     "featureFormula": "智能公式識別",
-    "featureLayout": "自動排版",
+    "featureLayout": "結構保持",
     "featureMultiLang": "多語言支援",
     "dragPdf": "拖拽 PDF 檔案到此處",
     "orClick": "或點擊上傳",

@@ -1,10 +1,10 @@
 <template>
   <section class="landing">
-    <Snowflakes v-if="showSnowflakes" />
-    <FloatingParticles v-if="showParticles" />
+    <component v-if="showSnowflakes && Snowflakes" :is="Snowflakes" />
+    <component v-if="showParticles && FloatingParticles" :is="FloatingParticles" />
     <div class="landing-hero glass-card">
       <div class="hero-content">
-        <img src="/icons/favicon.svg" alt="AxiomFlow" class="hero-icon" />
+        <img src="/icons/favicon.svg" alt="AxiomFlow" class="hero-icon" loading="eager" fetchpriority="high" />
         <h1 class="hero-title">
           <span class="hero-title-main">{{ $t('landing.title') }}</span>
         </h1>
@@ -12,24 +12,17 @@
           {{ $t('landing.description') }}
         </p>
         <div class="hero-features">
-          <span 
-            class="feature-tag" 
-            :title="$t('landing.featureFormulaDesc')"
-          >
-            {{ $t('landing.featureFormula') }}
-          </span>
-          <span 
-            class="feature-tag" 
-            :title="$t('landing.featureLayoutDesc')"
-          >
-            {{ $t('landing.featureLayout') }}
-          </span>
-          <span 
-            class="feature-tag" 
-            :title="$t('landing.featureMultiLangDesc')"
-          >
-            {{ $t('landing.featureMultiLang') }}
-          </span>
+          <FeatureTag
+            v-for="feature in features"
+            :key="feature.id"
+            :id="feature.id"
+            :label-key="feature.labelKey"
+            :desc-key="feature.descKey"
+            :is-hovered="hoveredFeature === feature.id"
+            @hover="handleFeatureHover(feature.id)"
+            @unhover="handleFeatureUnhover"
+            @toggle="handleFeatureToggle(feature.id)"
+          />
         </div>
         <p class="sr-only">
           {{ $t('landing.keyboardHint') }}
@@ -56,16 +49,16 @@
             {{ $t('landing.firstVisitHintClose') }}
           </button>
         </div>
-        <button
+          <button
           v-if="showFirstVisitBadge"
-          type="button"
+            type="button"
           class="first-visit-hint-badge"
           @click="openFirstVisitHintFromBadge"
-        >
+          >
           <span aria-hidden="true">💡</span>
           <span>{{ $t('landing.firstVisitHintTitle') }}</span>
-        </button>
-      </div>
+          </button>
+        </div>
       <!-- 首次访问提示气泡 -->
       <div
         v-if="showFirstUseBubble"
@@ -123,6 +116,7 @@
             </svg>
             <div class="upload-text">
               <span class="upload-text-primary">{{ $t('landing.dragFileDetected', { filename: draggedFileName }) }}</span>
+              <span v-if="draggedFileSize" class="upload-text-secondary">{{ formatFileSize(draggedFileSize) }}</span>
             </div>
           </div>
           <!-- 文件验证反馈 -->
@@ -172,24 +166,41 @@
         <span class="upload-hint">
           {{ $t('landing.fileSizeHint') || 'Maximum file size: 50MB' }}
         </span>
-        <button
-          type="button"
-          class="upload-hints-toggle"
-          @click="showAllHints = !showAllHints"
-          :aria-expanded="showAllHints"
-        >
-          {{ showAllHints ? ($t('landing.lessHints') || 'Less') : ($t('landing.moreHints') || 'More details') }}
-        </button>
-        <div v-if="showAllHints" class="upload-hints-extra">
-          <span class="upload-hint">
-            {{ $t('landing.loginRequiredHint') }}
-          </span>
-          <span class="upload-hint">
-            {{ $t('landing.privacyHint') }}
-          </span>
-          <span class="upload-help-fixed">
-            {{ $t('landing.helpFixedHint') }}
-          </span>
+        <div class="upload-hints-toggle-wrapper">
+          <button
+            type="button"
+            class="upload-hints-toggle"
+            @mouseenter="showAllHints = true"
+            @mouseleave="showAllHints = false"
+            @focus="showAllHints = true"
+            @blur="showAllHints = false"
+            :aria-expanded="showAllHints"
+            :aria-describedby="showAllHints ? 'upload-hints-popover' : undefined"
+          >
+            {{ $t('landing.moreHints') || 'More details' }}
+          </button>
+          <div
+            v-if="showAllHints"
+            id="upload-hints-popover"
+            class="upload-hints-popover"
+            @mouseenter="showAllHints = true"
+            @mouseleave="showAllHints = false"
+            role="tooltip"
+            :aria-hidden="!showAllHints"
+          >
+            <div class="upload-hints-popover-content">
+              <span class="upload-hint">
+                {{ $t('landing.loginRequiredHint') }}
+              </span>
+              <span class="upload-hint">
+                {{ $t('landing.privacyHint') }}
+              </span>
+              <span class="upload-help-fixed">
+                {{ $t('landing.helpFixedHint') }}
+              </span>
+            </div>
+            <div class="upload-hints-popover-arrow"></div>
+          </div>
         </div>
       </div>
       <!-- 底部错误 / 帮助提示条 -->
@@ -229,6 +240,7 @@
             {{ $t('landing.retryUpload') }}
           </button>
           <button
+            v-if="errorCount >= 2"
             type="button"
             class="landing-help-bottom-bar-btn"
             @click="goToHelp"
@@ -302,9 +314,12 @@
           </div>
           <div class="file-preview-body">
             <!-- 预览加载状态 -->
-            <div v-if="isPreviewLoading" class="file-preview-loading">
+            <div v-if="isPreviewLoading" class="file-preview-loading" role="status" aria-live="polite">
               <div class="file-preview-loading-spinner" aria-hidden="true"></div>
               <span class="file-preview-loading-text">{{ $t('landing.previewLoading') }}</span>
+              <div class="file-preview-loading-progress" aria-hidden="true">
+                <div class="file-preview-loading-progress-bar" :style="{ width: previewProgress + '%' }"></div>
+              </div>
             </div>
             <iframe 
               v-show="!isPreviewLoading"
@@ -324,7 +339,7 @@
           </div>
         </div>
       </div>
-      <!-- 可信背书与隐私说明 -->
+      <!-- 可信背书与隐私说明 + 首次空状态提示 -->
       <section
         class="landing-trust-section"
         :aria-label="$t('landing.trustTitle')"
@@ -412,14 +427,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted, nextTick, onMounted, defineAsyncComponent } from "vue";
+import { ref, onUnmounted, nextTick, onMounted, defineAsyncComponent, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useUserStore } from "@/stores/user";
 import { createProject, uploadPdf } from "@/lib/api";
+import FeatureTag from "@/components/FeatureTag.vue";
 
-const Snowflakes = defineAsyncComponent(() => import("@/components/Snowflakes.vue"));
-const FloatingParticles = defineAsyncComponent(() => import("@/components/FloatingParticles.vue"));
+// 按需加载背景动效组件（仅在非移动端且用户未禁用动效时加载）
+const shouldLoadEffects = computed(() => {
+  if (typeof window === 'undefined') return false;
+  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const isSmallScreen = window.innerWidth < 768;
+  return !prefersReducedMotion && !isSmallScreen;
+});
+
+const Snowflakes = shouldLoadEffects.value 
+  ? defineAsyncComponent(() => import("@/components/Snowflakes.vue"))
+  : null;
+const FloatingParticles = shouldLoadEffects.value
+  ? defineAsyncComponent(() => import("@/components/FloatingParticles.vue"))
+  : null;
 
 const router = useRouter();
 const { t } = useI18n();
@@ -436,16 +464,65 @@ const previewUrl = ref<string | null>(null);
 const previewCloseButton = ref<HTMLButtonElement | null>(null);
 const isPreviewLoading = ref(true);
 const draggedFileName = ref<string | null>(null);
+const draggedFileSize = ref<number | null>(null);
 const detectedFile = ref<File | null>(null);
+let fileSelectDebounceTimer: number | undefined;
 const isPreparingWorkspace = ref(false);
 const ariaLiveMessage = ref('');
 
-const showSnowflakes = ref(true);
-const showParticles = ref(true);
+const showSnowflakes = ref(shouldLoadEffects.value);
+const showParticles = ref(shouldLoadEffects.value);
 
+// 特性标签配置
+const features = [
+  { id: 'formula', labelKey: 'featureFormula', descKey: 'featureFormulaDesc' },
+  { id: 'layout', labelKey: 'featureLayout', descKey: 'featureLayoutDesc' },
+  { id: 'multilang', labelKey: 'featureMultiLang', descKey: 'featureMultiLangDesc' }
+] as const;
+
+// 特性标签悬停状态管理
+const hoveredFeature = ref<string | null>(null);
+
+const handleFeatureHover = (id: string) => {
+  hoveredFeature.value = id;
+};
+
+const handleFeatureUnhover = () => {
+  hoveredFeature.value = null;
+};
+
+const handleFeatureToggle = (id: string) => {
+  hoveredFeature.value = hoveredFeature.value === id ? null : id;
+};
+
+// 常量定义
 const FIRST_VISIT_HINT_KEY = "landing_first_visit_v1";
 const FIRST_USE_BUBBLE_KEY = "landing_first_use_bubble_v1";
 const IDLE_HELP_KEY = "landing_idle_help_date_v1";
+
+// 时间常量（毫秒）
+const SKELETON_DISPLAY_DURATION = 400;
+const FIRST_VISIT_HINT_AUTO_COLLAPSE_DELAY = 10000;
+const FIRST_USE_BUBBLE_DISPLAY_DURATION = 3000;
+const IDLE_HELP_DELAY = 20000;
+const ERROR_AUTO_CLEAR_DELAY = 5000;
+const FILE_DETECTION_DELAY = 300;
+const PREVIEW_PROGRESS_INTERVAL = 100;
+const PREVIEW_PROGRESS_STEP = 10;
+const PREVIEW_PROGRESS_MAX = 90;
+const TOUCH_TAP_THRESHOLD_TIME = 200;
+const TOUCH_TAP_THRESHOLD_DISTANCE = 10;
+const SCROLL_COLLAPSE_THRESHOLD = 160;
+
+// 文件大小限制：50MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+// 类型定义
+interface WindowWithPreviewInterval extends Window {
+  __previewProgressInterval?: ReturnType<typeof setInterval>;
+  __previewEscHandler?: (e: KeyboardEvent) => void;
+}
+
 const showFirstVisitHint = ref(false);
 const showFirstVisitBadge = ref(false);
 const showFirstUseBubble = ref(false);
@@ -454,9 +531,9 @@ const showIdleHelpBar = ref(false);
 const showSkeleton = ref(true);
 const showPrivacyModal = ref(false);
 let idleTimer: number | undefined;
-
-// 文件大小限制：50MB
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
+let firstVisitHintTimer: number | undefined;
+let firstUseBubbleTimer: number | undefined;
+let previewProgressTimer: ReturnType<typeof setInterval> | undefined;
 
 // 触摸设备检测
 const isTouchDevice = ref(false);
@@ -495,17 +572,17 @@ onMounted(() => {
       showFirstVisitHint.value = true;
       trackLandingEvent("first_visit_hint_shown");
       // 停留一段时间后自动收起为小角标
-      setTimeout(() => {
+      firstVisitHintTimer = window.setTimeout(() => {
         if (showFirstVisitHint.value) {
           showFirstVisitHint.value = false;
           showFirstVisitBadge.value = true;
           trackLandingEvent("first_visit_hint_auto_collapsed");
         }
-      }, 10000);
+      }, FIRST_VISIT_HINT_AUTO_COLLAPSE_DELAY);
       // 向下滚动一定距离也收起为角标
       const onScroll = () => {
         if (!showFirstVisitHint.value) return;
-        if (window.scrollY > 160) {
+        if (window.scrollY > SCROLL_COLLAPSE_THRESHOLD) {
           showFirstVisitHint.value = false;
           showFirstVisitBadge.value = true;
           trackLandingEvent("first_visit_hint_collapsed_on_scroll");
@@ -516,6 +593,9 @@ onMounted(() => {
       onUnmounted(() => {
         if (typeof window !== "undefined") {
           window.removeEventListener("scroll", onScroll);
+          if (firstVisitHintTimer) {
+            window.clearTimeout(firstVisitHintTimer);
+          }
         }
       });
     }
@@ -523,14 +603,16 @@ onMounted(() => {
     const bubbleSeen = window.localStorage.getItem(FIRST_USE_BUBBLE_KEY);
     if (!bubbleSeen && userStore.isLoggedIn) {
       showFirstUseBubble.value = true;
-      setTimeout(() => {
+      trackLandingEvent("first_use_bubble_shown");
+      firstUseBubbleTimer = window.setTimeout(() => {
         showFirstUseBubble.value = false;
         try {
           window.localStorage.setItem(FIRST_USE_BUBBLE_KEY, "1");
+          trackLandingEvent("first_use_bubble_auto_hidden");
         } catch {
           // ignore
         }
-      }, 3000);
+      }, FIRST_USE_BUBBLE_DISPLAY_DURATION);
     }
   } catch {
     // ignore
@@ -544,7 +626,7 @@ onMounted(() => {
   // 轻量 Skeleton，缓解首载空白感
   setTimeout(() => {
     showSkeleton.value = false;
-  }, 400);
+  }, SKELETON_DISPLAY_DURATION);
 
   const resetIdleTimer = () => {
     if (typeof window === 'undefined') return;
@@ -564,7 +646,7 @@ onMounted(() => {
       } catch {
         // ignore
       }
-    }, 20000);
+    }, IDLE_HELP_DELAY);
   };
 
   resetIdleTimer();
@@ -611,6 +693,7 @@ const pickFile = () => {
     router.push(`/auth?redirect=${encodeURIComponent("/")}`);
     return;
   }
+  trackLandingEvent("click_upload_area");
   fileInput.value?.click();
 };
 
@@ -644,9 +727,11 @@ const handleDragOver = (e: DragEvent) => {
     const file = pdfItem.getAsFile();
     if (file) {
       draggedFileName.value = file.name;
+      draggedFileSize.value = file.size;
     }
   } else {
     draggedFileName.value = null;
+    draggedFileSize.value = null;
   }
   
   trackLandingEvent("drag_over_upload_area");
@@ -655,12 +740,15 @@ const handleDragOver = (e: DragEvent) => {
 const handleDragLeave = () => {
   isDragging.value = false;
   draggedFileName.value = null;
+  draggedFileSize.value = null;
 };
 
 const handleDrop = async (e: DragEvent) => {
   isDragging.value = false;
   const droppedFileName = draggedFileName.value;
+  const droppedFileSize = draggedFileSize.value;
   draggedFileName.value = null;
+  draggedFileSize.value = null;
   clearError();
   
   if (!userStore.isLoggedIn) {
@@ -678,7 +766,7 @@ const handleDrop = async (e: DragEvent) => {
     detectedFile.value = pdfFile;
     setTimeout(() => {
       validateAndUploadFile(pdfFile);
-    }, 300);
+    }, FILE_DETECTION_DELAY);
   } else {
     setError(t('landing.uploadPdfOnly') || 'Please upload a PDF file only', 'fileType');
   }
@@ -690,6 +778,11 @@ const handleFileSelect = (e: Event) => {
     return;
   }
   
+  // 防抖处理：清除之前的定时器
+  if (fileSelectDebounceTimer) {
+    clearTimeout(fileSelectDebounceTimer);
+  }
+  
   const input = e.target as HTMLInputElement;
   const file = input.files?.[0];
   if (file) {
@@ -697,8 +790,8 @@ const handleFileSelect = (e: Event) => {
     detectedFile.value = file;
     trackLandingEvent("select_file", { name: file.name, size: file.size });
     
-    // 短暂延迟后验证，让用户看到文件已被识别
-    setTimeout(() => {
+    // 短暂延迟后验证，让用户看到文件已被识别（防抖）
+    fileSelectDebounceTimer = window.setTimeout(() => {
       if (file.name.toLowerCase().endsWith(".pdf")) {
         trackLandingEvent("select_pdf_file", { name: file.name, size: file.size });
         validateAndUploadFile(file);
@@ -706,7 +799,8 @@ const handleFileSelect = (e: Event) => {
         detectedFile.value = null;
         setError(t('landing.uploadPdfOnly') || 'Please upload a PDF file only', 'fileType');
       }
-    }, 300);
+      fileSelectDebounceTimer = undefined;
+    }, FILE_DETECTION_DELAY);
   }
   input.value = "";
 };
@@ -730,7 +824,13 @@ const validateAndUploadFile = (file: File) => {
   
   // 验证文件是否为空
   if (file.size === 0) {
-    setError(t('landing.fileEmpty') || 'The selected file is empty', 'fileEmpty');
+    setError(t('landing.fileEmpty') || 'The selected file is empty. Please select a valid PDF file.', 'fileEmpty');
+    return;
+  }
+  
+  // 检查网络连接状态
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    setError(t('landing.networkError') || 'Network connection unavailable. Please check your internet connection and try again.', null);
     return;
   }
   
@@ -738,25 +838,46 @@ const validateAndUploadFile = (file: File) => {
   showPreview(file);
 };
 
+const errorCount = ref(0);
+const errorTypeStats = ref<Record<string, number>>({
+  fileType: 0,
+  fileTooLarge: 0,
+  fileEmpty: 0
+});
+
 const setError = (message: string, type: 'fileType' | 'fileTooLarge' | 'fileEmpty' | null = null) => {
   uploadError.value = message;
   errorType.value = type;
   isUploading.value = false;
   detectedFile.value = null;
-  // 5秒后自动清除错误
+  errorCount.value += 1;
+  
+  // 统计错误类型
+  if (type && errorTypeStats.value[type] !== undefined) {
+    errorTypeStats.value[type] += 1;
+  }
+  
+  // 更新 aria-live 消息
+  ariaLiveMessage.value = message;
+  
+  // 自动清除错误
   setTimeout(() => {
     if (uploadError.value === message) {
       clearError();
     }
-  }, 5000);
+  }, ERROR_AUTO_CLEAR_DELAY);
+  
+  trackLandingEvent("upload_error", { type, count: errorCount.value, stats: errorTypeStats.value });
 };
 
 const clearError = () => {
   uploadError.value = null;
   errorType.value = null;
+  ariaLiveMessage.value = '';
 };
 
 const goToHelp = () => {
+  trackLandingEvent("error_help_clicked");
   router.push({ path: "/settings", query: { tab: "help" } });
 };
 
@@ -797,26 +918,55 @@ const handleTouchEnd = (e: TouchEvent) => {
     (e.currentTarget as HTMLElement).classList.remove('upload-dropzone--touch-active');
   }
   
-  // 如果是快速轻触（小于200ms且移动距离小于10px），触发文件选择
-  if (deltaTime < 200 && deltaY < 10) {
+  // 如果是快速轻触（小于阈值时间且移动距离小于阈值距离），触发文件选择
+  if (deltaTime < TOUCH_TAP_THRESHOLD_TIME && deltaY < TOUCH_TAP_THRESHOLD_DISTANCE) {
     pickFile();
   }
 };
 
 // 文件预览功能
+const previewProgress = ref(0);
+
 const showPreview = (file: File) => {
   // 清理之前的预览
   if (previewUrl.value) {
     URL.revokeObjectURL(previewUrl.value);
   }
   
+  // 清理之前的进度定时器
+  if (previewProgressTimer) {
+    clearInterval(previewProgressTimer);
+    previewProgressTimer = undefined;
+  }
+  
   previewFile.value = file;
   previewUrl.value = URL.createObjectURL(file);
   isPreviewLoading.value = true;
+  previewProgress.value = 0;
+  
+  // 模拟加载进度（实际场景中可以使用 FileReader 或其他 API）
+  previewProgressTimer = setInterval(() => {
+    if (previewProgress.value < PREVIEW_PROGRESS_MAX) {
+      previewProgress.value += PREVIEW_PROGRESS_STEP;
+    }
+  }, PREVIEW_PROGRESS_INTERVAL);
+  
   // 锁定背景滚动并聚焦关闭按钮
   if (typeof document !== "undefined") {
     document.body.classList.add("modal-open");
+    
+    // 添加 ESC 键监听
+    const handleEscKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && previewFile.value) {
+        closePreview();
+      }
+    };
+    document.addEventListener('keydown', handleEscKey);
+    
+    // 存储处理函数以便清理
+    (window as WindowWithPreviewInterval).__previewEscHandler = handleEscKey;
   }
+  
   nextTick(() => {
     previewCloseButton.value?.focus();
   });
@@ -824,18 +974,44 @@ const showPreview = (file: File) => {
 
 const handlePreviewLoad = () => {
   isPreviewLoading.value = false;
+  previewProgress.value = 100;
+  
+  // 清理进度定时器
+  if (previewProgressTimer) {
+    clearInterval(previewProgressTimer);
+    previewProgressTimer = undefined;
+  }
+  
+  // 更新 aria-live 消息
+  ariaLiveMessage.value = t('landing.previewLoaded') || 'Preview loaded';
 };
 
 const closePreview = () => {
+  // 清理进度定时器
+  if (previewProgressTimer) {
+    clearInterval(previewProgressTimer);
+    previewProgressTimer = undefined;
+  }
+  
+  // 清理 ESC 键监听
+  if (typeof document !== "undefined") {
+    const escHandler = (window as WindowWithPreviewInterval).__previewEscHandler;
+    if (escHandler) {
+      document.removeEventListener('keydown', escHandler);
+      delete (window as WindowWithPreviewInterval).__previewEscHandler;
+    }
+    document.body.classList.remove("modal-open");
+  }
+  
   if (previewUrl.value) {
     URL.revokeObjectURL(previewUrl.value);
   }
   previewFile.value = null;
   previewUrl.value = null;
-  // 解锁背景滚动并将焦点还原到上传区域
-  if (typeof document !== "undefined") {
-    document.body.classList.remove("modal-open");
-  }
+  previewProgress.value = 0;
+  isPreviewLoading.value = false;
+  
+  // 将焦点还原到上传区域
   nextTick(() => {
     uploadDropzone.value?.focus();
   });
@@ -884,11 +1060,36 @@ const uploadFile = (file: File) => {
 
 // 清理预览 URL（组件卸载时）
 onUnmounted(() => {
+  // 清理所有定时器
+  if (previewProgressTimer) {
+    clearInterval(previewProgressTimer);
+    previewProgressTimer = undefined;
+  }
+  if (firstVisitHintTimer) {
+    window.clearTimeout(firstVisitHintTimer);
+  }
+  if (firstUseBubbleTimer) {
+    window.clearTimeout(firstUseBubbleTimer);
+  }
+  if (idleTimer) {
+    window.clearTimeout(idleTimer);
+  }
+  if (fileSelectDebounceTimer) {
+    window.clearTimeout(fileSelectDebounceTimer);
+  }
+  
+  // 清理 ESC 键监听
+  if (typeof document !== "undefined") {
+    const escHandler = (window as WindowWithPreviewInterval).__previewEscHandler;
+    if (escHandler) {
+      document.removeEventListener('keydown', escHandler);
+      delete (window as WindowWithPreviewInterval).__previewEscHandler;
+    }
+    document.body.classList.remove("modal-open");
+  }
+  
   if (previewUrl.value) {
     URL.revokeObjectURL(previewUrl.value);
-  }
-  if (typeof document !== "undefined") {
-    document.body.classList.remove("modal-open");
   }
 });
 </script>

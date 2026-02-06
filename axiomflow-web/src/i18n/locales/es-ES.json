@@ -39,14 +39,14 @@
     "switchTheme": "Cambiar tema (izquierda: claro, derecha: oscuro)"
   },
   "app": {
-    "title": "AxiomFlow - Herramienta de traducción y composición tipográfica de documentos matemáticos PDF",
+    "title": "AxiomFlow - Herramienta de traducción de documentos matemáticos PDF",
     "error": "Error de ejecución del frontend"
   },
   "landing": {
-    "title": "Herramienta de traducción y composición tipográfica de documentos matemáticos PDF",
-    "description": "Reconocimiento inteligente de fórmulas matemáticas, traducción precisa, composición automática - haciendo la traducción de documentos académicos simple y eficiente",
+    "title": "Herramienta de traducción de documentos matemáticos PDF",
+    "description": "Reconocimiento inteligente de fórmulas matemáticas, traducción precisa, preservación de estructura - haciendo la traducción de documentos académicos simple y eficiente",
     "featureFormula": "Reconocimiento inteligente de fórmulas",
-    "featureLayout": "Composición automática",
+    "featureLayout": "Preservación de estructura",
     "featureMultiLang": "Soporte multiidioma",
     "dragPdf": "Arrastre el archivo PDF aquí",
     "orClick": "o haga clic para cargar",

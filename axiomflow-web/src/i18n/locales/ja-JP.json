@@ -39,14 +39,14 @@
     "switchTheme": "テーマを切り替え（左：ライト、右：ダーク）"
   },
   "app": {
-    "title": "AxiomFlow - PDF数学文書翻訳・組版ツール",
+    "title": "AxiomFlow - PDF数学文書翻訳ツール",
     "error": "フロントエンド実行エラー"
   },
   "landing": {
-    "title": "PDF数学文書翻訳・組版ツール",
-    "description": "数学式のインテリジェントな認識、正確な翻訳、自動組版により、学術文書の翻訳を簡単かつ効率的に",
+    "title": "PDF数学文書翻訳ツール",
+    "description": "数学式のインテリジェントな認識、正確な翻訳、構造保持により、学術文書の翻訳を簡単かつ効率的に",
     "featureFormula": "スマート数式認識",
-    "featureLayout": "自動組版",
+    "featureLayout": "構造保持",
     "featureMultiLang": "多言語対応",
     "dragPdf": "PDFファイルをここにドラッグ",
     "orClick": "またはクリックしてアップロード",
