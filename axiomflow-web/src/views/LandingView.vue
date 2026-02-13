@@ -765,7 +765,7 @@ const handleDrop = async (e: DragEvent) => {
     // 显示文件验证反馈
     detectedFile.value = pdfFile;
     setTimeout(() => {
-      validateAndUploadFile(pdfFile);
+    validateAndUploadFile(pdfFile);
     }, FILE_DETECTION_DELAY);
   } else {
     setError(t('landing.uploadPdfOnly') || 'Please upload a PDF file only', 'fileType');
@@ -794,7 +794,7 @@ const handleFileSelect = (e: Event) => {
     fileSelectDebounceTimer = window.setTimeout(() => {
       if (file.name.toLowerCase().endsWith(".pdf")) {
         trackLandingEvent("select_pdf_file", { name: file.name, size: file.size });
-        validateAndUploadFile(file);
+    validateAndUploadFile(file);
       } else {
         detectedFile.value = null;
         setError(t('landing.uploadPdfOnly') || 'Please upload a PDF file only', 'fileType');

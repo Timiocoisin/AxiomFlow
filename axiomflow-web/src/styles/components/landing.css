@@ -17,6 +17,12 @@
   z-index: 0;
 }
 
+/* 避免整块 landing 容器在获得键盘焦点时出现一圈黑色描边 */
+.landing:focus,
+.landing:focus-visible {
+  outline: none;
+}
+
 .landing::before {
   display: none; /* 移除额外的背景层，保持背景统一 */
 }
@@ -2636,6 +2642,15 @@
   padding-left: 18px;
   font-size: 13px;
   color: rgba(15, 23, 42, 0.8);
+}
+
+.landing-privacy-modal-list li {
+  margin-bottom: 8px; /* 分点之间拉开一些间距，阅读更轻松 */
+  line-height: 1.7;
+}
+
+.landing-privacy-modal-list li:last-child {
+  margin-bottom: 0;
 }
 
 .landing-privacy-modal-actions {

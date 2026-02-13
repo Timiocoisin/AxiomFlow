@@ -164,6 +164,27 @@
         <input ref="fileInput" type="file" accept="application/pdf" style="display: none" @change="onFileChange" />
         <input ref="filesInput" type="file" accept="application/pdf" multiple style="display: none" @change="onFilesChange" />
       </div>
+      <!-- 当前筛选条件提示条 -->
+      <div
+        v-if="debouncedSearchQuery"
+        class="dashboard-active-filters"
+      >
+        <div class="dashboard-active-filter-chip" role="status" aria-live="polite">
+          <span class="dashboard-active-filter-label">
+            {{ $t('dashboard.activeSearchLabel') }}
+          </span>
+          <span class="dashboard-active-filter-value">
+            “{{ debouncedSearchQuery }}”
+          </span>
+          <button
+            type="button"
+            class="dashboard-active-filter-clear"
+            @click="clearSearch"
+          >
+            {{ $t('dashboard.clearFilters') }}
+          </button>
+        </div>
+      </div>
     </div>
     <!-- 初始加载骨架屏 -->
     <div v-if="initialLoading" class="dashboard-skeleton" role="status" aria-live="polite" aria-label="Loading documents">
@@ -196,6 +217,14 @@
         </div>
         <h3 class="empty-state-title">{{ $t('dashboard.noDocuments') }}</h3>
         <p class="empty-state-description">{{ $t('dashboard.noDocumentsDesc') }}</p>
+        <p class="empty-state-subtitle">
+          {{ $t('dashboard.noDocumentsSubtitle') }}
+        </p>
+        <div class="empty-state-actions">
+          <AppButton class="action-btn" @click="pickFile">
+            {{ $t('dashboard.uploadLocalPdf') }}
+          </AppButton>
+        </div>
       </div>
     </div>
     <div v-else-if="filteredDocs.length === 0" class="empty-state">
@@ -212,11 +241,15 @@
             </defs>
           </svg>
         </div>
-        <h3 class="empty-state-title">{{ $t('dashboard.noDocuments') }}</h3>
-        <p class="empty-state-description">{{ $t('dashboard.noDocumentsDesc') }}</p>
-        <AppButton class="action-btn action-btn--muted" @click="clearSearch">
-          {{ $t('common.clear') }}
-        </AppButton>
+        <h3 class="empty-state-title">{{ $t('dashboard.noSearchResults') }}</h3>
+        <p class="empty-state-description">
+          {{ $t('dashboard.noSearchResultsDesc') }}
+        </p>
+        <div class="empty-state-actions">
+          <AppButton class="action-btn action-btn--muted" @click="clearSearch">
+            {{ $t('common.clear') }}
+          </AppButton>
+        </div>
       </div>
     </div>
     <div class="card-grid" v-else role="grid" aria-label="Document list">
@@ -310,17 +343,82 @@
         
         <!-- 底部信息（所有状态都显示） -->
         <div class="doc-footer">
-          <div class="doc-title-footer">{{ d.title }}</div>
-          <div class="doc-meta-footer">
-            <span v-if="d.status === 'uploading'">
-              {{ $t('dashboard.uploading') }}...
-            </span>
-            <span v-else-if="d.status === 'parsing'">
-              <span v-if="d.num_pages && d.num_pages > 0">{{ d.num_pages }} {{ $t('common.pages') }} · </span>{{ $t('dashboard.parsing') }}...
-            </span>
-            <span v-else>
-              {{ d.num_pages || '?' }} {{ $t('common.pages') }} · {{ d.lang_in }} → {{ d.lang_out }} · {{ $t('dashboard.ready') }}
-            </span>
+          <div class="doc-footer-top">
+            <div class="doc-title-row">
+              <div class="doc-title-footer">
+                {{ d.title }}
+              </div>
+              <span
+                v-if="d.lang_in && d.lang_out"
+                class="doc-lang-pill"
+              >
+                {{ d.lang_in }} → {{ d.lang_out }}
+              </span>
+            </div>
+            <div class="doc-meta-footer">
+              <span
+                v-if="d.created_at"
+                class="doc-meta-item"
+              >
+                <svg class="doc-meta-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                  <path
+                    d="M10 3.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm0-1.5a8 8 0 1 1 0 16 8 8 0 0 1 0-16Zm.75 4.25a.75.75 0 0 0-1.5 0v3.25c0 .3.17.57.44.69l2.5 1.17a.75.75 0 1 0 .64-1.36l-2.08-.97V6.25Z"
+                    fill="currentColor"
+                  />
+                </svg>
+                {{ formatDocumentCreatedAt(d.created_at) }}
+              </span>
+              <span
+                v-if="d.created_at && d.num_pages"
+                class="doc-meta-separator"
+              >
+                ·
+              </span>
+              <span
+                v-if="d.num_pages"
+                class="doc-meta-item"
+              >
+                {{ d.num_pages }} {{ $t('common.pages') }}
+              </span>
+            </div>
+          </div>
+          <div class="doc-footer-bottom">
+            <div
+              class="doc-status-chip"
+              :class="`doc-status-chip--${d.status}`"
+            >
+              <span class="doc-status-dot" aria-hidden="true"></span>
+              <span class="doc-status-text">
+                {{
+                  d.status === 'ready'
+                    ? $t('dashboard.statusReadyShort')
+                    : d.status === 'uploading'
+                      ? $t('dashboard.statusUploadingShort')
+                      : $t('dashboard.statusParsingShort')
+                }}
+              </span>
+            </div>
+            <div
+              v-if="d.status === 'ready'"
+              class="doc-actions"
+            >
+              <button
+                class="doc-action-btn doc-action-btn--primary"
+                type="button"
+                @click.stop="openDoc(d.document_id)"
+                :aria-label="$t('dashboard.openOrContinue') + ': ' + d.title"
+              >
+                {{ $t('dashboard.openOrContinue') }}
+              </button>
+              <button
+                class="doc-action-btn doc-action-btn--secondary"
+                type="button"
+                @click.stop="goToExport(d.document_id)"
+                :aria-label="$t('dashboard.export') + ': ' + d.title"
+              >
+                {{ $t('dashboard.export') }}
+              </button>
+            </div>
           </div>
         </div>
       </AppCard>
@@ -357,7 +455,7 @@ import { useRouter, useRoute } from "vue-router";
 import { DocumentProgressWebSocket } from "@/lib/websocket";
 import { useUserStore } from "@/stores/user";
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const router = useRouter();
 const route = useRoute();
@@ -373,6 +471,7 @@ interface Doc {
   lang_out: string;
   status: DocStatus;
   progress: number;
+  created_at?: string;
   parse_done?: number;
   parse_total?: number;
   parse_eta_s?: number;
@@ -384,6 +483,22 @@ interface Doc {
 const formatProgress = (p: number | undefined | null) => {
   const n = typeof p === "number" && Number.isFinite(p) ? p : 0;
   return n.toFixed(2);
+};
+
+const formatDocumentCreatedAt = (timeStr: string | undefined) => {
+  if (!timeStr) return "";
+  try {
+    const date = new Date(timeStr);
+    if (!Number.isFinite(date.getTime())) return "";
+    // 仅显示日期，保持简洁
+    return new Intl.DateTimeFormat(String(locale.value), {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  } catch {
+    return "";
+  }
 };
 
 const formatEta = (eta_s: number | undefined | null) => {
@@ -464,6 +579,15 @@ const closeSecurityGuide = () => {
 const goToSecuritySettings = () => {
   closeSecurityGuide();
   router.push({ path: "/settings", query: { from: "dashboard_security_guide" } });
+};
+
+const goToExport = (documentId: string) => {
+  if (!documentId) return;
+  router.push({
+    name: "project",
+    params: { id: documentId },
+    query: { from: "dashboard_export" },
+  });
 };
 
 // Dashboard 顶部搜索快捷键处理：/、Ctrl/Cmd+F 聚焦搜索框，Esc 清空搜索与选择
@@ -561,12 +685,45 @@ const keyHandler = (e: KeyboardEvent) => {
 const filteredDocs = computed(() => {
   const q = debouncedSearchQuery.value.trim().toLowerCase();
   if (!q) return docs.value;
-  return docs.value.filter((d) => (d.title || "").toLowerCase().includes(q));
+
+  const includesSafe = (value: unknown, keyword: string) => {
+    if (!value) return false;
+    return String(value).toLowerCase().includes(keyword);
+  };
+
+  return docs.value.filter((d) => {
+    const titleMatch = includesSafe(d.title, q);
+
+    // 备注 / 来源等可选字段（后端如果补充，对应可自动生效）
+    const noteMatch =
+      includesSafe((d as any).note, q) ||
+      includesSafe((d as any).remark, q) ||
+      includesSafe((d as any).description, q);
+
+    const sourceMatch =
+      includesSafe((d as any).source, q) ||
+      includesSafe((d as any).source_type, q);
+
+    // 语言相关匹配：支持 zh、en、zh→en、en->zh 等写法
+    const langIn = (d.lang_in || "").toLowerCase();
+    const langOut = (d.lang_out || "").toLowerCase();
+    const langPairArrow = `${langIn}→${langOut}`;
+    const langPairAscii = `${langIn}->${langOut}`;
+
+    const langMatch =
+      includesSafe(langIn, q) ||
+      includesSafe(langOut, q) ||
+      langPairArrow.includes(q) ||
+      langPairAscii.includes(q);
+
+    return titleMatch || noteMatch || sourceMatch || langMatch;
+  });
 });
 
 const clearSearch = () => {
   searchQuery.value = "";
   selectedDocuments.value.clear();
+  debouncedSearchQuery.value = "";
 };
 
 // 搜索与选择状态联动 & 200ms 防抖
@@ -863,6 +1020,7 @@ const loadUserDocuments = async (merge: boolean = false) => {
       num_pages: d.num_pages,
       lang_in: d.lang_in,
       lang_out: d.lang_out,
+      created_at: d.created_at,
       status: d.status === "parsed" ? "ready" : (d.status === "parsing" ? "parsing" : "ready") as DocStatus,
       progress: d.status === "parsed" ? 100 : 0,
       thumbnailError: false, // 默认没有错误
@@ -1306,6 +1464,7 @@ const onFileChange = async (e: Event) => {
     lang_out: "zh",
     status: "uploading",
     progress: 0,
+    created_at: new Date().toISOString(),
     thumbnailError: false,
   };
   docs.value.unshift(tempDoc);
@@ -1353,6 +1512,7 @@ const onFilesChange = async (e: Event) => {
     lang_out: LANG_OUT_DEFAULT,
     status: "uploading" as DocStatus,
     progress: 0,
+    created_at: new Date().toISOString(),
     thumbnailError: false,
   }));
   docs.value.unshift(...tempDocs);
@@ -1459,6 +1619,7 @@ const handlePendingUpload = async () => {
     lang_out: LANG_OUT_DEFAULT,
     status: "uploading",
     progress: 0,
+    created_at: new Date().toISOString(),
     thumbnailError: false,
   };
   docs.value.unshift(uploadingDoc);
@@ -1535,6 +1696,7 @@ const loadDocumentFromQuery = async () => {
       lang_out: LANG_OUT_DEFAULT,
       status: isUploading ? "uploading" : "parsing",
       progress: isUploading ? 0 : 30,
+      created_at: new Date().toISOString(),
       thumbnailError: false,
     };
     docs.value.unshift(doc);
@@ -1882,6 +2044,25 @@ onUnmounted(() => {
 
 .empty-state-description {
   /* unified in global styles.css */
+}
+
+.empty-state-subtitle {
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(100, 116, 139, 0.9);
+}
+
+.empty-state-actions {
+  margin-top: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.empty-state-actions .action-btn {
+  min-width: 160px;
 }
 
 /* Dashboard 右上角“刷新列表” icon 按钮（UI/UX Pro：胶囊、柔和阴影、旋转动效） */

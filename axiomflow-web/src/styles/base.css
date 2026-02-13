@@ -28,6 +28,14 @@
   outline-offset: 2px;
 }
 
+/* 避免在部分浏览器中 html/body 获得焦点时出现整屏黑色描边 */
+html:focus,
+html:focus-visible,
+body:focus,
+body:focus-visible {
+  outline: none;
+}
+
 :where(button, [role="button"], input, textarea, select, summary):focus-visible {
   border-radius: var(--radius-md, 12px);
 }

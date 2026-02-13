@@ -2,27 +2,17 @@ import { createI18n } from 'vue-i18n';
 import zhCN from './locales/zh-CN.json';
 import zhTW from './locales/zh-TW.json';
 import enUS from './locales/en-US.json';
-import jaJP from './locales/ja-JP.json';
-import koKR from './locales/ko-KR.json';
-import frFR from './locales/fr-FR.json';
-import deDE from './locales/de-DE.json';
-import esES from './locales/es-ES.json';
 
-// 支持的语言列表
-export type SupportedLocale = 'zh-CN' | 'zh-TW' | 'en-US' | 'ja-JP' | 'ko-KR' | 'fr-FR' | 'de-DE' | 'es-ES';
+// 支持的语言列表（已精简为：简体中文、繁体中文、英文）
+export type SupportedLocale = 'zh-CN' | 'zh-TW' | 'en-US';
 
 export const supportedLocales: SupportedLocale[] = [
   'zh-CN',
   'zh-TW',
   'en-US',
-  'ja-JP',
-  'ko-KR',
-  'fr-FR',
-  'de-DE',
-  'es-ES',
 ];
 
-// 语言映射表（用于自动检测）
+// 语言映射表（用于自动检测，只保留到三种目标语言的映射）
 const localeMap: Record<string, SupportedLocale> = {
   'zh': 'zh-CN',
   'zh-CN': 'zh-CN',
@@ -30,16 +20,6 @@ const localeMap: Record<string, SupportedLocale> = {
   'zh-HK': 'zh-TW',
   'en': 'en-US',
   'en-US': 'en-US',
-  'ja': 'ja-JP',
-  'ja-JP': 'ja-JP',
-  'ko': 'ko-KR',
-  'ko-KR': 'ko-KR',
-  'fr': 'fr-FR',
-  'fr-FR': 'fr-FR',
-  'de': 'de-DE',
-  'de-DE': 'de-DE',
-  'es': 'es-ES',
-  'es-ES': 'es-ES',
 };
 
 // 从 localStorage 读取保存的语言设置，如果没有则根据浏览器语言自动检测
@@ -76,11 +56,6 @@ export const i18n = createI18n({
     'zh-CN': zhCN,
     'zh-TW': zhTW,
     'en-US': enUS,
-    'ja-JP': jaJP,
-    'ko-KR': koKR,
-    'fr-FR': frFR,
-    'de-DE': deDE,
-    'es-ES': esES,
   },
 });
 
