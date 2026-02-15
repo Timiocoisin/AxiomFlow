@@ -29,7 +29,7 @@ class TranslateStrategy:
     支持上下文感知、术语一致性、智能批处理等高级功能。
     """
 
-    provider: str = "ollama"
+    provider: str = "google"
     use_context: bool = True  # 是否使用上下文感知翻译
     context_window_size: int = 2  # 上下文窗口大小
     use_term_consistency: bool = True  # 是否使用术语一致性检查

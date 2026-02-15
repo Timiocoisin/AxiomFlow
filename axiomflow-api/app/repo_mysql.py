@@ -363,7 +363,7 @@ class MySQLRepo:
         Returns:
             缓存的译文，如果不存在则返回 None
         """
-        from ..services.cache_utils import serialize_params
+        from .services.cache_utils import serialize_params
         
         params_str = serialize_params(translate_params)
         
@@ -399,7 +399,7 @@ class MySQLRepo:
             original_text: 原文
             translated_text: 译文
         """
-        from ..services.cache_utils import serialize_params
+        from .services.cache_utils import serialize_params
         
         params_str = serialize_params(translate_params)
         now = datetime.utcnow().isoformat()
@@ -422,6 +422,7 @@ class MySQLRepo:
             else:
                 # 创建新记录
                 new_tm = TranslationMemoryModel(
+                    id=new_id("tm"),
                     translate_engine=translate_engine,
                     translate_params=params_str,
                     original_text=original_text,

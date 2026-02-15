@@ -130,11 +130,35 @@
               <line x1="16" y1="16" x2="21" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
             </svg>
           </span>
-          <input
-            class="simple-input dashboard-search-input"
-            v-model="searchQuery"
-            :placeholder="$t('dashboard.searchPlaceholder')"
-          />
+          <div class="dashboard-search-wrapper">
+            <div v-if="searchChips.length > 0" class="dashboard-search-chips">
+              <div
+                v-for="(chip, index) in searchChips"
+                :key="index"
+                class="dashboard-search-chip"
+              >
+                <span class="dashboard-search-chip-label">{{ chip.label }}:</span>
+                <span class="dashboard-search-chip-value">{{ chip.value }}</span>
+                <button
+                  type="button"
+                  class="dashboard-search-chip-remove"
+                  @click.stop="removeSearchChip(index)"
+                  :aria-label="$t('common.delete')"
+                >
+                  <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 3L3 9M3 3l6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <input
+              ref="searchInput"
+              class="simple-input dashboard-search-input"
+              v-model="searchQuery"
+              :placeholder="searchChips.length > 0 ? '' : $t('dashboard.searchPlaceholder')"
+              :class="{ 'dashboard-search-input--has-chips': searchChips.length > 0 }"
+            />
+          </div>
         </div>
         <AppButton class="action-btn" @click="pickFile">{{ $t('dashboard.uploadPdf') }}</AppButton>
         <AppButton class="action-btn action-btn--gradient" @click="pickFiles">{{ $t('dashboard.uploadMultiplePdf') }}</AppButton>
@@ -183,6 +207,37 @@
           >
             {{ $t('dashboard.clearFilters') }}
           </button>
+        </div>
+      </div>
+    </div>
+    <!-- 批量操作条（固定在顶部） -->
+    <div 
+      v-if="selectedDocuments.size > 0" 
+      class="batch-action-bar"
+      role="toolbar"
+      aria-label="批量操作"
+    >
+      <div class="batch-action-bar-content">
+        <div class="batch-action-info">
+          <span class="batch-action-count">{{ $t('dashboard.selectedCount', { count: selectedDocuments.size }) }}</span>
+        </div>
+        <div class="batch-action-buttons">
+          <AppButton 
+            class="batch-action-btn batch-action-btn--danger"
+            @click="handleBatchDelete"
+            :disabled="isBatchDelete"
+          >
+            <svg class="batch-action-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 5H5H17M8 5V3C8 2.46957 8.21071 1.96086 8.58579 1.58579C8.96086 1.21071 9.46957 1 10 1H14C14.5304 1 15.0391 1.21071 15.4142 1.58579C15.7893 1.96086 16 2.46957 16 3V5M19 5V17C19 17.5304 18.7893 18.0391 18.4142 18.4142C18.0391 18.7893 17.5304 19 17 19H7C6.46957 19 5.96086 18.7893 5.58579 18.4142C5.21071 18.0391 5 17.5304 5 17V5H19Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            {{ $t('dashboard.deleteSelected') }}
+          </AppButton>
+          <AppButton 
+            class="batch-action-btn batch-action-btn--muted"
+            @click="exitSelectionMode"
+          >
+            {{ $t('dashboard.cancelSelect') }}
+          </AppButton>
         </div>
       </div>
     </div>
@@ -246,9 +301,9 @@
           {{ $t('dashboard.noSearchResultsDesc') }}
         </p>
         <div class="empty-state-actions">
-          <AppButton class="action-btn action-btn--muted" @click="clearSearch">
-            {{ $t('common.clear') }}
-          </AppButton>
+        <AppButton class="action-btn action-btn--muted" @click="clearSearch">
+          {{ $t('common.clear') }}
+        </AppButton>
         </div>
       </div>
     </div>
@@ -260,14 +315,17 @@
         :class="{ 
           'doc-card--parsing': d.status === 'parsing', 
           'doc-card--ready': d.status === 'ready',
+          'doc-card--failed': d.status === 'failed',
+          'doc-card--draft': d.status === 'draft',
           'doc-card--selected': isSelectionMode && selectedDocuments.has(d.document_id),
           'doc-card--dragging': draggedIndex === index,
-          'doc-card--drag-over': dragOverIndex === index
+          'doc-card--drag-over': dragOverIndex === index,
+          'doc-card--just-completed': d.justCompleted
         }"
         role="gridcell"
         :data-document-id="d.document_id"
         :data-index="index"
-        :aria-label="`${d.title}, ${d.status === 'ready' ? $t('dashboard.ready') : d.status === 'uploading' ? $t('dashboard.uploading') : $t('dashboard.parsing')}, ${d.num_pages || '?'} ${$t('common.pages')}`"
+        :aria-label="`${d.title}, ${getStatusLabel(d.status)}, ${d.num_pages || '?'} ${$t('common.pages')}`"
         :tabindex="d.status === 'ready' ? 0 : -1"
         :draggable="d.status === 'ready' && !isSelectionMode && !d.document_id.startsWith('temp-')"
         @dragstart="handleDragStart($event, index)"
@@ -304,26 +362,94 @@
             <LoadingIcon :spinning="d.status !== 'ready'" />
           </div>
           <!-- 解析中的遮罩层 -->
-          <div v-if="d.status !== 'ready'" class="doc-thumbnail-overlay">
+          <div v-if="d.status !== 'ready' && d.status !== 'failed' && d.status !== 'draft'" class="doc-thumbnail-overlay">
             <div class="doc-processing-badge">
               <span v-if="d.status === 'uploading'">{{ $t('dashboard.uploading') }}</span>
               <span v-else-if="d.status === 'parsing'">{{ $t('dashboard.parsing') }}</span>
             </div>
           </div>
-          <!-- 删除按钮（右上角，非选择模式下显示） -->
-          <button
-            v-if="!isSelectionMode && d.status === 'ready' && !d.document_id.startsWith('temp-')"
-            class="doc-delete-button"
-            @click.stop="handleDeleteDocument(d.document_id, d.title)"
-            :disabled="deletingDocumentId === d.document_id"
-            :title="$t('dashboard.deleteDocument')"
-            :aria-label="$t('dashboard.deleteDocument') + ': ' + d.title"
+          <!-- 失败状态提示 -->
+          <div v-if="d.status === 'failed'" class="doc-error-overlay">
+            <div class="doc-error-badge">
+              <svg class="doc-error-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M10 6V10M10 14H10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>{{ $t('dashboard.statusFailedShort') }}</span>
+            </div>
+            <div v-if="d.error_message" class="doc-error-message">
+              {{ d.error_message }}
+            </div>
+            <div v-else class="doc-error-message">
+              {{ $t('dashboard.failedRetryHint') }}
+            </div>
+          </div>
+          <!-- 更多操作菜单按钮（右上角，非选择模式下显示） -->
+          <div 
+            v-if="!isSelectionMode && !d.document_id.startsWith('temp-')"
+            class="doc-more-menu-container"
           >
-            <svg v-if="deletingDocumentId !== d.document_id" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M3 6H5H21M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <LoadingIcon v-else :spinning="true" />
-          </button>
+            <button
+              class="doc-more-menu-button"
+              @click.stop="toggleMoreMenu(d.document_id)"
+              :aria-label="$t('dashboard.moreActions')"
+              :aria-expanded="activeMoreMenu === d.document_id"
+            >
+              <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="10" cy="4" r="1.5" fill="currentColor"/>
+                <circle cx="10" cy="10" r="1.5" fill="currentColor"/>
+                <circle cx="10" cy="16" r="1.5" fill="currentColor"/>
+              </svg>
+            </button>
+            <!-- 更多操作菜单下拉 -->
+            <div 
+              v-if="activeMoreMenu === d.document_id"
+              class="doc-more-menu-dropdown"
+              @click.stop
+            >
+              <button
+                v-if="d.status === 'ready'"
+                class="doc-more-menu-item"
+                @click="openDoc(d.document_id); closeMoreMenu()"
+              >
+                <svg class="doc-more-menu-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M10 3L3 8V17C3 17.5304 3.21071 18.0391 3.58579 18.4142C3.96086 18.7893 4.46957 19 5 19H15C15.5304 19 16.0391 18.7893 16.4142 18.4142C16.7893 18.0391 17 17.5304 17 17V8L10 3Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M10 11V17M7 14H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                {{ $t('dashboard.openOrContinue') }}
+              </button>
+              <button
+                v-if="d.status === 'ready'"
+                class="doc-more-menu-item"
+                @click="goToExport(d.document_id); closeMoreMenu()"
+              >
+                <svg class="doc-more-menu-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M13 3H5C4.46957 3 3.96086 3.21071 3.58579 3.58579C3.21071 3.96086 3 4.46957 3 5V15C3 15.5304 3.21071 16.0391 3.58579 16.4142C3.96086 16.7893 4.46957 17 5 17H15C15.5304 17 16.0391 16.7893 16.4142 16.4142C16.7893 16.0391 17 15.5304 17 15V7M13 3L17 7M13 3V7H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                {{ $t('dashboard.export') }}
+              </button>
+              <button
+                class="doc-more-menu-item"
+                @click="handleRenameDocument(d.document_id, d.title); closeMoreMenu()"
+              >
+                <svg class="doc-more-menu-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V16C2 16.5304 2.21071 17.0391 2.58579 17.4142C2.96086 17.7893 3.46957 18 4 18H14C14.5304 18 15.0391 17.7893 15.4142 17.4142C15.7893 17.0391 16 16.5304 16 16V9M11 4L16 9M11 4V9H16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                {{ $t('dashboard.rename') }}
+              </button>
+              <div class="doc-more-menu-divider"></div>
+              <button
+                class="doc-more-menu-item doc-more-menu-item--danger"
+                @click="handleDeleteDocument(d.document_id, d.title); closeMoreMenu()"
+                :disabled="deletingDocumentId === d.document_id"
+              >
+                <svg class="doc-more-menu-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M3 5H5H17M8 5V3C8 2.46957 8.21071 1.96086 8.58579 1.58579C8.96086 1.21071 9.46957 1 10 1H14C14.5304 1 15.0391 1.21071 15.4142 1.58579C15.7893 1.96086 16 2.46957 16 3V5M19 5V17C19 17.5304 18.7893 18.0391 18.4142 18.4142C18.0391 18.7893 17.5304 19 17 19H7C6.46957 19 5.96086 18.7893 5.58579 18.4142C5.21071 18.0391 5 17.5304 5 17V5H19Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                {{ $t('dashboard.deleteDocument') }}
+              </button>
+            </div>
+          </div>
         </div>
         
         <!-- 进度条（解析中/上传中时显示） -->
@@ -333,9 +459,27 @@
               <div class="progress-fill" :style="{ width: `${d.progress || 0}%` }"></div>
             </div>
             <div class="progress-text">
-              <span v-if="d.status === 'uploading'">{{ $t('dashboard.uploading') }}... {{ formatProgress(d.progress) }}%</span>
-              <span v-else-if="d.status === 'parsing'">
+              <span v-if="d.status === 'uploading'">
+                {{ $t('dashboard.uploading') }}... {{ formatProgress(d.progress) }}%
+              </span>
+              <span 
+                v-else-if="d.status === 'parsing'"
+                class="parsing-detail"
+                :title="getParsingTooltip(d)"
+              >
                 {{ $t('dashboard.parsing') }}... {{ formatProgress(d.progress) }}%
+                <span
+                  v-if="d.parse_total && d.parse_done"
+                  class="progress-extra"
+                >
+                  · {{ d.parse_done }}/{{ d.parse_total }} {{ $t('common.pages') }}
+                </span>
+                <span
+                  v-if="d.parse_eta_s"
+                  class="progress-extra"
+                >
+                  · {{ t('workbench.eta', { sec: Math.round(d.parse_eta_s) }) }}
+                </span>
               </span>
             </div>
           </div>
@@ -355,7 +499,7 @@
                 {{ d.lang_in }} → {{ d.lang_out }}
               </span>
             </div>
-            <div class="doc-meta-footer">
+          <div class="doc-meta-footer">
               <span
                 v-if="d.created_at"
                 class="doc-meta-item"
@@ -367,19 +511,19 @@
                   />
                 </svg>
                 {{ formatDocumentCreatedAt(d.created_at) }}
-              </span>
+            </span>
               <span
                 v-if="d.created_at && d.num_pages"
                 class="doc-meta-separator"
               >
                 ·
-              </span>
+            </span>
               <span
                 v-if="d.num_pages"
                 class="doc-meta-item"
               >
                 {{ d.num_pages }} {{ $t('common.pages') }}
-              </span>
+            </span>
             </div>
           </div>
           <div class="doc-footer-bottom">
@@ -394,31 +538,26 @@
                     ? $t('dashboard.statusReadyShort')
                     : d.status === 'uploading'
                       ? $t('dashboard.statusUploadingShort')
-                      : $t('dashboard.statusParsingShort')
+                      : d.status === 'parsing'
+                        ? $t('dashboard.statusParsingShort')
+                        : d.status === 'failed'
+                          ? $t('dashboard.statusFailedShort')
+                          : $t('dashboard.statusDraftShort')
                 }}
               </span>
-            </div>
-            <div
-              v-if="d.status === 'ready'"
-              class="doc-actions"
-            >
-              <button
-                class="doc-action-btn doc-action-btn--primary"
-                type="button"
-                @click.stop="openDoc(d.document_id)"
-                :aria-label="$t('dashboard.openOrContinue') + ': ' + d.title"
+              <!-- 失败状态图标 -->
+              <svg 
+                v-if="d.status === 'failed'"
+                class="doc-status-warning-icon"
+                viewBox="0 0 16 16"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
               >
-                {{ $t('dashboard.openOrContinue') }}
-              </button>
-              <button
-                class="doc-action-btn doc-action-btn--secondary"
-                type="button"
-                @click.stop="goToExport(d.document_id)"
-                :aria-label="$t('dashboard.export') + ': ' + d.title"
-              >
-                {{ $t('dashboard.export') }}
-              </button>
+                <path d="M8 1C4.13401 1 1 4.13401 1 8C1 11.866 4.13401 15 8 15C11.866 15 15 11.866 15 8C15 4.13401 11.866 1 8 1ZM8 4.5C8.41421 4.5 8.75 4.83579 8.75 5.25V8.75C8.75 9.16421 8.41421 9.5 8 9.5C7.58579 9.5 7.25 9.16421 7.25 8.75V5.25C7.25 4.83579 7.58579 4.5 8 4.5ZM8 11.5C8.41421 11.5 8.75 11.1642 8.75 10.75C8.75 10.3358 8.41421 10 8 10C7.58579 10 7.25 10.3358 7.25 10.75C7.25 11.1642 7.58579 11.5 8 11.5Z" fill="currentColor"/>
+              </svg>
             </div>
+            <!-- 这里原本有「打开 / 继续」和「导出」两个主操作按钮，按需求已从列表中移除 -->
           </div>
         </div>
       </AppCard>
@@ -461,7 +600,7 @@ const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
 
-type DocStatus = "uploading" | "parsing" | "ready";
+type DocStatus = "uploading" | "parsing" | "ready" | "failed" | "draft";
 
 interface Doc {
   document_id: string;
@@ -478,6 +617,8 @@ interface Doc {
   parse_message?: string;
   parse_substage?: string;
   thumbnailError?: boolean; // 缩略图加载失败标志
+  error_message?: string; // 失败原因
+  justCompleted?: boolean; // 刚完成标记，用于闪烁效果
 }
 
 const formatProgress = (p: number | undefined | null) => {
@@ -529,6 +670,89 @@ const searchQuery = ref("");
 const debouncedSearchQuery = ref("");
 let searchDebounceTimer: number | undefined;
 const fileInput = ref<HTMLInputElement | null>(null);
+
+// 搜索条件解析：提取语言对和关键词
+interface SearchChip {
+  type: 'language' | 'keyword';
+  label: string;
+  value: string;
+}
+
+const searchChips = ref<SearchChip[]>([]);
+const searchInput = ref<HTMLInputElement | null>(null);
+
+// 解析搜索输入，提取语言对和关键词
+const parseSearchQuery = (query: string): SearchChip[] => {
+  const chips: SearchChip[] = [];
+  let remaining = query.trim();
+  
+  if (!remaining) return chips;
+  
+  // 匹配语言对：支持 zh→en, zh->en, en→zh, en->zh 等格式
+  // 注意：在字符类中，- 需要转义或放在开头/结尾，→ 是 Unicode 字符
+  const langPattern = /([a-z]{2,3})\s*(?:→|->)\s*([a-z]{2,3})/gi;
+  const langMatches = remaining.match(langPattern);
+  
+  if (langMatches) {
+    langMatches.forEach(match => {
+      const normalized = match.replace(/\s+/g, '').replace(/->/g, '→');
+      chips.push({
+        type: 'language',
+        label: t('dashboard.searchChipLanguage'),
+        value: normalized
+      });
+      // 从剩余文本中移除已匹配的语言对
+      remaining = remaining.replace(match, '').trim();
+    });
+  }
+  
+  // 剩余文本作为关键词
+  if (remaining) {
+    chips.push({
+      type: 'keyword',
+      label: t('dashboard.searchChipKeyword'),
+      value: remaining
+    });
+  }
+  
+  return chips;
+};
+
+// 删除单个 chip
+const removeSearchChip = (index: number) => {
+  searchChips.value.splice(index, 1);
+  // 重新构建搜索查询
+  rebuildSearchQuery();
+};
+
+// 从 chips 重建搜索查询
+const rebuildSearchQuery = () => {
+  if (searchChips.value.length === 0) {
+    searchQuery.value = "";
+    debouncedSearchQuery.value = "";
+    if (searchInput.value) {
+      searchInput.value.value = "";
+    }
+    return;
+  }
+  
+  const parts: string[] = [];
+  searchChips.value.forEach(chip => {
+    parts.push(chip.value);
+  });
+  
+  const newQuery = parts.join(' ');
+  // 更新 debouncedSearchQuery 用于过滤
+  debouncedSearchQuery.value = newQuery;
+  // 更新 searchQuery 以触发重新解析（但输入框显示会被清空）
+  searchQuery.value = newQuery;
+  // 延迟清空输入框显示
+  nextTick(() => {
+    if (searchInput.value && searchChips.value.length > 0) {
+      searchInput.value.value = "";
+    }
+  });
+};
 const filesInput = ref<HTMLInputElement | null>(null);
 const projectName = ref(t("dashboard.defaultProjectName"));
 const currentProjectId = ref<string | null>(null); // 当前项目ID
@@ -560,6 +784,38 @@ const pendingUploadBanner = ref<string | null>(null); // 从首页跳转后，�
 const draggedIndex = ref<number | null>(null); // 正在拖拽的文档索引
 const dragOverIndex = ref<number | null>(null); // 拖拽悬停的文档索引
 const documentOrder = ref<string[]>([]); // 文档顺序（用于保存到 localStorage）
+const activeMoreMenu = ref<string | null>(null); // 当前打开的更多操作菜单
+const focusedCardIndex = ref<number | null>(null); // 当前聚焦的卡片索引（用于快捷键导航）
+
+// 更多操作菜单
+const toggleMoreMenu = (documentId: string) => {
+  if (activeMoreMenu.value === documentId) {
+    activeMoreMenu.value = null;
+  } else {
+    activeMoreMenu.value = documentId;
+  }
+};
+
+const closeMoreMenu = () => {
+  activeMoreMenu.value = null;
+};
+
+// 点击外部关闭菜单
+const handleClickOutside = (e: MouseEvent) => {
+  const target = e.target as HTMLElement;
+  if (!target.closest('.doc-more-menu-container')) {
+    closeMoreMenu();
+  }
+};
+
+// 重命名文档
+const handleRenameDocument = (documentId: string, currentTitle: string) => {
+  const newTitle = prompt(t('dashboard.renameDocument'), currentTitle);
+  if (newTitle && newTitle.trim() && newTitle !== currentTitle) {
+    // TODO: 实现重命名API调用
+    showToast("info", t('dashboard.renameDocument'), t('dashboard.renameNotImplemented'));
+  }
+};
 
 // 安全向导：仅在登录后且邮箱未验证时给出一次性弹窗提示
 const showSecurityGuide = ref(false);
@@ -615,8 +871,13 @@ const keyHandler = (e: KeyboardEvent) => {
   
   // Esc 清空搜索并清理选择
   if (e.key === "Escape") {
-    if (searchQuery.value) {
+    if (searchQuery.value || searchChips.value.length > 0) {
       searchQuery.value = "";
+      searchChips.value = [];
+      debouncedSearchQuery.value = "";
+      if (searchInput.value) {
+        searchInput.value.value = "";
+      }
     }
     selectedDocuments.value.clear();
     if (isSelectionMode.value) {
@@ -649,7 +910,7 @@ const keyHandler = (e: KeyboardEvent) => {
     return;
   }
   
-  // Delete 键删除当前聚焦的文档（仅在非输入状态下）
+  // Delete 键删除当前聚焦的文档（仅在非输入状态下，有确认）
   if (e.key === "Delete" && !isSelectionMode.value) {
     const focusedCard = document.activeElement as HTMLElement;
     if (focusedCard?.classList.contains("doc-card")) {
@@ -658,7 +919,7 @@ const keyHandler = (e: KeyboardEvent) => {
         const doc = filteredDocs.value.find(d => d.document_id === docId);
         if (doc && doc.status === "ready" && !doc.document_id.startsWith("temp-")) {
           e.preventDefault();
-          handleDeleteDocument(doc.document_id, doc.title);
+          handleDeleteDocument(docId, doc.title);
         }
       }
     }
@@ -672,17 +933,87 @@ const keyHandler = (e: KeyboardEvent) => {
     return;
   }
   
-  // Ctrl/Cmd+A 进入选择模式
+  // Ctrl/Cmd+A 全选/进入选择模式
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a" && !isEditableTarget) {
-    if (docs.value.length > 0 && !isSelectionMode.value) {
-      e.preventDefault();
+    e.preventDefault();
+    if (isSelectionMode.value && docs.value.length > 0) {
+      // 如果已经在选择模式，全选所有ready状态的文档
+      const readyDocs = filteredDocs.value.filter(d => d.status === 'ready' && !d.document_id.startsWith('temp-'));
+      readyDocs.forEach(doc => {
+        selectedDocuments.value.add(doc.document_id);
+      });
+    } else if (docs.value.length > 0) {
+      // 否则进入选择模式
       enterSelectionMode();
+    }
+    return;
+  }
+  
+  // Enter 打开当前聚焦的文档
+  if (e.key === "Enter" && !isEditableTarget && !isSelectionMode.value) {
+    const focusedCard = document.activeElement as HTMLElement;
+    if (focusedCard?.classList.contains("doc-card")) {
+      const docId = focusedCard.getAttribute("data-document-id");
+      if (docId) {
+        const doc = filteredDocs.value.find(d => d.document_id === docId);
+        if (doc && doc.status === "ready") {
+          e.preventDefault();
+          openDoc(docId);
+        }
+      }
     }
     return;
   }
 };
 
 const filteredDocs = computed(() => {
+  // 如果有解析后的 chips，使用 chips 进行过滤
+  if (searchChips.value.length > 0) {
+    return docs.value.filter((d) => {
+      let matches = true;
+      
+      const includesSafe = (value: unknown, keyword: string) => {
+        if (!value) return false;
+        return String(value).toLowerCase().includes(keyword.toLowerCase());
+      };
+      
+      searchChips.value.forEach(chip => {
+        if (chip.type === 'language') {
+          // 语言匹配
+          const langIn = (d.lang_in || "").toLowerCase();
+          const langOut = (d.lang_out || "").toLowerCase();
+          const langPairArrow = `${langIn}→${langOut}`;
+          const langPairAscii = `${langIn}->${langOut}`;
+          const chipValue = chip.value.toLowerCase();
+          
+          const langMatch =
+            langPairArrow.toLowerCase() === chipValue ||
+            langPairAscii.toLowerCase() === chipValue ||
+            langIn === chipValue.split('→')[0]?.toLowerCase() ||
+            langOut === chipValue.split('→')[1]?.toLowerCase();
+          
+          if (!langMatch) matches = false;
+        } else if (chip.type === 'keyword') {
+          // 关键词匹配：标题、备注、来源
+          const keyword = chip.value.toLowerCase();
+          const titleMatch = includesSafe(d.title, keyword);
+          const noteMatch =
+            includesSafe((d as any).note, keyword) ||
+            includesSafe((d as any).remark, keyword) ||
+            includesSafe((d as any).description, keyword);
+          const sourceMatch =
+            includesSafe((d as any).source, keyword) ||
+            includesSafe((d as any).source_type, keyword);
+          
+          if (!titleMatch && !noteMatch && !sourceMatch) matches = false;
+        }
+      });
+      
+      return matches;
+    });
+  }
+  
+  // 否则使用原始查询（向后兼容）
   const q = debouncedSearchQuery.value.trim().toLowerCase();
   if (!q) return docs.value;
 
@@ -722,6 +1053,7 @@ const filteredDocs = computed(() => {
 
 const clearSearch = () => {
   searchQuery.value = "";
+  searchChips.value = [];
   selectedDocuments.value.clear();
   debouncedSearchQuery.value = "";
 };
@@ -730,27 +1062,108 @@ const clearSearch = () => {
 watch(
   searchQuery,
   (val) => {
-    // 清空已选文档，避免“隐身选中项”
+    // 清空已选文档，避免"隐身选中项"
     selectedDocuments.value.clear();
     // 输入搜索时自动退出选择模式
     if (val && isSelectionMode.value) {
       isSelectionMode.value = false;
     }
-    // 防抖更新实际用于过滤的关键字
-    if (searchDebounceTimer) {
-      clearTimeout(searchDebounceTimer);
+    
+    // 解析搜索条件为 chips
+    const parsedChips = parseSearchQuery(val);
+    
+    // 如果解析出了 chips，清空输入框显示
+    if (parsedChips.length > 0) {
+      searchChips.value = parsedChips;
+      // 延迟清空输入框显示
+      nextTick(() => {
+        if (searchInput.value) {
+          searchInput.value.value = '';
+        }
+      });
+      // 使用 chips 构建搜索查询用于防抖
+      const chipQuery = parsedChips.map(c => c.value).join(' ');
+      if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
+      }
+      searchDebounceTimer = window.setTimeout(() => {
+        debouncedSearchQuery.value = chipQuery;
+      }, 200);
+    } else {
+      // 没有解析出 chips，使用原始查询
+      searchChips.value = [];
+      if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
+      }
+      searchDebounceTimer = window.setTimeout(() => {
+        debouncedSearchQuery.value = val;
+      }, 200);
     }
-    searchDebounceTimer = window.setTimeout(() => {
-      debouncedSearchQuery.value = val;
-    }, 200);
   }
 );
 
 const updateDoc = (document_id: string, patch: Partial<Doc>) => {
   const idx = docs.value.findIndex((d) => d.document_id === document_id);
   if (idx >= 0) {
+    const oldStatus = docs.value[idx].status;
+    const newStatus = patch.status;
+    
+    // 检测状态从非 ready 变为 ready，触发闪烁效果
+    if (oldStatus !== 'ready' && newStatus === 'ready') {
+      patch.justCompleted = true;
+      // 0.5秒后移除闪烁标记
+      setTimeout(() => {
+        const currentIdx = docs.value.findIndex((d) => d.document_id === document_id);
+        if (currentIdx >= 0 && docs.value[currentIdx].justCompleted) {
+          docs.value[currentIdx].justCompleted = false;
+        }
+      }, 500);
+    }
+    
     docs.value.splice(idx, 1, { ...docs.value[idx], ...patch });
   }
+};
+
+// 获取状态标签
+const getStatusLabel = (status: DocStatus): string => {
+  switch (status) {
+    case 'ready':
+      return t('dashboard.ready');
+    case 'uploading':
+      return t('dashboard.uploading');
+    case 'parsing':
+      return t('dashboard.parsing');
+    case 'failed':
+      return t('dashboard.statusFailedShort');
+    case 'draft':
+      return t('dashboard.statusDraftShort');
+    default:
+      return '';
+  }
+};
+
+// 获取解析中的详细提示信息
+const getParsingTooltip = (doc: Doc): string => {
+  const parts: string[] = [];
+  parts.push(t('dashboard.parsing'));
+  
+  if (doc.parse_done !== undefined && doc.parse_total !== undefined) {
+    parts.push(`${doc.parse_done}/${doc.parse_total} ${t('common.pages')}`);
+  }
+  
+  if (doc.parse_eta_s !== undefined) {
+    parts.push(t('workbench.eta', { sec: Math.round(doc.parse_eta_s) }));
+  }
+  
+  if (doc.parse_substage) {
+    parts.push(doc.parse_substage);
+  }
+  
+  if (doc.parse_message) {
+    parts.push(doc.parse_message);
+  }
+  
+  return parts.join(' · ');
 };
 
 const refreshList = async () => {
@@ -763,6 +1176,8 @@ const refreshList = async () => {
     } else {
       await loadUserDocuments(true);
     }
+    // 刷新列表后，重新为仍在处理中的文档绑定实时进度
+    attachProgressForActiveDocs();
     showToast("success", t("dashboard.refreshSuccess"), t("dashboard.refreshSuccessMessage"));
   } catch (e: any) {
     showToast("error", t("dashboard.refreshFailed"), e?.message || t("dashboard.pleaseRetry"));
@@ -948,6 +1363,20 @@ const attachProgressWS = (document_id: string, options: { projectId?: string } =
     showToast("warning", t("dashboard.wsConnectionFailed"), t("dashboard.wsConnectionFailedMessage"));
   });
   return ws;
+};
+
+// 为当前列表中仍在上传 / 解析中的文档重新绑定进度 WebSocket
+// 用于：页面刷新、路由切换回来、手动刷新列表后，自动接上后端正在运行的解析任务
+const attachProgressForActiveDocs = () => {
+  docs.value.forEach((d) => {
+    if (
+      (d.status === "uploading" || d.status === "parsing") &&
+      !d.document_id.startsWith("temp-") &&
+      !activeWebSockets.has(d.document_id)
+    ) {
+      attachProgressWS(d.document_id);
+    }
+  });
 };
 
 // 从 API 加载项目文档列表（合并模式：保留正在处理的临时文档）
@@ -1713,6 +2142,9 @@ onMounted(async () => {
   // 加载保存的文档顺序
   loadDocumentOrder();
   
+  // 添加点击外部关闭菜单的事件监听
+  document.addEventListener('click', handleClickOutside);
+  
   // 尝试从 URL 参数获取项目ID
   const projectIdFromQuery = route.query.project_id as string | undefined;
   
@@ -1742,6 +2174,10 @@ onMounted(async () => {
   }
   
   await loadDocumentFromQuery();
+  // 首次进入页面或从其他路由返回时，
+  // 为当前仍处于 uploading/parsing 状态的文档重新绑定进度 WebSocket，
+  // 确保解析任务在后台持续进行时，前端能自动接上真实进度。
+  attachProgressForActiveDocs();
   initialLoading.value = false;
   window.addEventListener("keydown", keyHandler);
 
@@ -1772,6 +2208,7 @@ onUnmounted(() => {
   activeWebSockets.forEach((ws) => ws.disconnect());
   activeWebSockets.clear();
   window.removeEventListener("keydown", keyHandler);
+  document.removeEventListener('click', handleClickOutside);
   if (parsingMonitorTimer) {
     clearInterval(parsingMonitorTimer);
   }
@@ -1962,9 +2399,14 @@ onUnmounted(() => {
   width: 100%;
   height: 200px;
   border-radius: var(--radius-md, 12px);
-  background: linear-gradient(90deg, rgba(226,232,240,0.9) 25%, rgba(241,245,249,0.9) 50%, rgba(226,232,240,0.9) 75%);
+  background: linear-gradient(
+    90deg,
+    rgba(226, 232, 240, 0.4) 0%,
+    rgba(241, 245, 249, 0.8) 40%,
+    rgba(226, 232, 240, 0.4) 80%
+  );
   background-size: 200% 100%;
-  animation: shimmer 1.2s infinite;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
   margin-bottom: 12px;
 }
 
@@ -1977,9 +2419,14 @@ onUnmounted(() => {
 .skeleton-line {
   height: 12px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(226,232,240,0.9) 25%, rgba(241,245,249,0.9) 50%, rgba(226,232,240,0.9) 75%);
+  background: linear-gradient(
+    90deg,
+    rgba(226, 232, 240, 0.4) 0%,
+    rgba(241, 245, 249, 0.8) 40%,
+    rgba(226, 232, 240, 0.4) 80%
+  );
   background-size: 200% 100%;
-  animation: shimmer 1.2s infinite;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
 }
 
 .skeleton-line--lg {
@@ -1992,9 +2439,13 @@ onUnmounted(() => {
   height: 10px;
 }
 
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 [data-theme="dark"] .skeleton-card {
@@ -2004,8 +2455,14 @@ onUnmounted(() => {
 
 [data-theme="dark"] .skeleton-thumbnail,
 [data-theme="dark"] .skeleton-line {
-  background: linear-gradient(90deg, rgba(51,65,85,0.9) 25%, rgba(71,85,105,0.9) 50%, rgba(51,65,85,0.9) 75%);
+  background: linear-gradient(
+    90deg,
+    rgba(51, 65, 85, 0.4) 0%,
+    rgba(71, 85, 105, 0.8) 40%,
+    rgba(51, 65, 85, 0.4) 80%
+  );
   background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
 }
 
 @media (max-width: 768px) {

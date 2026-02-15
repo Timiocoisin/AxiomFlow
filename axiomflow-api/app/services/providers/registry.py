@@ -15,7 +15,10 @@ def _get_or_create(name: str, factory: type[BaseProvider]) -> BaseProvider:
 def get_provider(name: str) -> BaseProvider:
     name = (name or "").strip().lower()
     if not name:
-        name = "ollama"  # 默认使用 ollama
+        name = "google"  # 默认使用 google
+    if name == "google":
+        from .google import GoogleProvider
+        return _get_or_create("google", GoogleProvider)
     if name == "ollama":
         try:
             from .ollama import OllamaProvider

@@ -139,6 +139,7 @@ export type StructuredDoc = {
     status: string;
     created_at: string;
     updated_at: string;
+    translated_pdf_path?: string; // 译文PDF路径（解析+翻译完成后会有）
   };
   pages: Array<{
     index: number;
@@ -288,6 +289,10 @@ export function getSourcePdfUrl(document_id: string): string {
   return `${API_BASE}/documents/${document_id}/source`;
 }
 
+export function getTranslatedPdfUrl(document_id: string): string {
+  return `${API_BASE}/documents/${document_id}/translated`;
+}
+
 export async function getDocumentProgress(document_id: string): Promise<{
   document_id: string;
   status: string;
@@ -332,7 +337,7 @@ export async function translateDocument(params: {
       document_id: params.document_id,
       lang_in: params.lang_in,
       lang_out: params.lang_out,
-      provider: params.provider ?? "ollama",
+      provider: params.provider ?? "google",
       use_context: params.use_context,
       context_window_size: params.context_window_size,
       use_term_consistency: params.use_term_consistency,
@@ -456,7 +461,7 @@ export async function batchUpload(params: {
   body.set("lang_in", params.lang_in ?? "en");
   body.set("lang_out", params.lang_out ?? "zh");
   body.set("auto_translate", "true");
-  body.set("provider", params.provider ?? "ollama");
+  body.set("provider", params.provider ?? "google");
   for (const f of params.files) body.append("files", f);
   const res = await authenticatedFetch(`${API_BASE}/batches/upload`, { method: "POST", body });
   if (!res.ok) {

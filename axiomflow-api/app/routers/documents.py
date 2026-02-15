@@ -78,6 +78,43 @@ async def download_source_pdf(document_id: str):
     return FileResponse(path, filename=filename, media_type="application/pdf")
 
 
+@router.get("/{document_id}/translated")
+async def download_translated_pdf(document_id: str):
+    """
+    下载翻译后的 PDF（给前端 pdf.js 画布渲染用）。
+    """
+    try:
+        data = repo.load_document_json(document_id)
+        translated_path = (data.get("document") or {}).get("translated_pdf_path")
+        
+        if not translated_path:
+            raise HTTPException(status_code=404, detail="translated_pdf_not_found")
+
+        # 处理路径：支持绝对路径和相对路径
+        path = Path(str(translated_path))
+        
+        # 如果是相对路径，则相对于 exports 目录
+        if not path.is_absolute():
+            path = repo.paths.exports / path
+        
+        # 安全：必须位于 exports 目录下（避免任意文件读取）
+        try:
+            exports_root = repo.paths.exports.resolve()
+            path_resolved = path.resolve()
+            if exports_root not in path_resolved.parents and path_resolved != exports_root:
+                raise HTTPException(status_code=400, detail="invalid_translated_pdf_path")
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="invalid_translated_pdf_path") from exc
+
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="translated_pdf_missing_on_disk")
+
+        filename = f"{document_id}_translated.pdf"
+        return FileResponse(path, filename=filename, media_type="application/pdf")
+    except (KeyError, FileNotFoundError):
+        raise HTTPException(status_code=404, detail="translated_pdf_not_found")
+
+
 @router.get("/{document_id}/progress", response_model=dict)
 async def get_document_progress(document_id: str) -> dict:
     """

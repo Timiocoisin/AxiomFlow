@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch, toRaw } from "vue";
 import { useI18n } from "vue-i18n";
 import AppButton from "@/components/AppButton.vue";
 // 使用 legacy ESM 构建 + workerPort，避免私有字段和打包器兼容问题
@@ -128,11 +128,22 @@ const bilingual = ref(false);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (pdfjsLib as any).GlobalWorkerOptions.workerPort = new (PdfWorker as any)();
 
+// 获取设备像素比，用于高DPI屏幕的清晰渲染
+const devicePixelRatio = window.devicePixelRatio || 1;
+
+// 超清渲染倍数：在设备像素比基础上再增加倍数，实现更清晰的文字渲染
+const HIGH_DPI_MULTIPLIER = 1.5; // 1.5倍超清渲染，平衡清晰度和性能
+
 const scale = computed(() => {
   // 让页面宽度适配容器（最小 0.6，最大 1.6）
   const cw = scrollEl.value?.clientWidth ? scrollEl.value.clientWidth - 6 : 900;
   const s = cw / Math.max(1, props.pageWidth);
   return Math.min(1.6, Math.max(0.6, s));
+});
+
+// 渲染时的实际scale，使用超清倍数以提高清晰度
+const renderScale = computed(() => {
+  return scale.value * devicePixelRatio * HIGH_DPI_MULTIPLIER;
 });
 
 const viewportW = computed(() => Math.round(props.pageWidth * scale.value));
@@ -184,15 +195,34 @@ const tooltipText = (b: Block) => {
 const renderPage = async () => {
   if (!canvasEl.value || !pdfDoc.value) return;
   try {
-    const page = await pdfDoc.value.getPage(pageIndex.value + 1);
-    const vp = page.getViewport({ scale: scale.value });
+    // 使用 toRaw 获取原始对象，避免 Proxy 导致的私有字段访问问题
+    const rawPdfDoc = toRaw(pdfDoc.value);
+    const page = await rawPdfDoc.getPage(pageIndex.value + 1);
+    const vp = page.getViewport({ scale: renderScale.value });
     const canvas = canvasEl.value;
-    canvas.width = Math.round(vp.width);
-    canvas.height = Math.round(vp.height);
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    
+    // 设置canvas的实际尺寸（考虑设备像素比）
+    canvas.width = Math.round(vp.width);
+    canvas.height = Math.round(vp.height);
+    
+    // 设置canvas的显示尺寸（CSS尺寸，用于布局）
+    canvas.style.width = `${viewportW.value}px`;
+    canvas.style.height = `${viewportH.value}px`;
+    
+    // 启用高质量图像平滑
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    // 缩放上下文以匹配超清渲染倍数
+    const scaleFactor = devicePixelRatio * HIGH_DPI_MULTIPLIER;
+    ctx.scale(scaleFactor, scaleFactor);
+    
+    // 使用显示尺寸的viewport进行渲染
+    const displayVp = page.getViewport({ scale: scale.value });
+    ctx.clearRect(0, 0, displayVp.width, displayVp.height);
+    await page.render({ canvasContext: ctx, viewport: displayVp }).promise;
     emit("page", pageIndex.value);
   } catch (err) {
     console.error("[PdfCanvasViewer] renderPage error", err);
@@ -205,19 +235,46 @@ const setCanvasRef = (el: HTMLCanvasElement | null, index: number) => {
 
 const renderAllPages = async () => {
   if (!pdfDoc.value) return;
-  const total = pdfDoc.value.numPages || 1;
-  numPages.value = total;
-  for (let i = 0; i < total; i++) {
-    const page = await pdfDoc.value.getPage(i + 1);
-    const vp = page.getViewport({ scale: scale.value });
-    const canvas = canvasList.value[i];
-    if (!canvas) continue;
-    canvas.width = Math.round(vp.width);
-    canvas.height = Math.round(vp.height);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) continue;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  try {
+    // 使用 toRaw 获取原始对象，避免 Proxy 导致的私有字段访问问题
+    const rawPdfDoc = toRaw(pdfDoc.value);
+    const total = rawPdfDoc.numPages || 1;
+    numPages.value = total;
+    for (let i = 0; i < total; i++) {
+      try {
+        const page = await rawPdfDoc.getPage(i + 1);
+        const renderVp = page.getViewport({ scale: renderScale.value });
+        const displayVp = page.getViewport({ scale: scale.value });
+        const canvas = canvasList.value[i];
+        if (!canvas) continue;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) continue;
+        
+        // 设置canvas的实际尺寸（考虑设备像素比）
+        canvas.width = Math.round(renderVp.width);
+        canvas.height = Math.round(renderVp.height);
+        
+        // 设置canvas的显示尺寸（CSS尺寸，用于布局）
+        canvas.style.width = `${viewportW.value}px`;
+        canvas.style.height = `${viewportH.value}px`;
+        
+        // 启用高质量图像平滑
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        
+        // 缩放上下文以匹配超清渲染倍数
+        const scaleFactor = devicePixelRatio * HIGH_DPI_MULTIPLIER;
+        ctx.scale(scaleFactor, scaleFactor);
+        
+        ctx.clearRect(0, 0, displayVp.width, displayVp.height);
+        await page.render({ canvasContext: ctx, viewport: displayVp }).promise;
+      } catch (err) {
+        console.error(`[PdfCanvasViewer] Error rendering page ${i + 1}:`, err);
+        // 继续渲染下一页
+      }
+    }
+  } catch (err) {
+    console.error("[PdfCanvasViewer] Error in renderAllPages:", err);
   }
 };
 
@@ -281,14 +338,27 @@ onMounted(async () => {
 <style scoped>
 .pdf-viewer {
   height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  flex: 1;
 }
 
 .pdf-scroll {
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 4px 2px;
+  min-height: 0;
+  /* 隐藏滚动条但保持滚动功能 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.pdf-scroll::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 .canvas-wrap {

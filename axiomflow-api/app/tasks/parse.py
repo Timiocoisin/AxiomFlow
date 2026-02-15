@@ -221,13 +221,13 @@ def run_parse_job(
         # 保存解析结果
         repo.save_document_json(document_id, structured)
 
-        # 更新Job为完成状态（使用parsing stage表示解析完成，因为success是翻译完成）
+        # 更新Job为完成状态（解析阶段完成）
         num_pages = doc_dict["num_pages"]
         repo.update_job(
             parse_job_id,
-            stage=JobStage.parsing.value,  # 保持parsing状态，但progress=1.0表示完成
+            stage=JobStage.parsing.value,
             progress=1.0,
-            message=f"解析完成: {num_pages} 页",
+            message=f"解析完成: {num_pages} 页，开始翻译...",
             done=num_pages,
             total=num_pages,
             eta_s=0.0,
@@ -247,12 +247,194 @@ def run_parse_job(
         except Exception as e:
             logger.debug(f"WebSocket 通知失败（不影响解析）: {e}")
 
-        logger.info(f"PDF解析完成: {document_id}, {num_pages} 页")
+        logger.info(f"PDF解析完成: {document_id}, {num_pages} 页，开始自动翻译...")
+
+        # ========== 自动翻译阶段 ==========
+        # 在解析完成后自动进行翻译（使用 Google 翻译）
+        try:
+            import asyncio
+            from ..services.orchestrator import TranslateOrchestrator, TranslateStrategy
+            from ..services.providers.base import TranslateMeta
+
+            # 更新Job状态为翻译中
+            repo.update_job(
+                parse_job_id,
+                stage=JobStage.translating.value,
+                message="翻译中...",
+                done=0,
+                total=None,
+                eta_s=None,
+            )
+
+            # 收集需要翻译的块
+            all_blocks: list[dict] = []
+            for page_idx, page in enumerate(structured.get("pages", [])):
+                for block_idx, block in enumerate(page.get("blocks", [])):
+                    text = (block.get("text") or "").strip()
+                    if not text:
+                        continue
+                    if block.get("is_header_footer") or block.get("is_footnote"):
+                        continue
+                    block["_page_idx"] = page_idx
+                    block["_block_idx"] = block_idx
+                    all_blocks.append(block)
+
+            total_blocks = len(all_blocks)
+            if total_blocks > 0:
+                # 加载术语表
+                glossary = {}
+                try:
+                    if project_id:
+                        glossary = repo.get_glossary(project_id)
+                except Exception as exc:
+                    logger.warning(f"加载术语表失败: {exc}")
+
+                # 创建翻译编排器
+                max_concurrent = int(getattr(settings, "translation_max_concurrent", 5))
+                orch = TranslateOrchestrator(max_concurrent=max_concurrent)
+                strategy = TranslateStrategy(
+                    provider="google",  # 使用 Google 翻译
+                    use_context=True,
+                    context_window_size=2,
+                    use_term_consistency=True,
+                    use_smart_batching=True,
+                )
+
+                # 进度回调
+                translate_start = time.time()
+                def progress_callback(done: int, total: int) -> None:
+                    progress = done / total if total > 0 else 0.0
+                    elapsed = time.time() - translate_start
+                    eta_s = None
+                    if done > 0:
+                        avg = elapsed / done
+                        eta_s = max(0.0, (total - done) * avg)
+                    repo.update_job(
+                        parse_job_id,
+                        progress=progress,
+                        message=f"翻译中: {done}/{total}",
+                        done=done,
+                        total=total,
+                        eta_s=eta_s,
+                    )
+
+                # 批量并发翻译
+                done = 0
+                async def translate_all():
+                    nonlocal done
+                    for page in structured.get("pages", []):
+                        page_blocks = [b for b in page.get("blocks", []) if b in all_blocks]
+                        if not page_blocks:
+                            continue
+
+                        for block in page_blocks:
+                            try:
+                                meta = TranslateMeta(
+                                    lang_in=lang_in,
+                                    lang_out=lang_out,
+                                    document_id=document_id,
+                                    block_type=block.get("type"),
+                                    glossary=glossary or None,
+                                )
+                                block["translation"] = await orch.translate_text(
+                                    block.get("text", ""), meta, strategy
+                                )
+                                done += 1
+                                if total_blocks:
+                                    progress_callback(done, total_blocks)
+                            except Exception as exc:
+                                logger.error(
+                                    f"翻译块失败 (文档 {document_id}, 块 {block.get('id')}): "
+                                    f"{type(exc).__name__}: {str(exc)[:200]}",
+                                    exc_info=True,
+                                )
+                                block["translation"] = f"[翻译失败: {str(exc)[:100]}]"
+                                block["translation_error"] = str(exc)
+                                block["translation_failed"] = True
+                                done += 1
+                                if total_blocks:
+                                    progress_callback(done, total_blocks)
+
+                # 运行异步翻译
+                asyncio.run(translate_all())
+
+                # 保存翻译结果
+                repo.update_job(parse_job_id, stage=JobStage.composing.value, message="写入译文中...")
+                repo.save_document_json(document_id, structured)
+
+                # 自动导出译文PDF（单语版本）
+                try:
+                    from ..services.pdf_export import build_translated_pdf
+                    
+                    pdf_bytes = build_translated_pdf(
+                        structured,
+                        bilingual=False,  # 单语版本，只显示译文
+                        subset_fonts=True,
+                        convert_to_pdfa=False,
+                    )
+                    
+                    # 保存译文PDF到存储
+                    exports_dir = repo.paths.exports
+                    exports_dir.mkdir(parents=True, exist_ok=True)
+                    translated_pdf_path = exports_dir / f"{document_id}_translated.pdf"
+                    translated_pdf_path.write_bytes(pdf_bytes)
+                    
+                    # 在文档JSON中记录译文PDF路径（使用绝对路径的字符串形式）
+                    # 注意：使用 str() 而不是 as_posix()，确保路径格式正确
+                    structured.setdefault("document", {})["translated_pdf_path"] = str(translated_pdf_path)
+                    repo.save_document_json(document_id, structured)
+                    
+                    logger.info(f"译文PDF已导出: {translated_pdf_path}")
+                    logger.info(f"译文PDF路径已保存到文档JSON: {structured.get('document', {}).get('translated_pdf_path')}")
+                except Exception as e:
+                    logger.error(f"导出译文PDF失败: {e}", exc_info=True)
+                    # 导出失败不影响整体流程
+
+                # 更新Job为完成状态
+                repo.update_job(
+                    parse_job_id,
+                    stage=JobStage.success.value,
+                    progress=1.0,
+                    message="解析和翻译完成",
+                    done=total_blocks,
+                    total=total_blocks,
+                    eta_s=0.0,
+                )
+            else:
+                # 没有需要翻译的内容
+                repo.update_job(
+                    parse_job_id,
+                    stage=JobStage.success.value,
+                    progress=1.0,
+                    message="解析完成（无需要翻译的内容）",
+                )
+
+        except Exception as exc:
+            logger.error(f"自动翻译失败: {document_id}", exc_info=True)
+            # 翻译失败不影响解析结果，只记录错误
+            repo.update_job(
+                parse_job_id,
+                stage=JobStage.parsing.value,  # 回退到parsing状态
+                message=f"解析完成，但翻译失败: {str(exc)[:200]}",
+            )
+
+        # 最终通知
+        try:
+            import httpx
+            from ..core.config import settings
+            
+            api_base = getattr(settings, "api_base_url", "http://localhost:8000")
+            notify_url = f"{api_base}/v1/ws/documents/{document_id}/notify"
+            
+            with httpx.Client(timeout=1.0) as client:
+                client.post(notify_url)
+        except Exception as e:
+            logger.debug(f"WebSocket 通知失败（不影响流程）: {e}")
 
         return {
             "document_id": document_id,
             "num_pages": num_pages,
-            "status": "parsed",
+            "status": "parsed_and_translated",
         }
 
     except Exception as exc:

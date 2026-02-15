@@ -135,6 +135,7 @@
   },
   "workbench": {
     "backToDocs": "返回文档列表",
+    "loading": "加载中…",
     "translating": "翻译中…",
     "translateAndExport": "一键翻译并生成译文 PDF",
     "sourcePdf": "原文 PDF",
@@ -162,6 +163,8 @@
   "dashboard": {
     "myDocuments": "我的文档",
     "searchPlaceholder": "按名称 / 备注 / 语言搜索",
+    "searchChipLanguage": "语言",
+    "searchChipKeyword": "关键词",
     "uploadPdf": "上传 PDF",
     "uploadMultiplePdf": "批量上传",
     "uploadLocalPdf": "上传本地 PDF",
@@ -239,8 +242,16 @@
     "statusUploadingShort": "上传中",
     "statusParsingShort": "解析中",
     "statusReadyShort": "已完成",
+    "statusFailedShort": "失败",
+    "statusDraftShort": "草稿",
+    "failedRetryHint": "解析失败，点击重试",
     "openOrContinue": "打开 / 继续",
     "export": "导出",
+    "selectedCount": "已选 {count} 个文档",
+    "moreActions": "更多操作",
+    "rename": "重命名",
+    "renameDocument": "重命名文档",
+    "renameNotImplemented": "重命名功能暂未实现",
     "activeSearchLabel": "当前搜索条件",
     "clearFilters": "清除条件",
     "securityGuide": {

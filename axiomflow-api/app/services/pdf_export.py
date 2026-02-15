@@ -410,11 +410,11 @@ def build_translated_pdf(
 
     # 先复制原文页，保证图片/表格线条、书签、注释等保留
     base = fitz.open()
-    base.insert_pdf(src, start_at=0, stop_at=page_count - 1)
+    base.insert_pdf(src, start_at=0, to_page=page_count - 1)
 
     if bilingual:
         # 双语：再复制一份原文页作为译文页底板
-        base.insert_pdf(src, start_at=0, stop_at=page_count - 1)
+        base.insert_pdf(src, start_at=0, to_page=page_count - 1)
 
     # 使用增强的PDF结构保留模块
     try:

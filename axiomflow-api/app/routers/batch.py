@@ -20,7 +20,7 @@ async def batch_upload(
     lang_out: str = Form("zh"),
     files: list[UploadFile] = File(...),
     auto_translate: bool = Form(True),
-    provider: str = Form("ollama"),
+    provider: str = Form("google"),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     """
