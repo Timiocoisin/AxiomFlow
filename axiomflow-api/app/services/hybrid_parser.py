@@ -20,6 +20,8 @@ from .pdfminer_parser import (
     PDFMINER_AVAILABLE,
 )
 from .font_hierarchy import FontHierarchyAnalyzer
+from .table_structure import extract_table_structure, table_structure_to_dict
+from .formula_structure import extract_formula_structure, formula_structure_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -131,9 +133,15 @@ class HybridPDFParser:
                         if font_pattern.get("has_size_variation"):
                             region["has_subscript_superscript"] = True
                         
+                        # 提取公式结构化信息
+                        region_text = "".join(getattr(c, "char", "") for c in chars)
+                        formula_struct = extract_formula_structure(chars, region_text)
+                        region["formula_structure"] = formula_structure_to_dict(formula_struct)
+                        
                         logger.debug(
                             f"页面 {page_index} 公式区域深度解析: "
-                            f"{len(chars)} 个字符, 字体: {font_pattern.get('most_common_font')}"
+                            f"{len(chars)} 个字符, 字体: {font_pattern.get('most_common_font')}, "
+                            f"LaTeX: {formula_struct.latex_expression}"
                         )
                 
                 except Exception as e:
@@ -155,7 +163,7 @@ class HybridPDFParser:
                         # 将字符分组为块（行）
                         char_blocks = group_chars_into_blocks(chars, page_index)
                         
-                        # 提取表格结构信息
+                        # 提取表格结构信息（保留原有格式，用于兼容）
                         region["char_blocks"] = [
                             {
                                 "text": cb.text,
@@ -168,10 +176,40 @@ class HybridPDFParser:
                             for cb in char_blocks
                         ]
                         
-                        logger.debug(
-                            f"页面 {page_index} 表格区域深度解析: "
-                            f"{len(chars)} 个字符, {len(char_blocks)} 行"
+                        # 提取表格行列结构（新增）
+                        char_blocks_dict = [
+                            {
+                                "text": cb.text,
+                                "x0": cb.x0,
+                                "y0": cb.y0,
+                                "x1": cb.x1,
+                                "y1": cb.y1,
+                            }
+                            for cb in char_blocks
+                        ]
+                        
+                        table_struct = extract_table_structure(
+                            char_blocks_dict,
+                            region["x0"],
+                            region["y0"],
+                            region["x1"],
+                            region["y1"],
                         )
+                        
+                        if table_struct:
+                            region["table_structure"] = table_structure_to_dict(table_struct)
+                            logger.debug(
+                                f"页面 {page_index} 表格区域深度解析: "
+                                f"{len(chars)} 个字符, {len(char_blocks)} 行, "
+                                f"结构: {table_struct.rows}x{table_struct.cols}, "
+                                f"{len(table_struct.cells)} 个单元格"
+                            )
+                        else:
+                            logger.debug(
+                                f"页面 {page_index} 表格区域深度解析: "
+                                f"{len(chars)} 个字符, {len(char_blocks)} 行 "
+                                f"(无法提取行列结构)"
+                            )
                 
                 except Exception as e:
                     logger.warning(f"表格区域深度解析失败: {e}", exc_info=True)

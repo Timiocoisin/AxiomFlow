@@ -16,6 +16,13 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 if __name__ == "__main__":
+    # 设置日志配置（在导入celery_app之前，确保日志配置生效）
+    from app.core.config import settings
+    from app.core.observability import setup_logging
+    
+    # 配置Celery日志到文件，禁用控制台输出
+    setup_logging(json_logs=bool(getattr(settings, "log_json", False)), log_type="celery")
+    
     from app.celery_app import celery_app
 
     # 获取命令行参数（排除脚本名称）

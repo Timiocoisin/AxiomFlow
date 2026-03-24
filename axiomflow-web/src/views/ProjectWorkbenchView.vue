@@ -297,7 +297,7 @@ onUnmounted(() => {
   flex: 1;
   display: grid;
   grid-template-columns: 1fr 1fr; /* 左右各占一半 */
-  gap: 0;
+  gap: 16px; /* 左右两个 pane 之间的间距 */
   min-height: 0;
   height: 100%;
   overflow: hidden;
@@ -309,6 +309,9 @@ onUnmounted(() => {
   overflow: hidden;
   height: 100%;
   min-height: 0;
+  /* 覆盖全局样式，确保填满容器 */
+  padding: 12px 16px;
+  box-sizing: border-box;
 }
 
 .pane h3 {
@@ -326,6 +329,8 @@ onUnmounted(() => {
   position: relative;
   height: 100%;
   width: 100%;
+  /* 确保填满父容器 */
+  box-sizing: border-box;
 }
 
 .demo-block {

@@ -137,34 +137,24 @@ def detect_regions_feature_based(
     page_width: float,
     page_height: float,
     model_path: Path | None = None,
-    use_ml: bool = True,
+    use_ml: bool = False,
     min_confidence: float = 0.4,
 ) -> list[Region]:
     """
-    基于特征工程的布局检测（与开源项目不同的方案）
+    基于特征工程的布局检测（仅使用规则模式）
 
-    使用PDF结构特征 + 轻量ML分类器进行布局检测，而非纯视觉检测。
+    使用PDF结构特征 + 规则引擎进行布局检测。
 
     Args:
         blocks: PDF块列表
         page_width: 页面宽度
         page_height: 页面高度
-        model_path: 预训练模型路径（可选）
-        use_ml: 是否使用ML分类器（False时使用规则回退）
+        model_path: 忽略（保留以兼容旧代码）
+        use_ml: 忽略（始终使用规则模式）
         min_confidence: 最小置信度阈值
 
     Returns:
         检测到的区域列表
-
-    与开源项目的差异：
-    - 开源：纯视觉检测（YOLO ONNX模型）
-    - 本方法：PDF结构 + 特征工程 + 轻量ML分类器
-
-    优势：
-    - 充分利用PDF原生信息
-    - CPU性能优秀
-    - 可解释性强
-    - 无需深度学习依赖
     """
     try:
         from .feature_based_layout_detect import detect_regions_feature_based as _detect
@@ -174,7 +164,7 @@ def detect_regions_feature_based(
             page_width,
             page_height,
             model_path=model_path,
-            use_ml=use_ml,
+            use_ml=False,  # 始终使用规则模式
             min_confidence=min_confidence,
         )
     except ImportError as e:

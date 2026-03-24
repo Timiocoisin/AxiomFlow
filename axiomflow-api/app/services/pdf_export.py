@@ -10,6 +10,7 @@ from pathlib import Path
 
 import fitz  # PyMuPDF
 
+from ..core.config import settings
 from ..core.config_manager import config_manager
 from .font_subset import (
     optimize_font_embedding,
@@ -47,8 +48,28 @@ def _get_cjk_font_path(*, subset_chars: set[str] | None = None) -> str | None:
         字体文件路径（可能是子集化后的临时文件）
     """
     # 优先级 1：用户指定字体
-    # ConfigManager 会自动支持环境变量覆盖（AXIOMFLOW_PDF_FONT）
-    path = str(config_manager.get("AXIOMFLOW_PDF_FONT", "") or "")
+    # 首选 app/core/config.py 中的 Settings（支持 .env: AXIOMFLOW_PDF_FONT 或 PDF_FONT）
+    raw_path = settings.pdf_font or ""
+    if not raw_path:
+        # 兼容老的 ConfigManager 配置（以及通过环境变量覆盖的 AXIOMFLOW_PDF_FONT）
+        raw_path = str(config_manager.get("AXIOMFLOW_PDF_FONT", "") or "")
+    # 允许在 env 中使用相对路径（如 "./fonts/msyh.ttc" 或 "fonts/msyh.ttc"）：
+    # 这里统一把相对路径转换为以项目根目录为基准的绝对路径，
+    # 避免 Celery / API 进程的工作目录不一致导致找不到字体。
+    if raw_path:
+        font_path = Path(raw_path)
+        if not font_path.is_absolute():
+            repo_root = Path(__file__).resolve().parents[2]
+            font_path = (repo_root / raw_path).resolve()
+        path = str(font_path)
+    else:
+        path = ""
+
+    if path:
+        logger.info(f"CJK font path resolved to: {path}")
+    else:
+        logger.info("AXIOMFLOW_PDF_FONT not set or empty; will fall back to system fonts")
+
     if path and Path(path).exists():
         # 如果需要子集化且提供了字符集合，创建子集
         if subset_chars:
@@ -59,6 +80,7 @@ def _get_cjk_font_path(*, subset_chars: set[str] | None = None) -> str | None:
             except Exception:
                 # 如果子集化失败，返回原字体
                 pass
+        logger.info(f"Using CJK font from AXIOMFLOW_PDF_FONT: {path}")
         return path
 
     # 优先级 2：系统自动查找常用 CJK 字体
@@ -161,6 +183,7 @@ def _insert_block(
     - 支持从 block 中提取原始字体大小
     - 自适应字体大小处理文本溢出
     - 智能文本对齐方式推断
+    - 文本编码验证和清理
     """
     if block.get("is_header_footer"):
         return
@@ -173,9 +196,54 @@ def _insert_block(
 
     src = (block.get("text") or "").strip()
     dst = (block.get("translation") or "").strip()
-    text = dst if (use_translation and dst) else src
-    if not text:
-        return
+    
+    # 如果使用译文但译文为空，回退到原文
+    if use_translation:
+        if dst:
+            text = dst
+        elif src:
+            # 译文为空但有原文，使用原文并记录警告
+            logger.warning(
+                f"译文为空，使用原文: block_id={block.get('id', 'unknown')}, "
+                f"type={block.get('type', 'unknown')}"
+            )
+            text = src
+        else:
+            # 原文和译文都为空，跳过
+            logger.debug(f"文本块为空，跳过: block_id={block.get('id', 'unknown')}")
+            return
+    else:
+        text = src
+        if not text:
+            return
+    
+    # 文本编码验证和清理：检测并修复常见的编码问题
+    try:
+        # 确保文本是有效的UTF-8字符串
+        if isinstance(text, bytes):
+            text = text.decode('utf-8', errors='replace')
+        elif not isinstance(text, str):
+            text = str(text)
+        
+        # 检测并过滤掉明显的乱码字符（连续的替换字符或问号）
+        # 如果文本中超过30%是替换字符或问号，可能是编码问题
+        if len(text) > 0:
+            replacement_chars = text.count('\ufffd')  # Unicode替换字符
+            question_marks = text.count('?')
+            total_suspicious = replacement_chars + question_marks
+            if total_suspicious / len(text) > 0.3:
+                logger.warning(
+                    f"检测到可能的编码问题: block_id={block.get('id', 'unknown')}, "
+                    f"可疑字符比例={total_suspicious/len(text):.2%}, "
+                    f"原文长度={len(src)}, 译文长度={len(dst)}"
+                )
+                # 如果原文存在且译文看起来有问题，尝试使用原文
+                if use_translation and dst and src and len(src) > 0:
+                    logger.info(f"使用原文替代可能有问题的译文: block_id={block.get('id', 'unknown')}")
+                    text = src
+    except Exception as e:
+        logger.warning(f"文本编码验证失败: {e}, block_id={block.get('id', 'unknown')}")
+        # 如果验证失败，继续使用原文本
 
     t = (block.get("type") or "paragraph").lower()
     # 对 figure/table 块不做文本覆盖（保留原图/原表）
@@ -195,7 +263,8 @@ def _insert_block(
             fontsize = 10
 
     # 高保真导出：在原页上覆盖原文字区域（白底），再叠加译文
-    if cover_original and use_translation and dst:
+    # 注意：即使译文为空但使用了原文，也要覆盖原区域
+    if cover_original and use_translation:
         page.draw_rect(rect, color=None, fill=(1, 1, 1), overlay=True)
 
     # 推断文本对齐方式（基于文本在矩形中的位置）
@@ -212,6 +281,11 @@ def _insert_block(
 
     # 字体嵌入：优先使用自定义字体文件，确保 CJK 字符正确显示
     try:
+        # 验证字体文件是否存在（如果提供了字体路径）
+        if font_path and not Path(font_path).exists():
+            logger.warning(f"字体文件不存在: {font_path}，将使用系统字体")
+            font_path = None
+        
         if font_path:
             # 使用自定义字体文件，PyMuPDF 会自动嵌入
             # 尝试插入文本，如果溢出则缩小字体
@@ -240,38 +314,163 @@ def _insert_block(
                 )
         else:
             # 兜底：使用内置字体（可能不支持 CJK，但至少不会出错）
-            overflow = page.insert_textbox(
-                rect,
-                text,
-                fontname="helv",
-                fontsize=fontsize,
-                color=(0, 0, 0),
-                align=align,
-                render_mode=0,
+            # 对于包含CJK字符的文本，尝试使用支持CJK的系统字体
+            has_cjk = any(
+                0x4E00 <= ord(char) <= 0x9FFF or  # 中文
+                0x3040 <= ord(char) <= 0x309F or  # 日文平假名
+                0x30A0 <= ord(char) <= 0x30FF or  # 日文片假名
+                0xAC00 <= ord(char) <= 0xD7AF      # 韩文
+                for char in text
             )
-            # 如果文本溢出，尝试缩小字体
-            if overflow > 0 and fontsize > 6:
-                scale = max(0.7, 1.0 - (overflow / 100))
-                new_fontsize = max(6, fontsize * scale)
-                page.insert_textbox(
+            
+            if has_cjk:
+                # 尝试使用支持CJK的字体名称
+                cjk_fonts = ["china-s", "china-ss", "japan", "korea"]
+                font_inserted = False
+                for cjk_font in cjk_fonts:
+                    try:
+                        overflow = page.insert_textbox(
+                            rect,
+                            text,
+                            fontname=cjk_font,
+                            fontsize=fontsize,
+                            color=(0, 0, 0),
+                            align=align,
+                            render_mode=0,
+                        )
+                        font_inserted = True
+                        if overflow > 0 and fontsize > 6:
+                            scale = max(0.7, 1.0 - (overflow / 100))
+                            new_fontsize = max(6, fontsize * scale)
+                            page.insert_textbox(
+                                rect,
+                                text,
+                                fontname=cjk_font,
+                                fontsize=new_fontsize,
+                                color=(0, 0, 0),
+                                align=align,
+                                render_mode=0,
+                            )
+                        break
+                    except Exception:
+                        continue
+                
+                if not font_inserted:
+                    # 如果所有CJK字体都失败，回退到helv
+                    logger.warning(f"无法使用CJK字体插入文本，回退到helv: block_id={block.get('id', 'unknown')}")
+                    overflow = page.insert_textbox(
+                        rect,
+                        text,
+                        fontname="helv",
+                        fontsize=fontsize,
+                        color=(0, 0, 0),
+                        align=align,
+                        render_mode=0,
+                    )
+                    if overflow > 0 and fontsize > 6:
+                        scale = max(0.7, 1.0 - (overflow / 100))
+                        new_fontsize = max(6, fontsize * scale)
+                        page.insert_textbox(
+                            rect,
+                            text,
+                            fontname="helv",
+                            fontsize=new_fontsize,
+                            color=(0, 0, 0),
+                            align=align,
+                            render_mode=0,
+                        )
+            else:
+                # 非CJK文本，使用helv字体
+                overflow = page.insert_textbox(
                     rect,
                     text,
                     fontname="helv",
-                    fontsize=new_fontsize,
+                    fontsize=fontsize,
                     color=(0, 0, 0),
                     align=align,
                     render_mode=0,
                 )
-    except Exception:
-        # 如果插入失败，尝试使用更小的字体
+                # 如果文本溢出，尝试缩小字体
+                if overflow > 0 and fontsize > 6:
+                    scale = max(0.7, 1.0 - (overflow / 100))
+                    new_fontsize = max(6, fontsize * scale)
+                    page.insert_textbox(
+                        rect,
+                        text,
+                        fontname="helv",
+                        fontsize=new_fontsize,
+                        color=(0, 0, 0),
+                        align=align,
+                        render_mode=0,
+                    )
+    except Exception as e:
+        # 如果插入失败，记录错误并尝试多种回退方案
+        logger.warning(
+            f"文本插入失败: {e}, block_id={block.get('id', 'unknown')}, "
+            f"text_preview={text[:50] if len(text) > 50 else text}, "
+            f"font_path={font_path}, has_cjk={any(0x4E00 <= ord(c) <= 0x9FFF for c in text)}"
+        )
+        
+        # 回退方案1：尝试使用更小的字体
         try:
             fallback_size = max(6, fontsize * 0.8)
-            if font_path:
+            if font_path and Path(font_path).exists():
                 page.insert_textbox(rect, text, fontfile=font_path, fontsize=fallback_size, color=(0, 0, 0), align=align)
-            else:
-                page.insert_textbox(rect, text, fontname="helv", fontsize=fallback_size, color=(0, 0, 0), align=align)
+                logger.info(f"使用回退方案1成功: block_id={block.get('id', 'unknown')}")
+                return
         except Exception:
-            pass  # 如果还是失败，跳过这个块
+            pass
+        
+        # 回退方案2：如果字体文件失败，尝试使用系统CJK字体
+        try:
+            has_cjk = any(
+                0x4E00 <= ord(char) <= 0x9FFF or
+                0x3040 <= ord(char) <= 0x309F or
+                0x30A0 <= ord(char) <= 0x30FF or
+                0xAC00 <= ord(char) <= 0xD7AF
+                for char in text
+            )
+            
+            if has_cjk:
+                # 尝试使用系统CJK字体
+                cjk_fonts = ["china-s", "china-ss", "japan", "korea"]
+                for cjk_font in cjk_fonts:
+                    try:
+                        page.insert_textbox(rect, text, fontname=cjk_font, fontsize=fallback_size, color=(0, 0, 0), align=align)
+                        logger.info(f"使用回退方案2成功 (CJK字体 {cjk_font}): block_id={block.get('id', 'unknown')}")
+                        return
+                    except Exception:
+                        continue
+            
+            # 回退方案3：使用helv字体（可能不支持CJK，但至少能显示英文）
+            try:
+                page.insert_textbox(rect, text, fontname="helv", fontsize=fallback_size, color=(0, 0, 0), align=align)
+                logger.warning(f"使用回退方案3 (helv字体，CJK字符可能无法显示): block_id={block.get('id', 'unknown')}")
+                return
+            except Exception:
+                pass
+        except Exception:
+            pass
+        
+        # 所有回退方案都失败，记录严重错误
+        fallback_size = max(6, fontsize * 0.8)  # 确保变量已定义
+        logger.error(
+            f"文本插入所有方案均失败，跳过该块: block_id={block.get('id', 'unknown')}, "
+            f"text_length={len(text)}, bbox={bbox}, "
+            f"原文={src[:50] if src else 'None'}, 译文={dst[:50] if dst else 'None'}"
+        )
+        
+        # 如果原文存在且译文插入失败，尝试插入原文作为最后手段
+        if use_translation and src and src != text:
+            try:
+                logger.info(f"尝试插入原文作为最后手段: block_id={block.get('id', 'unknown')}")
+                page.insert_textbox(rect, src, fontname="helv", fontsize=fallback_size, color=(0, 0, 0), align=align)
+                return
+            except Exception:
+                pass
+        
+        # 如果所有方法都失败，至少保留白底覆盖，避免显示原文
+        # 这样用户知道这里应该有内容但插入失败了
 
 
 def _convert_to_pdfa(
@@ -463,7 +662,12 @@ def build_translated_pdf(
 
     # 链接通常由 insert_pdf 自动复制，无需额外处理
 
-    # 在“译文页底板”上覆盖并叠加译文
+    # 在"译文页底板"上覆盖并叠加译文
+    total_blocks = 0
+    blocks_with_translation = 0
+    blocks_without_translation = 0
+    blocks_with_corrupted_translation = 0
+    
     for p in pages:
         page_index = int(p.get("index") or 0)
         blocks = list(p.get("blocks", []))
@@ -476,6 +680,33 @@ def build_translated_pdf(
             target_page = base.load_page(page_index)
 
         for b in blocks:
+            total_blocks += 1
+            src_text = (b.get("text") or "").strip()
+            dst_text = (b.get("translation") or "").strip()
+            
+            # 统计翻译情况
+            if dst_text:
+                blocks_with_translation += 1
+                # 检查译文是否包含大量问号（可能是乱码）
+                if dst_text.count('?') / len(dst_text) > 0.2 if len(dst_text) > 0 else False:
+                    blocks_with_corrupted_translation += 1
+                    logger.warning(
+                        f"检测到可能损坏的译文: page={page_index + 1}, "
+                        f"block_id={b.get('id', 'unknown')}, "
+                        f"type={b.get('type', 'unknown')}, "
+                        f"原文长度={len(src_text)}, 译文长度={len(dst_text)}, "
+                        f"问号比例={dst_text.count('?')/len(dst_text):.2%}, "
+                        f"原文预览={src_text[:50] if len(src_text) > 50 else src_text}, "
+                        f"译文预览={dst_text[:50] if len(dst_text) > 50 else dst_text}"
+                    )
+            elif src_text:
+                blocks_without_translation += 1
+                logger.debug(
+                    f"译文为空，将使用原文: page={page_index + 1}, "
+                    f"block_id={b.get('id', 'unknown')}, "
+                    f"type={b.get('type', 'unknown')}"
+                )
+            
             _insert_block(
                 target_page,
                 b,
@@ -483,6 +714,21 @@ def build_translated_pdf(
                 font_path=font_path,
                 cover_original=True,
             )
+    
+    # 记录统计信息
+    logger.info(
+        f"PDF导出统计: 总块数={total_blocks}, "
+        f"有译文={blocks_with_translation}, "
+        f"无译文={blocks_without_translation}, "
+        f"损坏译文={blocks_with_corrupted_translation}, "
+        f"字体路径={font_path}"
+    )
+    
+    if blocks_with_corrupted_translation > 0:
+        logger.warning(
+            f"检测到 {blocks_with_corrupted_translation} 个可能损坏的译文块，"
+            f"建议检查翻译服务是否正常工作"
+        )
 
     # 输出：mono 直接返回；dual 需要交替页序
     if not bilingual:

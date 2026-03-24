@@ -1,4 +1,4 @@
-﻿/* =========================================================
+/* =========================================================
  * Main Stylesheet - Modular Architecture
  * - Imports all modular style files
  * - Maintains backward compatibility
@@ -137,6 +137,22 @@
   .offline-banner-content {
     font-size: 13px;
   }
+}
+
+/* =========================================================
+ * Global Scrollbar Policy
+ * - Hide all visible scrollbars across the frontend
+ * - Keep scrolling behavior available
+ * ========================================================= */
+* {
+  -ms-overflow-style: none; /* IE and legacy Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+*::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 /* =========================================================
@@ -478,11 +494,12 @@
 
 /* 鐧诲綍/娉ㄥ唽椤甸潰鏍峰紡 - 鍙傦拷?Apple/Google/Stripe 璁捐 */
 .auth-container {
-  min-height: calc(100vh - 80px);
+  min-height: calc(100vh - var(--app-header-height, 80px));
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 60px 24px;
+  box-sizing: border-box;
   background: transparent;
   position: relative;
 }
@@ -2187,6 +2204,11 @@
   max-width: 100%;
 }
 
+.app-main:focus,
+.app-main:focus-visible {
+  outline: none;
+}
+
 /* 锟?Settings 椤甸潰鍏佽婊氬姩锛堥《閮ㄥ鑸爮鍥哄畾涓嶉殢婊氬姩娑堝け锟?*/
 .app-main.scrollable {
   overflow-y: auto;
@@ -2204,6 +2226,29 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+body.auth-page {
+  overflow: hidden;
+}
+
+.app-main.auth-page {
+  padding: 0;
+  min-height: calc(100vh - var(--app-header-height, 80px));
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-main.auth-page .auth-container {
+  width: 100%;
+  height: auto;
+  min-height: auto;
+  margin: 0 auto;
+  overflow: visible;
+  box-sizing: border-box;
+  padding: 24px;
 }
 
 .glass-card {

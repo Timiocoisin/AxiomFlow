@@ -50,6 +50,41 @@ class Settings(BaseSettings):
     # 注意：为了兼容历史环境变量名，这里用 alias 支持 AXIOMFLOW_PDF_FONT
     pdf_font: str = Field(default="", validation_alias="AXIOMFLOW_PDF_FONT")
 
+    # Layout detection / feature-based layout config
+    # 这些参数用于控制基于特征工程的布局检测器和规则引擎的灵敏度
+    layout_min_region_area: float = Field(
+        default=100.0,
+        validation_alias="LAYOUT_MIN_REGION_AREA",
+    )
+    layout_min_confidence: float = Field(
+        default=0.4,
+        validation_alias="LAYOUT_MIN_CONFIDENCE",
+    )
+    layout_merge_distance_threshold: float = Field(
+        default=20.0,
+        validation_alias="LAYOUT_MERGE_DISTANCE_THRESHOLD",
+    )
+
+    # OCR / Table / Formula structure extraction
+    # OCR 配置
+    ocr_enabled: bool = Field(default=True, validation_alias="OCR_ENABLED")
+    ocr_engine: str = Field(default="auto", validation_alias="OCR_ENGINE")  # auto, tesseract, easyocr, paddleocr
+    ocr_dpi: int = Field(default=300, validation_alias="OCR_DPI")
+    
+    # 表格结构提取配置
+    table_structure_extraction_enabled: bool = Field(
+        default=True,
+        validation_alias="TABLE_STRUCTURE_EXTRACTION_ENABLED",
+    )
+    table_min_rows: int = Field(default=2, validation_alias="TABLE_MIN_ROWS")
+    table_min_cols: int = Field(default=2, validation_alias="TABLE_MIN_COLS")
+    
+    # 公式结构提取配置
+    formula_structure_extraction_enabled: bool = Field(
+        default=True,
+        validation_alias="FORMULA_STRUCTURE_EXTRACTION_ENABLED",
+    )
+
     # Optional provider overrides (ignored if未配置)
     ollama_api_base: str | None = Field(default=None, validation_alias="OLLAMA_API_BASE")
     ollama_model: str | None = Field(default=None, validation_alias="OLLAMA_MODEL")

@@ -9,6 +9,7 @@ import re
 import fitz  # PyMuPDF
 
 from ..core.ids import new_id
+from ..core.config import settings
 from .layout_detect import (
     detect_regions_heuristic,
     detect_regions_feature_based,
@@ -16,6 +17,8 @@ from .layout_detect import (
 )
 from .formula_detect import extract_fonts_from_text_dict, detect_formula_block, FontInfo
 from .document_structure import analyze_document_structure
+from .ocr import run_ocr_on_page, OCR_AVAILABLE
+from .lang_detect import detect_language, guess_domain_from_title
 
 
 def _guess_block_type(text: str) -> Literal["heading", "caption", "paragraph"]:
@@ -131,8 +134,8 @@ def parse_pdf_to_structured_json(
     lang_out: str,
     use_hybrid_parser: bool = True,
     use_feature_based_layout: bool = True,
-    # OCR 已完全移除，以下参数仅为兼容旧调用保留（不再生效）
-    enable_ocr: bool = False,
+    # OCR：默认按需启用（仅在文本极少/疑似扫描件时触发）
+    enable_ocr: bool = True,
     ocr_engine: str = "auto",
     vfont: str = "",
     vchar: str = "",
@@ -140,8 +143,9 @@ def parse_pdf_to_structured_json(
     progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> dict:
     """
-    解析 PDF 为结构化 JSON（文本 PDF 路线）：
-    - 使用 PyMuPDF 提取每页 text blocks（含 bbox）；
+    解析 PDF 为结构化 JSON：
+    - 优先使用 PyMuPDF 提取每页 text blocks（含 bbox）；
+    - 当页面几乎没有可复制文本、疑似扫描件时，可选使用 OCR 补充文本块；
     - 粗粒度推断 Block.type（heading/paragraph/caption）；
     - 估计列索引 column_index，后续可用于阅读顺序与布局增强。
     - 支持解析结果缓存（基于文件哈希）
@@ -163,7 +167,7 @@ def parse_pdf_to_structured_json(
     import logging
     logger = logging.getLogger(__name__)
     
-    # 尝试从缓存获取（仅基于文本解析参数，不再区分 OCR）
+    # 尝试从缓存获取（仅基于文本解析参数 + OCR 开关）
     if use_cache:
         try:
             from .pdf_cache import get_pdf_parse_cache
@@ -175,6 +179,7 @@ def parse_pdf_to_structured_json(
                 use_feature_based_layout=use_feature_based_layout,
                 vfont=vfont,
                 vchar=vchar,
+                enable_ocr=enable_ocr,
             )
             if cached_result is not None:
                 logger.info(f"从缓存加载PDF解析结果: {pdf_path.name}")
@@ -250,6 +255,33 @@ def parse_pdf_to_structured_json(
         for i, b in enumerate(block_dict_items):
             x0, y0, x1, y1, raw_text = b[0], b[1], b[2], b[3], b[4]
             text = (raw_text or "").strip()
+            
+            # 文本编码清理：确保文本是有效的UTF-8字符串
+            try:
+                if isinstance(text, bytes):
+                    text = text.decode('utf-8', errors='replace')
+                elif not isinstance(text, str):
+                    text = str(text)
+                
+                # 检测并记录可能的编码问题
+                if len(text) > 0:
+                    replacement_chars = text.count('\ufffd')  # Unicode替换字符
+                    if replacement_chars > 0:
+                        logger.debug(
+                            f"页面 {page_index + 1} 块 {i} 包含 {replacement_chars} 个替换字符，"
+                            f"可能表示编码问题"
+                        )
+            except Exception as e:
+                logger.warning(f"文本编码处理失败: {e}, 页面 {page_index + 1}, 块 {i}")
+                # 如果编码处理失败，尝试使用原始文本
+                if isinstance(raw_text, bytes):
+                    try:
+                        text = raw_text.decode('utf-8', errors='replace')
+                    except Exception:
+                        text = str(raw_text) if raw_text else ""
+                else:
+                    text = str(raw_text) if raw_text else ""
+            
             if not text:
                 continue
             block_id = new_id("blk")
@@ -300,18 +332,67 @@ def parse_pdf_to_structured_json(
                     {"substage": "extract", "step_done": i, "step_total": len(block_dict_items) or 1, "message": f"解析文本块: {i}/{len(block_dict_items) or 1}"},
                 )
 
+        # 如果文本块极少，且启用了 OCR，则尝试 OCR 补充
+        total_text_len = sum(len((b.get("text") or "").strip()) for b in blocks)
+        if enable_ocr and OCR_AVAILABLE and total_text_len < 10:
+            try:
+                ocr_blocks = run_ocr_on_page(page)
+                for ob in ocr_blocks:
+                    block_id = new_id("blk")
+                    block_dict = {
+                        "id": block_id,
+                        "document_id": document_id,
+                        "type": "paragraph",
+                        "bbox": {
+                            "page": page_index,
+                            "x0": ob.x0,
+                            "y0": ob.y0,
+                            "x1": ob.x1,
+                            "y1": ob.y1,
+                        },
+                        "reading_order": reading_order,
+                        "column_index": _guess_column_index(ob.x0, rect.width),
+                        "page_index": page_index,
+                        "is_header_footer": None,
+                        "text": ob.text,
+                        "translation": None,
+                        "edited": False,
+                        "edited_at": None,
+                        "source": "ocr",
+                    }
+                    blocks.append(block_dict)
+                    reading_order += 1
+                if ocr_blocks:
+                    logger.info(
+                        "页面 %s 使用 OCR 补充文本块: %s",
+                        page_index + 1,
+                        len(ocr_blocks),
+                    )
+            except Exception as e:  # 日志记录即可，不影响主流程
+                logger.warning("页面 %s OCR 补充失败: %s", page_index + 1, e, exc_info=True)
+
         # v0.7: layout regions (特征工程 + 轻量ML分类器)
         # 优先使用基于特征的检测器（与开源项目不同的方案）
         if use_feature_based_layout:
             try:
                 if progress_callback:
-                    progress_callback(page_index + 1, total_pages, {"substage": "layout", "step_done": 0, "step_total": 1, "message": "布局检测"})
+                    progress_callback(
+                        page_index + 1,
+                        total_pages,
+                        {
+                            "substage": "layout",
+                            "step_done": 0,
+                            "step_total": 1,
+                            "message": "布局检测",
+                        },
+                    )
                 regions = detect_regions_feature_based(
                     blocks,
                     page_width=float(rect.width),
                     page_height=float(rect.height),
-                    use_ml=True,
-                    min_confidence=0.4,
+                    use_ml=False,  # 始终使用规则模式
+                    # 允许通过 Settings 调整最小置信度阈值
+                    min_confidence=settings.layout_min_confidence,
                 )
             except Exception as e:
                 logger.warning(
@@ -322,8 +403,24 @@ def parse_pdf_to_structured_json(
         else:
             # 使用传统启发式方法
             regions = detect_regions_heuristic(blocks)
-        
+
         apply_regions_to_blocks(blocks, regions)
+
+        # 布局统计日志：记录每页各类型块数量，便于调参和排查
+        try:
+            type_counts: dict[str, int] = {}
+            for b in blocks:
+                t = (b.get("type") or "unknown").lower()
+                type_counts[t] = type_counts.get(t, 0) + 1
+            logger.info(
+                "页面布局统计 page=%s blocks=%s types=%s",
+                page_index + 1,
+                len(blocks),
+                type_counts,
+            )
+        except Exception:
+            # 日志统计失败不影响主流程
+            logger.debug("记录页面布局统计日志时出错", exc_info=True)
 
         # v0.3: 过滤页眉页脚（先标记，再在翻译/导出阶段可选择跳过）
         # v0.3: 段落合并（提高翻译质量与一致性）
@@ -445,6 +542,32 @@ def parse_pdf_to_structured_json(
             "pages": pages,
         }
 
+    # 自动语言检测 & 领域识别（当 lang_in 为 "auto" 时）
+    try:
+        if lang_in == "auto":
+            sample_texts: list[str] = []
+            for page in pages[:3]:
+                for blk in page.get("blocks", [])[:50]:
+                    txt = (blk.get("text") or "").strip()
+                    if txt:
+                        sample_texts.append(txt)
+                if len(sample_texts) > 5000:
+                    break
+            sample = "\n".join(sample_texts)[:8000]
+            detected = detect_language(sample)
+            structured["document"]["lang_in_detected"] = detected
+            # 将 lang_in 更新为检测结果，便于后续流程使用
+            lang_in = detected if detected != "unknown" else lang_in
+            structured["document"]["lang_in"] = lang_in
+
+        # 简单的领域识别（基于标题）
+        title = structured["document"].get("title") or _extract_original_filename(pdf_path)
+        domain = guess_domain_from_title(title)
+        structured["document"]["domain"] = domain
+    except Exception:
+        # 检测失败不影响主流程
+        logger.debug("语言/领域检测失败", exc_info=True)
+
     doc.close()
 
     # 保存到缓存
@@ -460,6 +583,7 @@ def parse_pdf_to_structured_json(
                 use_feature_based_layout=use_feature_based_layout,
                 vfont=vfont,
                 vchar=vchar,
+                enable_ocr=enable_ocr,
             )
             logger.info(f"PDF解析结果已缓存: {pdf_path.name}")
         except Exception as e:

@@ -10,7 +10,17 @@ from celery import Celery
 from celery.schedules import crontab
 
 from .core.config import settings
+from .core.observability import setup_logging
 from .db.schema import ensure_mysql_database
+
+# 配置 Celery 日志（在创建应用之前）
+# 注意：如果是在 worker 启动脚本中调用，这里可能会被覆盖
+# 但为了确保日志配置，我们在这里也设置一次
+try:
+    setup_logging(json_logs=bool(getattr(settings, "log_json", False)), log_type="celery")
+except Exception:
+    # 如果日志配置失败，不影响 Celery 启动
+    pass
 
 # 在创建 Celery 应用之前，确保结果库 / broker 对应的 MySQL 数据库已存在
 try:

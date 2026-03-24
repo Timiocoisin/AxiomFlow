@@ -38,7 +38,7 @@ def create_app() -> FastAPI:
         # 如果这里失败，后续真正连接数据库时仍会报出更详细的错误
         pass
 
-    setup_logging(json_logs=bool(getattr(settings, "log_json", False)))
+    setup_logging(json_logs=bool(getattr(settings, "log_json", False)), log_type="app")
     app = FastAPI(
         title="AxiomFlow API",
         version="0.1.0",

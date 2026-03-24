@@ -151,13 +151,13 @@
                 </button>
               </div>
             </div>
-            <input
+          <input
               ref="searchInput"
-              class="simple-input dashboard-search-input"
-              v-model="searchQuery"
+            class="simple-input dashboard-search-input"
+            v-model="searchQuery"
               :placeholder="searchChips.length > 0 ? '' : $t('dashboard.searchPlaceholder')"
               :class="{ 'dashboard-search-input--has-chips': searchChips.length > 0 }"
-            />
+          />
           </div>
         </div>
         <AppButton class="action-btn" @click="pickFile">{{ $t('dashboard.uploadPdf') }}</AppButton>
@@ -389,7 +389,7 @@
             v-if="!isSelectionMode && !d.document_id.startsWith('temp-')"
             class="doc-more-menu-container"
           >
-            <button
+          <button
               class="doc-more-menu-button"
               @click.stop="toggleMoreMenu(d.document_id)"
               :aria-label="$t('dashboard.moreActions')"
@@ -441,13 +441,13 @@
               <button
                 class="doc-more-menu-item doc-more-menu-item--danger"
                 @click="handleDeleteDocument(d.document_id, d.title); closeMoreMenu()"
-                :disabled="deletingDocumentId === d.document_id"
-              >
+            :disabled="deletingDocumentId === d.document_id"
+          >
                 <svg class="doc-more-menu-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M3 5H5H17M8 5V3C8 2.46957 8.21071 1.96086 8.58579 1.58579C8.96086 1.21071 9.46957 1 10 1H14C14.5304 1 15.0391 1.21071 15.4142 1.58579C15.7893 1.96086 16 2.46957 16 3V5M19 5V17C19 17.5304 18.7893 18.0391 18.4142 18.4142C18.0391 18.7893 17.5304 19 17 19H7C6.46957 19 5.96086 18.7893 5.58579 18.4142C5.21071 18.0391 5 17.5304 5 17V5H19Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
+            </svg>
                 {{ $t('dashboard.deleteDocument') }}
-              </button>
+          </button>
             </div>
           </div>
         </div>
@@ -935,7 +935,7 @@ const keyHandler = (e: KeyboardEvent) => {
   
   // Ctrl/Cmd+A 全选/进入选择模式
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a" && !isEditableTarget) {
-    e.preventDefault();
+      e.preventDefault();
     if (isSelectionMode.value && docs.value.length > 0) {
       // 如果已经在选择模式，全选所有ready状态的文档
       const readyDocs = filteredDocs.value.filter(d => d.status === 'ready' && !d.document_id.startsWith('temp-'));
@@ -1092,12 +1092,12 @@ watch(
     } else {
       // 没有解析出 chips，使用原始查询
       searchChips.value = [];
-      if (searchDebounceTimer) {
-        clearTimeout(searchDebounceTimer);
-      }
-      searchDebounceTimer = window.setTimeout(() => {
-        debouncedSearchQuery.value = val;
-      }, 200);
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    searchDebounceTimer = window.setTimeout(() => {
+      debouncedSearchQuery.value = val;
+    }, 200);
     }
   }
 );

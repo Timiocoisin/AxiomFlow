@@ -239,16 +239,16 @@ const renderAllPages = async () => {
     // 使用 toRaw 获取原始对象，避免 Proxy 导致的私有字段访问问题
     const rawPdfDoc = toRaw(pdfDoc.value);
     const total = rawPdfDoc.numPages || 1;
-    numPages.value = total;
-    for (let i = 0; i < total; i++) {
+  numPages.value = total;
+  for (let i = 0; i < total; i++) {
       try {
         const page = await rawPdfDoc.getPage(i + 1);
         const renderVp = page.getViewport({ scale: renderScale.value });
         const displayVp = page.getViewport({ scale: scale.value });
-        const canvas = canvasList.value[i];
-        if (!canvas) continue;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) continue;
+    const canvas = canvasList.value[i];
+    if (!canvas) continue;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) continue;
         
         // 设置canvas的实际尺寸（考虑设备像素比）
         canvas.width = Math.round(renderVp.width);

@@ -14,49 +14,52 @@ from .layout_features import FeatureExtractor
 from .layout_classifier import LayoutClassifier
 from .layout_rules import RuleEngine, RefinedRegion
 from .layout_detect import Region, RegionType
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class FeatureBasedLayoutDetector:
     """
-    基于特征工程的布局检测器
+    基于特征工程的布局检测器（仅使用规则模式）
 
-    与开源项目的差异：
-    - 开源：纯视觉检测（YOLO ONNX模型）
-    - 我们：PDF结构 + 特征工程 + 轻量ML分类器
-
-    优势：
-    - 充分利用PDF原生信息（文本块、字体、位置等）
-    - CPU性能优秀（传统ML比深度学习快）
-    - 可解释性强（特征重要性分析）
-    - 无需深度学习依赖（仅需scikit-learn）
+    使用PDF结构特征 + 规则引擎进行布局检测。
     """
 
     def __init__(
         self,
         model_path: Optional[Path] = None,
-        use_ml: bool = True,
-        min_confidence: float = 0.4,
+        use_ml: bool = False,
+        min_confidence: Optional[float] = None,
+        min_region_area: Optional[float] = None,
+        merge_distance_threshold: Optional[float] = None,
     ):
         """
         初始化布局检测器
 
         Args:
-            model_path: 预训练模型路径（可选）
-            use_ml: 是否使用ML分类器（如果为False，则使用纯规则）
-            min_confidence: 最小置信度阈值
+            model_path: 忽略（保留以兼容旧代码）
+            use_ml: 忽略（始终使用规则模式）
+            min_confidence: 最小置信度阈值（默认从 Settings.layout_min_confidence 读取）
+            min_region_area: 最小区域面积（默认从 Settings.layout_min_region_area 读取）
+            merge_distance_threshold: 合并距离阈值（默认从 Settings.layout_merge_distance_threshold 读取）
         """
         self.feature_extractor = FeatureExtractor()
-        self.classifier = LayoutClassifier(model_path=model_path)
-        self.rule_engine = RuleEngine(min_confidence=min_confidence)
-        self.use_ml = use_ml and self.classifier.use_ml
+        self.classifier = LayoutClassifier()
 
-        if self.use_ml and not self.classifier.is_trained:
-            logger.warning(
-                "ML模型未训练，将使用规则回退模式。"
-                "建议先训练模型或提供预训练模型路径。"
-            )
+        # 如果未显式传入，则从全局配置读取，支持 .env 自定义
+        if min_confidence is None:
+            min_confidence = settings.layout_min_confidence
+        if min_region_area is None:
+            min_region_area = settings.layout_min_region_area
+        if merge_distance_threshold is None:
+            merge_distance_threshold = settings.layout_merge_distance_threshold
+
+        self.rule_engine = RuleEngine(
+            min_region_area=min_region_area,
+            min_confidence=min_confidence,
+            merge_distance_threshold=merge_distance_threshold,
+        )
 
     def detect_regions(
         self,
@@ -88,14 +91,8 @@ class FeatureBasedLayoutDetector:
             blocks, page_width, page_height
         )
 
-        # 2. ML分类（或规则分类）
-        if self.use_ml and self.classifier.is_trained:
-            predictions = self.classifier.predict(
-                features, return_proba=True
-            )
-        else:
-            # 使用规则回退
-            predictions = self.classifier._rule_based_predict(features)
+        # 2. 使用规则分类
+        predictions = self.classifier.predict(features, return_proba=True)
 
         # 3. 规则引擎后处理
         refined_regions = self.rule_engine.refine_regions(
@@ -126,66 +123,6 @@ class FeatureBasedLayoutDetector:
 
         return features
 
-    def train_model(
-        self,
-        training_data: list[dict[str, Any]],
-        output_path: Optional[Path] = None,
-    ) -> dict[str, Any]:
-        """
-        训练布局分类模型
-
-        Args:
-            training_data: 训练数据列表，每个元素包含：
-                - 'blocks': PDF块列表
-                - 'labels': 标签列表（与blocks对应）
-                - 'page_width': 页面宽度
-                - 'page_height': 页面高度
-            output_path: 模型保存路径（可选）
-
-        Returns:
-            训练信息
-        """
-        if not self.use_ml:
-            return {"error": "ML模式未启用"}
-
-        all_features = []
-        all_labels = []
-
-        for data in training_data:
-            blocks = data.get("blocks", [])
-            labels = data.get("labels", [])
-            page_width = data.get("page_width", 800.0)
-            page_height = data.get("page_height", 1000.0)
-
-            if len(blocks) != len(labels):
-                logger.warning(
-                    f"块数量 ({len(blocks)}) 与标签数量 ({len(labels)}) 不匹配"
-                )
-                continue
-
-            features = self._extract_features(
-                blocks, page_width, page_height
-            )
-            all_features.extend(features)
-            all_labels.extend(labels)
-
-        if not all_features:
-            return {"error": "训练数据为空"}
-
-        # 训练模型
-        train_info = self.classifier.train(all_features, all_labels)
-
-        # 保存模型
-        if output_path:
-            self.classifier.save_model(output_path)
-
-        return train_info
-
-    def get_feature_importance(self) -> dict[str, float]:
-        """获取特征重要性（如果模型已训练）"""
-        if not self.use_ml:
-            return {}
-        return self.classifier.get_feature_importance()
 
 
 def detect_regions_feature_based(
@@ -193,26 +130,30 @@ def detect_regions_feature_based(
     page_width: float,
     page_height: float,
     model_path: Optional[Path] = None,
-    use_ml: bool = True,
-    min_confidence: float = 0.4,
+    use_ml: bool = False,
+    min_confidence: Optional[float] = None,
 ) -> list[Region]:
     """
-    便捷函数：使用基于特征的布局检测
+    便捷函数：使用基于特征的布局检测（仅使用规则模式）
 
     Args:
         blocks: PDF块列表
         page_width: 页面宽度
         page_height: 页面高度
-        model_path: 预训练模型路径（可选）
-        use_ml: 是否使用ML分类器
-        min_confidence: 最小置信度阈值
+        model_path: 忽略（保留以兼容旧代码）
+        use_ml: 忽略（始终使用规则模式）
+        min_confidence: 最小置信度阈值（默认从 Settings.layout_min_confidence 读取）
 
     Returns:
         检测到的区域列表
     """
+    # 如果未显式传入，则从全局配置读取（支持 .env 配置）
+    if min_confidence is None:
+        min_confidence = settings.layout_min_confidence
+
     detector = FeatureBasedLayoutDetector(
         model_path=model_path,
-        use_ml=use_ml,
+        use_ml=False,  # 始终使用规则模式
         min_confidence=min_confidence,
     )
     return detector.detect_regions(blocks, page_width, page_height)

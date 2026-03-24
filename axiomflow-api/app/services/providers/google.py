@@ -1,21 +1,13 @@
 from __future__ import annotations
 
-import html
 import logging
-import re
-import unicodedata
 from typing import Any
 
-import requests
+from googletrans import Translator
 
 from .base import BaseProvider, TranslateMeta
 
 logger = logging.getLogger(__name__)
-
-
-def remove_control_characters(s: str) -> str:
-    """移除控制字符"""
-    return "".join(ch for ch in s if unicodedata.category(ch)[0] != "C")
 
 
 class GoogleProvider(BaseProvider):
@@ -36,78 +28,72 @@ class GoogleProvider(BaseProvider):
 
     def __init__(self) -> None:
         super().__init__()
-        self.session = requests.Session()
-        self.endpoint = "https://translate.google.com/m"
-        self.headers = {
-            "User-Agent": "Mozilla/4.0 (compatible;MSIE 6.0;Windows NT 5.1;SV1;.NET CLR 1.1.4322;.NET CLR 2.0.50727;.NET CLR 3.0.04506.30)"
-        }
+        # 按照 test.py 的方式使用 googletrans 的 Translator
+        # 注意：googletrans 本身是同步接口，这里简单按文档示例用 await 调用，
+        # 若内部返回协程对象则可以直接 await；否则将结果视为同步返回。
+        self.translator = Translator()
         logger.info("GoogleProvider initialized")
 
     def _normalize_lang(self, lang: str) -> str:
-        """
-        标准化语言代码（Google 翻译使用 zh-CN 而不是 zh）
-        """
+        """标准化语言代码（Google 翻译使用 zh-CN 而不是 zh）"""
         lang_map = {"zh": "zh-CN", "zh-Hans": "zh-CN", "zh-Hant": "zh-TW"}
         return lang_map.get(lang.lower(), lang)
 
     async def _translate_impl(self, text: str, meta: TranslateMeta) -> str:
-        """
-        实现 Google 翻译
-        """
+        """实现 Google 翻译（参照 test.py 的用法）"""
         if not text or not text.strip():
             return text
-
-        # Google 翻译最大长度限制
-        text = text[:5000]
 
         try:
             lang_in = self._normalize_lang(meta.lang_in)
             lang_out = self._normalize_lang(meta.lang_out)
 
-            response = self.session.get(
-                self.endpoint,
-                params={"tl": lang_out, "sl": lang_in, "q": text},
-                headers=self.headers,
-                timeout=10,
+            # googletrans 典型调用方式：
+            # translation = await translator.translate('text', dest='zh-CN')
+            # 这里直接按 test.py 的写法调用
+            translation: Any = await self.translator.translate(
+                text, dest=lang_out, src=lang_in
             )
 
-            if response.status_code == 400:
-                logger.error(f"Google translate returned 400 for text: {text[:100]}")
-                return "IRREPARABLE TRANSLATION ERROR"
-
-            response.raise_for_status()
-
-            # 从 HTML 中提取翻译结果
-            re_result = re.findall(
-                r'(?s)class="(?:t0|result-container)">(.*?)<', response.text
-            )
-
-            if not re_result:
-                logger.warning(f"No translation result found for text: {text[:100]}")
-                return text  # 返回原文作为回退
-
-            result = html.unescape(re_result[0])
-            result = remove_control_characters(result)
-
-            if not result or result.strip() == "":
-                logger.warning(f"Empty translation result for text: {text[:100]}")
-                return text  # 返回原文作为回退
-
-            return result
-
-        except requests.exceptions.RequestException as e:
-            logger.error(
-                f"Google translate request failed: {type(e).__name__}: {str(e)} | "
-                f"text length: {len(text)} | lang: {meta.lang_in}->{meta.lang_out}",
-                exc_info=True,
-            )
-            # 网络错误时返回原文，避免整个翻译任务失败
-            return text
+        except TypeError:
+            # 某些版本下 translate 是同步函数，await 会抛 TypeError，这里退回同步调用
+            translation = self.translator.translate(text, dest=lang_out, src=lang_in)  # type: ignore[assignment]
         except Exception as e:
             logger.error(
-                f"Google translate failed: {type(e).__name__}: {str(e)} | "
+                f"Google translate failed (request error): {type(e).__name__}: {str(e)} | "
                 f"text length: {len(text)} | lang: {meta.lang_in}->{meta.lang_out}",
                 exc_info=True,
             )
-            raise
+            # 任何异常时先回退到原文，避免整段丢失
+            return text
+
+        try:
+            result = getattr(translation, "text", None)
+            if not isinstance(result, str) or not result.strip():
+                logger.warning(
+                    f"Empty translation result from googletrans for text: {text[:100]}"
+                )
+                return text
+
+            # ---- 问号占比检测：如果翻译结果大部分是“？”则认为翻译失败，回退原文 ----
+            if result:
+                total_len = len(result)
+                q_count = result.count("?")
+                if total_len > 0 and q_count / total_len > 0.5:
+                    logger.warning(
+                        "googletrans returned suspicious result (too many '?'), "
+                        f"len={total_len}, q_count={q_count}, sample_in={text[:80]!r}, "
+                        f"sample_out={result[:80]!r}. Fallback to source text."
+                    )
+                    return text
+
+            return result
+        except Exception as e:
+            logger.error(
+                f"Google translate failed (post-process): {type(e).__name__}: {str(e)} | "
+                f"text length: {len(text)} | lang: {meta.lang_in}->{meta.lang_out}",
+                exc_info=True,
+            )
+            # 最终兜底：返回原文
+            return text
 

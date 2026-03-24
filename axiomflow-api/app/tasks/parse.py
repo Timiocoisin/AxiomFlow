@@ -289,11 +289,20 @@ def run_parse_job(
                 except Exception as exc:
                     logger.warning(f"加载术语表失败: {exc}")
 
+                # 自动选择源语言（如果解析阶段没有明确 lang_in，尝试使用检测结果）
+                detected_lang = (structured.get("document") or {}).get("lang_in_detected")
+                if lang_in == "auto" and detected_lang:
+                    lang_in_effective = detected_lang
+                else:
+                    lang_in_effective = lang_in
+
                 # 创建翻译编排器
                 max_concurrent = int(getattr(settings, "translation_max_concurrent", 5))
                 orch = TranslateOrchestrator(max_concurrent=max_concurrent)
+                # 根据简单领域识别结果设置策略（目前主要用于后续扩展）
+                domain = (structured.get("document") or {}).get("domain") or "general"
                 strategy = TranslateStrategy(
-                    provider="google",  # 使用 Google 翻译
+                    provider="google",  # 当前统一使用 Google，可根据 domain 细分不同引擎/模型
                     use_context=True,
                     context_window_size=2,
                     use_term_consistency=True,
@@ -330,7 +339,7 @@ def run_parse_job(
                         for block in page_blocks:
                             try:
                                 meta = TranslateMeta(
-                                    lang_in=lang_in,
+                                    lang_in=lang_in_effective,
                                     lang_out=lang_out,
                                     document_id=document_id,
                                     block_type=block.get("type"),

@@ -31,12 +31,16 @@ dependencies = [
     "bcrypt>=4.0.0",
     "pyjwt>=2.8.0",
     "python-dotenv>=1.0.1",
+    "googletrans==4.0.0rc1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff",
     "mypy",
+]
+langdetect = [
+    "langdetect>=1.0.9",
 ]
 ocr = [
     "pytesseract>=0.3.10",

@@ -108,7 +108,6 @@
             <path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             <circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <span class="login-text">{{ $t('nav.login') }}</span>
         </button>
         <div
           v-else
@@ -216,7 +215,7 @@
         <span>{{ $t('common.offline') || '您当前处于离线状态，部分功能可能不可用' }}</span>
       </div>
     </div>
-    <main id="main-content" class="app-main" :class="{ 'landing-page': isLandingPage, scrollable: isSettingsPage }" tabindex="-1">
+    <main id="main-content" class="app-main" :class="{ 'landing-page': isLandingPage, scrollable: isSettingsPage, 'auth-page': isAuthPage }" tabindex="-1">
       <RouterView />
     </main>
     <Toast />
@@ -240,6 +239,7 @@ const { t, locale } = useI18n();
 const userStore = useUserStore();
 const isLandingPage = computed(() => route.path === "/");
 const isSettingsPage = computed(() => route.path === "/settings" || route.path.startsWith("/settings/"));
+const isAuthPage = computed(() => route.path === "/auth" || route.path.startsWith("/auth/"));
 const showMenu = ref(false);
 const isRouteLoading = ref(false);
 const showLanguageMenu = ref(false);
@@ -668,6 +668,14 @@ watch(isLandingPage, (isLanding) => {
     document.body.classList.add("landing-page");
   } else {
     document.body.classList.remove("landing-page");
+  }
+}, { immediate: true });
+
+watch(isAuthPage, (isAuth) => {
+  if (isAuth) {
+    document.body.classList.add("auth-page");
+  } else {
+    document.body.classList.remove("auth-page");
   }
 }, { immediate: true });
 </script>
