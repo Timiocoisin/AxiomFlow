@@ -1,683 +1,425 @@
 <template>
-  <div class="app-shell">
-    <!-- 跳过链接：可访问性改进 -->
-    <a href="#main-content" class="skip-link">{{ $t('common.skipToContent') || '跳转到主内容' }}</a>
-    <header class="app-header">
-      <button
-        class="logo"
-        type="button"
-        :title="$t('app.title')"
-        @click="router.push('/')"
-      >
-        <img src="/icons/favicon.svg" alt="AxiomFlow" class="logo-image" />
-        <span class="logo-text">
-          AxiomFlow
-          <span class="logo-badge">Beta</span>
-        </span>
-      </button>
-      <nav class="nav-links">
-        <RouterLink
-          to="/"
-          class="nav-link-item"
-          active-class=""
-          exact-active-class="router-link-active"
-        >
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M9 22V12H15V22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span>{{ $t('nav.home') }}</span>
-        </RouterLink>
-        <RouterLink 
-          to="/app" 
-          class="nav-link-item"
-          active-class=""
-          exact-active-class="router-link-active"
-        >
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M14 2V8H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M16 13H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M16 17H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M10 9H9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span>{{ $t('nav.documents') }}</span>
-        </RouterLink>
+  <AuthPage
+    v-if="page === 'auth'"
+    :is-dark="isDark"
+    @toggle-theme="toggleTheme"
+    @back="page = 'home'"
+    @authed="handleAuthed"
+  />
 
-        <!-- 语言切换器 -->
-        <div class="nav-language-selector">
-          <button
-            class="nav-language-button"
-            type="button"
-            :aria-label="$t('nav.language')"
-            :title="$t('nav.language')"
-            aria-haspopup="listbox"
-            :aria-expanded="showLanguageMenu"
-            @click="handleLanguageButtonClick"
-            @keydown.down.prevent="openLanguageMenuAndMove(1)"
-            @keydown.up.prevent="openLanguageMenuAndMove(-1)"
-            @keydown.enter.prevent="showLanguageMenu = !showLanguageMenu"
-            @keydown.space.prevent="showLanguageMenu = !showLanguageMenu"
-            @keydown.esc.prevent="showLanguageMenu = false"
-          >
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4 5h16M4 12h9M4 19h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M15 19l2-6 2 6m-3-2h2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span>{{ currentLanguageLabel }}</span>
-            <svg class="nav-language-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <Transition name="language-menu-fade">
-            <div
-              v-if="showLanguageMenu"
-              class="nav-language-menu"
-              role="listbox"
-              tabindex="-1"
-              @keydown.down.prevent="moveLanguageSelection(1)"
-              @keydown.up.prevent="moveLanguageSelection(-1)"
-              @keydown.enter.prevent="selectActiveLanguage()"
-              @keydown.esc.prevent="showLanguageMenu = false"
-            >
-              <button
-                v-for="option in languageOptions"
-                :key="option.value"
-                class="language-menu-item"
-                type="button"
-                role="option"
-                :aria-selected="locale === option.value"
-                :class="{ 'active': locale === option.value }"
-                @click.stop="selectLanguage(option.value)"
-              >
-                <span>{{ option.label }}</span>
-                <svg v-if="locale === option.value" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-            </div>
-          </Transition>
+  <template v-else>
+  <!-- 跳过链接 -->
+  <a class="sr-only focus:not-sr-only fixed top-4 left-4 z-[200] bg-indigo-600 text-white px-4 py-2 rounded-lg" href="#main-content">跳过导航</a>
+  <!-- 顶部进度条 -->
+  <div class="progress-bar" id="loading-bar" :style="{ width: `${loadingBarWidth}%`, opacity: loadingBarOpacity }"></div>
+  <!-- 离线提示横幅 -->
+  <div class="bg-red-600 text-white text-center py-2 text-sm sticky top-0 z-[110]" id="offline-banner" :class="{ hidden: isOnline }">
+    <div class="container mx-auto flex items-center justify-center gap-2">
+      <Icon icon="ph:wifi-slash-bold" />
+      检测到网络连接已断开，部分功能可能受限
+    </div>
+  </div>
+  <!-- 导航栏 -->
+  <nav class="sticky top-0 z-50 glass border-b dark:border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16 items-center">
+        <!-- Logo -->
+        <div class="flex items-center gap-2">
+          <img alt="Axiomflow Logo" class="w-8 h-8 rounded-lg" src="/icons/favicon.svg">
+          <span class="text-xl font-bold tracking-tight">Axiomflow</span>
         </div>
-        <button
-          v-if="!userStore.isLoggedIn"
-          class="user-avatar-button login-button"
-          @click="goToLogin"
-          :title="$t('nav.login')"
-        >
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <div
-          v-else
-          class="user-menu-wrapper"
-          @mouseenter="!isMobile() && (showMenu = true)"
-          @mouseleave="!isMobile() && (showMenu = false)"
-          @focusin="showMenu = true"
-          @focusout="handleMenuFocusOut"
-        >
-          <button 
-            class="user-avatar-button" 
-            :class="{ 'has-avatar': userStore.user?.avatar }"
-            :aria-label="showMenu ? $t('nav.closeAccountMenu') : $t('nav.openAccountMenu')"
-            :aria-expanded="showMenu"
-            aria-haspopup="true"
-            :title="$t('nav.accountMenu')"
-            @click.stop="handleUserMenuClick"
-            @keydown.enter="showMenu = !showMenu"
-            @keydown.space.prevent="showMenu = !showMenu"
-          >
-            <img
-              v-if="avatarUrl"
-              :src="avatarUrl"
-              :alt="userStore.user?.name || 'User'"
-              class="user-avatar-image"
-              @error="handleAvatarError"
-              @load="handleAvatarLoad"
-            />
-            <span v-else class="user-avatar-text">{{ userStore.user?.name?.charAt(0).toUpperCase() || 'U' }}</span>
-          </button>
-          <Transition name="user-menu-fade">
-          <div v-if="showMenu" class="user-menu">
-            <div class="user-menu-header">
-              <div class="user-menu-avatar">
-                <img
-                  v-if="avatarUrl"
-                  :src="avatarUrl"
-                  :alt="userStore.user?.name || 'User'"
-                  class="user-menu-avatar-image"
-                  @error="handleAvatarError"
-                  @load="handleAvatarLoad"
-                />
-                <span v-else>{{ userStore.user?.name?.charAt(0).toUpperCase() || 'U' }}</span>
-              </div>
-              <div class="user-menu-info">
-                <div class="user-menu-name">{{ userStore.user?.name || $t('nav.user') }}</div>
-                <div class="user-menu-email">
-                  {{ userStore.user?.email }}
-                </div>
-              </div>
+        <!-- 菜单 -->
+        <div class="hidden md:flex items-center space-x-8">
+          <a class="text-sm font-medium hover:text-indigo-600 transition-colors" href="#" @click.prevent>首页</a>
+          <a class="text-sm font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors" href="#" @click.prevent>文档</a>
+        </div>
+        <!-- 工具栏 -->
+        <div class="flex items-center gap-3">
+          <!-- 语言切换 -->
+          <div class="relative group">
+            <button class="h-10 inline-flex items-center gap-1 text-sm font-medium px-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
+              <Icon icon="ph:globe-bold" />
+              <span>中文</span>
+            </button>
+            <div class="absolute right-0 mt-2 w-40 bg-white dark:bg-slate-900 rounded-xl shadow-xl border dark:border-slate-800 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-2">
+              <a class="block px-3 py-2 text-sm rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30" href="#">English</a>
+              <a class="block px-3 py-2 text-sm rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30" href="#">日本語</a>
+              <a class="block px-3 py-2 text-sm rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30" href="#">Français</a>
             </div>
-            <div class="user-menu-divider"></div>
-            <button class="user-menu-item" @click="goToProfile">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <span>{{ $t('nav.profile') }}</span>
-            </button>
-            <button class="user-menu-item" @click="goToHelp">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 9C9.27251 8.33167 9.73144 7.76811 10.307 7.40937C10.8826 7.05064 11.5444 6.91509 12.1979 7.02185C12.8514 7.12861 13.4587 7.47176 13.9142 8.00001C14.3697 8.52826 14.6447 9.20757 14.695 9.92334C14.7453 10.6391 14.567 11.3517 14.1875 11.9444C13.808 12.5371 13.2474 12.9789 12.6 13.2V14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M12 17H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <span>{{ $t('nav.help') }}</span>
-            </button>
-            <div class="user-menu-divider"></div>
-            <button class="user-menu-item" @click="goToSettings">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M19.4 15C19.2669 15.3016 19.2272 15.6362 19.286 15.9606C19.3448 16.285 19.4995 16.5843 19.73 16.82L19.79 16.88C19.976 17.0657 20.1235 17.2863 20.2241 17.5291C20.3248 17.7719 20.3766 18.0322 20.3766 18.295C20.3766 18.5578 20.3248 18.8181 20.2241 19.0609C20.1235 19.3037 19.976 19.5243 19.79 19.71C19.6043 19.896 19.3837 20.0435 19.1409 20.1441C18.8981 20.2448 18.6378 20.2966 18.375 20.2966C18.1122 20.2966 17.8519 20.2448 17.6091 20.1441C17.3663 20.0435 17.1457 19.896 16.96 19.71L16.9 19.65C16.6643 19.4195 16.365 19.2648 16.0406 19.206C15.7162 19.1472 15.3816 19.1869 15.08 19.32C14.7842 19.4468 14.532 19.6572 14.3543 19.9255C14.1766 20.1938 14.0813 20.5082 14.08 20.83V21C14.08 21.5304 13.8693 22.0391 13.4942 22.4142C13.1191 22.7893 12.6104 23 12.08 23C11.5496 23 11.0409 22.7893 10.6658 22.4142C10.2907 22.0391 10.08 21.5304 10.08 21V20.91C10.0723 20.579 9.96512 20.258 9.77251 19.9887C9.5799 19.7194 9.31074 19.5143 9 19.4C8.69838 19.2669 8.36381 19.2272 8.03941 19.286C7.71502 19.3448 7.41568 19.4995 7.18 19.73L7.12 19.79C6.93425 19.976 6.71368 20.1235 6.47088 20.2241C6.22808 20.3248 5.96783 20.3766 5.705 20.3766C5.44217 20.3766 5.18192 20.3248 4.93912 20.2241C4.69632 20.1235 4.47575 19.976 4.29 19.79C4.10405 19.6043 3.95653 19.3837 3.85588 19.1409C3.75523 18.8981 3.70343 18.6378 3.70343 18.375C3.70343 18.1122 3.75523 17.8519 3.85588 17.6091C3.95653 17.3663 4.10405 17.1457 4.29 16.96L4.35 16.9C4.58054 16.6643 4.73519 16.365 4.794 16.0406C4.85282 15.7162 4.81312 15.3816 4.68 15.08C4.55324 14.7842 4.34276 14.532 4.07447 14.3543C3.80618 14.1766 3.49179 14.0813 3.17 14.08H3C2.46957 14.08 1.96086 13.8693 1.58579 13.4942C1.21071 13.1191 1 12.6104 1 12.08C1 11.5496 1.21071 11.0409 1.58579 10.6658C1.96086 10.2907 2.46957 10.08 3 10.08H3.09C3.42099 10.0723 3.742 9.96512 4.01131 9.77251C4.28062 9.5799 4.48568 9.31074 4.6 9C4.73312 8.69838 4.77282 8.36381 4.714 8.03941C4.65519 7.71502 4.50054 7.41568 4.27 7.18L4.21 7.12C4.02405 6.93425 3.87653 6.71368 3.77588 6.47088C3.67523 6.22808 3.62343 5.96783 3.62343 5.705C3.62343 5.44217 3.67523 5.18192 3.77588 4.93912C3.87653 4.69632 4.02405 4.47575 4.21 4.29C4.39575 4.10405 4.61632 3.95653 4.85912 3.85588C5.10192 3.75523 5.36217 3.70343 5.625 3.70343C5.88783 3.70343 6.14808 3.75523 6.39088 3.85588C6.63368 3.95653 6.85425 4.10405 7.04 4.29L7.1 4.35C7.33568 4.58054 7.63502 4.73519 7.95941 4.794C8.28381 4.85282 8.61838 4.81312 8.92 4.68H9C9.29577 4.55324 9.54802 4.34276 9.72569 4.07447C9.90337 3.80618 9.99872 3.49179 10 3.17V3C10 2.46957 10.2107 1.96086 10.5858 1.58579C10.9609 1.21071 11.4696 1 12 1C12.5304 1 13.0391 1.21071 13.4142 1.58579C13.7893 1.96086 14 2.46957 14 3V3.09C14.0013 3.41179 14.0966 3.72618 14.2743 3.99447C14.452 4.26276 14.7042 4.47324 15 4.6C15.3016 4.73312 15.6362 4.77282 15.9606 4.714C16.285 4.65519 16.5843 4.50054 16.82 4.27L16.88 4.21C17.0657 4.02405 17.2863 3.87653 17.5291 3.77588C17.7719 3.67523 18.0322 3.62343 18.295 3.62343C18.5578 3.62343 18.8181 3.67523 19.0609 3.77588C19.3037 3.87653 19.5243 4.02405 19.71 4.21C19.896 4.39575 20.0435 4.61632 20.1441 4.85912C20.2448 5.10192 20.2966 5.36217 20.2966 5.625C20.2966 5.88783 20.2448 6.14808 20.1441 6.39088C20.0435 6.63368 19.896 6.85425 19.71 7.04L19.65 7.1C19.4195 7.33568 19.2648 7.63502 19.206 7.95941C19.1472 8.28381 19.1869 8.61838 19.32 8.92V9C19.4468 9.29577 19.6572 9.54802 19.9255 9.72569C20.1938 9.90337 20.5082 9.99872 20.83 10H21C21.5304 10 22.0391 10.2107 22.4142 10.5858C22.7893 10.9609 23 11.4696 23 12C23 12.5304 22.7893 13.0391 22.4142 13.4142C22.0391 13.7893 21.5304 14 21 14H20.91C20.5882 14.0013 20.2738 14.0966 20.0055 14.2743C19.7372 14.452 19.5268 14.7042 19.4 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <span>{{ $t('nav.settings') }}</span>
-            </button>
-            <div class="user-menu-divider"></div>
-            <button class="user-menu-item" @click="handleLogout">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M16 17L21 12L16 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <span>{{ $t('nav.logout') }}</span>
-            </button>
           </div>
-          </Transition>
+          <!-- 主题切换 -->
+          <button class="h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500" @click="toggleTheme">
+            <Icon id="sun-icon" class="text-xl" icon="ph:sun-bold" :class="{ hidden: !isDark }" />
+            <Icon id="moon-icon" class="text-xl" icon="ph:moon-bold" :class="{ hidden: isDark }" />
+          </button>
+          <button
+            v-if="!isLoggedIn"
+            class="h-10 inline-flex items-center justify-center px-5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-semibold hover:opacity-90 transition-opacity"
+            @click.prevent="page = 'auth'"
+          >
+            登录
+          </button>
+          <!-- 用户菜单（登录后显示） -->
+          <div v-else class="relative group">
+            <button class="flex items-center gap-2 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <img alt="Avatar" class="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix">
+              <Icon class="text-xs text-slate-400" icon="ph:caret-down-bold" />
+            </button>
+            <div class="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border dark:border-slate-800 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-2">
+              <a class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" href="#" @click.prevent>
+                <Icon icon="ph:user-bold" /> 个人资料
+              </a>
+              <a class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" href="#" @click.prevent>
+                <Icon icon="ph:gear-six-bold" /> 账户设置
+              </a>
+              <div class="h-px bg-slate-100 dark:bg-slate-800 my-1"></div>
+              <a class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30" href="#" @click.prevent>
+                <Icon icon="ph:sign-out-bold" /> 退出登录
+              </a>
+            </div>
+          </div>
         </div>
-        <!-- 主题切换按钮：浅色 / 深色 -->
-        <div class="theme-toggle-wrapper">
-          <ThemeToggleButton
-            :model-value="isDarkMode ? 'dark' : 'light'"
-            @update:model-value="handleThemeChange"
-            @change="handleThemeChange"
-          />
-        </div>
-      </nav>
-    </header>
-    <div v-if="isRouteLoading" class="route-progress-bar"></div>
-    <!-- 离线状态提示 -->
-    <div v-if="!isOnline" class="offline-banner" role="alert" aria-live="assertive">
-      <div class="offline-banner-content">
-        <svg class="offline-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M1.42 9a16 16 0 0 1 21.16 0M5 12.55a11 11 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 15a16 16 0 0 0 21.16 0M5 11.45a11 11 0 0 0 5.17 2.39M10.71 18.95A16 16 0 0 0 22.58 15M12 20h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <span>{{ $t('common.offline') || '您当前处于离线状态，部分功能可能不可用' }}</span>
       </div>
     </div>
-    <main id="main-content" class="app-main" :class="{ 'landing-page': isLandingPage, scrollable: isSettingsPage, 'auth-page': isAuthPage }" tabindex="-1">
-      <RouterView />
-    </main>
-    <Toast />
+
+  </nav>
+  <main class="hero-gradient" id="main-content">
+    <!-- Hero Section -->
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
+      <div class="grid lg:grid-cols-2 gap-16 items-center">
+        <div class="space-y-8">
+          <div class="relative inline-flex">
+            <span class="badge-breath absolute -inset-1 rounded-full bg-indigo-500/20 dark:bg-indigo-400/20"></span>
+            <span class="relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider">
+              <span class="flex h-2 w-2 rounded-full bg-indigo-600"></span>
+              2026年4月新版本发布
+            </span>
+          </div>
+          <h1 class="text-5xl lg:text-7xl font-extrabold leading-tight tracking-tight">
+            智能翻译<br>
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-500">还原排版细节</span>
+          </h1>
+          <p class="text-lg text-slate-600 dark:text-slate-400 max-w-xl leading-relaxed">
+            借助神经网络引擎，Axiomflow 不止翻译文本，还能精准还原原始 PDF 的复杂版式、字体、配色与表格结构。
+          </p>
+        </div>
+        <!-- 上传入口 -->
+          <div class="relative group">
+          <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
+          <div class="upload-breath upload-surface relative border-2 border-dashed p-10 lg:p-16 rounded-3xl text-center cursor-pointer hover:border-indigo-500 transition-all" id="drop-zone" @click="openModal">
+            <div class="mb-6 inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 transition-transform group-hover:scale-110">
+              <Icon class="text-4xl" icon="ph:cloud-arrow-up-bold" />
+            </div>
+            <h3 class="text-2xl font-bold mb-2">点击或拖拽文件到此处</h3>
+            <p class="text-slate-500 mb-8">支持 PDF, DOCX (最大 100MB)</p>
+            <div class="flex justify-center gap-4 text-xs font-medium text-slate-400 uppercase tracking-widest">
+              <span>2026年安全加密</span>
+              <span>•</span>
+              <span>端到端保护</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- 数据展示 -->
+    <section class="max-w-7xl mx-auto px-4 pb-20">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div class="group p-6 rounded-3xl text-center card-surface card-surface-hover hover:-translate-y-1 transition-all duration-300">
+          <div class="text-3xl font-extrabold tracking-tight text-indigo-600 group-hover:text-indigo-500 transition-colors">120+</div>
+          <div class="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">支持语言</div>
+        </div>
+        <div class="group p-6 rounded-3xl text-center card-surface card-surface-hover hover:-translate-y-1 transition-all duration-300">
+          <div class="text-3xl font-extrabold tracking-tight text-indigo-600 group-hover:text-indigo-500 transition-colors">2.5s</div>
+          <div class="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">平均翻译速度/页</div>
+        </div>
+        <div class="group p-6 rounded-3xl text-center card-surface card-surface-hover hover:-translate-y-1 transition-all duration-300">
+          <div class="text-3xl font-extrabold tracking-tight text-indigo-600 group-hover:text-indigo-500 transition-colors">99.9%</div>
+          <div class="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">布局还原率</div>
+        </div>
+        <div class="group p-6 rounded-3xl text-center card-surface card-surface-hover hover:-translate-y-1 transition-all duration-300">
+          <div class="text-3xl font-extrabold tracking-tight text-indigo-600 group-hover:text-indigo-500 transition-colors">5M+</div>
+          <div class="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">本月已处理文档</div>
+        </div>
+      </div>
+    </section>
+    <!-- 特性列表 -->
+    <section class="py-24 section-surface">
+      <div class="max-w-7xl mx-auto px-4">
+        <div class="text-center mb-16 space-y-4">
+          <h2 class="text-3xl md:text-5xl font-bold">为什么选择 Axiomflow</h2>
+          <p class="text-slate-500 max-w-2xl mx-auto">我们不仅仅是翻译文字，更是通过 AI 视觉技术重建您的文档结构。</p>
+        </div>
+        <div class="grid md:grid-cols-3 gap-8">
+          <!-- Feature 1 -->
+          <div class="group p-8 rounded-3xl card-surface card-surface-hover hover:-translate-y-1 transition-all duration-300">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-100 to-violet-100 dark:from-indigo-500/20 dark:to-fuchsia-500/15 flex items-center justify-center text-indigo-600 mb-6 group-hover:scale-105 transition-transform">
+              <Icon class="text-2xl" icon="ph:layout-bold" />
+            </div>
+            <h4 class="text-xl font-bold mb-3 tracking-tight">极致排版还原</h4>
+            <p class="text-slate-600 dark:text-slate-400 leading-relaxed">精准识别复杂的图文混排、多级表格及复杂背景色，生成的翻译件与原件布局高度契合。</p>
+          </div>
+          <!-- Feature 2 -->
+          <div class="group p-8 rounded-3xl card-surface card-surface-hover hover:-translate-y-1 transition-all duration-300">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-100 to-violet-100 dark:from-indigo-500/20 dark:to-fuchsia-500/15 flex items-center justify-center text-indigo-600 mb-6 group-hover:scale-105 transition-transform">
+              <Icon class="text-2xl" icon="ph:shield-check-bold" />
+            </div>
+            <h4 class="text-xl font-bold mb-3 tracking-tight">企业级隐私保护</h4>
+            <p class="text-slate-600 dark:text-slate-400 leading-relaxed">符合 2026 最新数据隐私规范，文件翻译后 24 小时自动物理擦除，保障您的机密信息。</p>
+          </div>
+          <!-- Feature 3 -->
+          <div class="group p-8 rounded-3xl card-surface card-surface-hover hover:-translate-y-1 transition-all duration-300">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-100 to-violet-100 dark:from-indigo-500/20 dark:to-fuchsia-500/15 flex items-center justify-center text-indigo-600 mb-6 group-hover:scale-105 transition-transform">
+              <Icon class="text-2xl" icon="ph:file-search-bold" />
+            </div>
+            <h4 class="text-xl font-bold mb-3 tracking-tight">OCR 增强识别</h4>
+            <p class="text-slate-600 dark:text-slate-400 leading-relaxed">哪怕是模糊的扫描件或手写笔记，我们的 OCR 引擎也能先矫正、后翻译。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <!-- 预览弹窗 (Mock) -->
+  <div class="fixed inset-0 z-[150] items-center justify-center px-4" id="preview-modal" :class="showPreview ? 'flex' : 'hidden'">
+    <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" @click="closeModal"></div>
+    <div class="relative bg-white dark:bg-slate-900 w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+      <div class="p-4 border-b dark:border-slate-800 flex items-center justify-between">
+        <h3 class="font-bold flex items-center gap-2">
+          <Icon icon="ph:eye-bold" /> 翻译预览: 企业年度报告.pdf
+        </h3>
+        <button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" @click="closeModal">
+          <Icon icon="ph:x-bold" />
+        </button>
+      </div>
+      <div class="grid md:grid-cols-2 h-[60vh] overflow-hidden">
+        <div class="border-r dark:border-slate-800 bg-slate-100 dark:bg-slate-800 p-8 overflow-y-auto">
+          <div class="text-xs font-bold text-slate-400 mb-4 uppercase tracking-wider">原文 (English)</div>
+          <img alt="Original PDF content with charts" class="w-full rounded shadow-md border" src="/icons/favicon.svg">
+          <div class="mt-4 p-4 bg-white dark:bg-slate-900 rounded-lg space-y-2">
+            <div class="h-4 w-3/4 bg-slate-200 dark:bg-slate-800 rounded"></div>
+            <div class="h-4 w-1/2 bg-slate-200 dark:bg-slate-800 rounded"></div>
+          </div>
+        </div>
+        <div class="p-8 overflow-y-auto">
+          <div class="text-xs font-bold text-indigo-500 mb-4 uppercase tracking-wider">翻译件 (中文)</div>
+          <img alt="Translated PDF content with same layout" class="w-full rounded shadow-md border border-indigo-200" src="/icons/favicon.svg">
+          <div class="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg space-y-2">
+            <div class="h-4 w-3/4 bg-indigo-100 dark:bg-indigo-800/50 rounded"></div>
+            <div class="h-4 w-1/2 bg-indigo-100 dark:bg-indigo-800/50 rounded"></div>
+          </div>
+        </div>
+      </div>
+      <div class="p-6 border-t dark:border-slate-800 flex justify-end gap-4">
+        <button class="px-6 py-2 rounded-xl border dark:border-slate-700" @click="closeModal">取消</button>
+        <button class="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold" @click="startTranslation">开始翻译并查看</button>
+      </div>
+    </div>
   </div>
+  <!-- Toast 容器 -->
+  <div class="fixed bottom-8 right-8 z-[200] flex flex-col gap-3" id="toast-container">
+    <div
+      v-for="toast in toasts"
+      :key="toast.id"
+      class="glass p-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right-10 duration-300 min-w-[280px] border-l-4 border-l-indigo-600"
+    >
+      <Icon class="text-indigo-600 text-xl" icon="ph:info-bold" />
+      <span class="text-sm font-medium">{{ toast.message }}</span>
+      <button class="ml-auto text-slate-400 hover:text-slate-600" @click="removeToast(toast.id)">
+        <Icon icon="ph:x-bold" />
+      </button>
+    </div>
+  </div>
+  <footer class="section-surface pt-20 pb-10">
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-12 mb-20">
+        <div class="col-span-2 lg:col-span-2">
+          <div class="flex items-center gap-2 mb-6">
+            <img alt="Axiomflow Logo" class="w-8 h-8 rounded-lg" src="/icons/favicon.svg">
+            <span class="text-xl font-bold">Axiomflow</span>
+          </div>
+          <p class="text-slate-500 dark:text-slate-400 mb-8 max-w-sm">
+            定义 2026 年新一代文档翻译标准。让全球协作再无边界。
+          </p>
+          <div class="flex gap-4">
+            <a class="w-10 h-10 rounded-full border dark:border-slate-800 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-600 transition-all" href="#">
+              <Icon class="text-xl" icon="ph:twitter-logo-bold" />
+            </a>
+            <a class="w-10 h-10 rounded-full border dark:border-slate-800 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-600 transition-all" href="#">
+              <Icon class="text-xl" icon="ph:github-logo-bold" />
+            </a>
+            <a class="w-10 h-10 rounded-full border dark:border-slate-800 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-600 transition-all" href="#">
+              <Icon class="text-xl" icon="ph:linkedin-logo-bold" />
+            </a>
+          </div>
+        </div>
+        <div>
+          <h5 class="font-bold mb-6 uppercase text-xs tracking-widest text-slate-400">产品</h5>
+          <ul class="space-y-4 text-sm font-medium text-slate-500">
+            <li><a class="hover:text-indigo-600" href="#">翻译引擎</a></li>
+            <li><a class="hover:text-indigo-600" href="#">批量处理</a></li>
+            <li><a class="hover:text-indigo-600" href="#">API 接口</a></li>
+            <li><a class="hover:text-indigo-600" href="#">浏览器插件</a></li>
+          </ul>
+        </div>
+        <div>
+          <h5 class="font-bold mb-6 uppercase text-xs tracking-widest text-slate-400">资源</h5>
+          <ul class="space-y-4 text-sm font-medium text-slate-500">
+            <li><a class="hover:text-indigo-600" href="#">开发文档</a></li>
+            <li><a class="hover:text-indigo-600" href="#">帮助中心</a></li>
+            <li><a class="hover:text-indigo-600" href="#">博客文章</a></li>
+            <li><a class="hover:text-indigo-600" href="#">发布日志</a></li>
+          </ul>
+        </div>
+        <div>
+          <h5 class="font-bold mb-6 uppercase text-xs tracking-widest text-slate-400">合规</h5>
+          <ul class="space-y-4 text-sm font-medium text-slate-500">
+            <li><a class="hover:text-indigo-600" href="#">隐私条款</a></li>
+            <li><a class="hover:text-indigo-600" href="#">服务协议</a></li>
+            <li><a class="hover:text-indigo-600" href="#">Cookie 政策</a></li>
+            <li><a class="hover:text-indigo-600" href="#">数据安全报告</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="pt-10 border-t dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-slate-500">
+        <p>© {{ currentYear }} Axiomflow. 保留所有权利。</p>
+        <div class="flex items-center gap-6">
+          <span class="flex items-center gap-2"><span class="status-light w-2.5 h-2.5 rounded-full"></span> 系统状态: 正常</span>
+          <span>服务时间: {{ serviceTime }}</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+</template>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, nextTick, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { useI18n } from "vue-i18n";
-import { supportedLocales, type SupportedLocale } from "@/i18n";
-import { useUserStore } from "@/stores/user";
-import Toast from "@/components/Toast.vue";
-import ThemeToggleButton from "@/components/ThemeToggleButton.vue";
-import { getAvatarProxyUrl } from "@/lib/api";
-import { onNetworkStatusChange } from "@/utils/fetchWithRetry";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { Icon } from "@iconify/vue";
+import AuthPage from "./AuthPage.vue";
 
-const route = useRoute();
-const router = useRouter();
-const { t, locale } = useI18n();
-const userStore = useUserStore();
-const isLandingPage = computed(() => route.path === "/");
-const isSettingsPage = computed(() => route.path === "/settings" || route.path.startsWith("/settings/"));
-const isAuthPage = computed(() => route.path === "/auth" || route.path.startsWith("/auth/"));
-const showMenu = ref(false);
-const isRouteLoading = ref(false);
-const showLanguageMenu = ref(false);
-const activeLanguageIndex = ref(0);
+type ToastItem = {
+  id: number;
+  message: string;
+};
+
+const isDark = ref(false);
+const isLoggedIn = ref(false);
+const page = ref<"home" | "auth">("home");
 const isOnline = ref(navigator.onLine);
+const showPreview = ref(false);
+const loadingBarWidth = ref(0);
+const loadingBarOpacity = ref(1);
+const toasts = ref<ToastItem[]>([]);
+const now = ref(new Date());
 
-// 主题状态（浅色 / 深色）
-const isDarkMode = ref(false);
+let toastIdSeed = 0;
+let loadingTimerA: number | null = null;
+let loadingTimerB: number | null = null;
+let clockTimer: number | null = null;
 
-// 获取代理后的头像URL（用于Google/GitHub头像）
-const avatarUrl = computed(() => getAvatarProxyUrl(userStore.user?.avatar || null));
-
-const currentLanguageLabel = computed(() => {
-  const currentLocale = locale.value as SupportedLocale;
-  const localeMap: Record<SupportedLocale, string> = {
-    'zh-CN': t("language.zhCN"),
-    'zh-TW': t("language.zhTW"),
-    'en-US': t("language.enUS"),
-    'ja-JP': t("language.jaJP"),
-    'ko-KR': t("language.koKR"),
-    'fr-FR': t("language.frFR"),
-    'de-DE': t("language.deDE"),
-    'es-ES': t("language.esES"),
-  };
-  return localeMap[currentLocale] || t("language.enUS");
+const currentYear = computed(() => now.value.getFullYear());
+const serviceTime = computed(() => {
+  const pad = (v: number) => String(v).padStart(2, "0");
+  const y = now.value.getFullYear();
+  const m = pad(now.value.getMonth() + 1);
+  const d = pad(now.value.getDate());
+  const hh = pad(now.value.getHours());
+  const mm = pad(now.value.getMinutes());
+  const ss = pad(now.value.getSeconds());
+  return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
 });
 
-// 获取所有支持的语言选项
-const languageOptions = computed(() => {
-  return supportedLocales.map(loc => ({
-    value: loc,
-    label: getLanguageLabel(loc),
-  }));
-});
+function updateThemeIcons() {
+  const isDarkNow = document.body.classList.contains("theme-dark");
+  isDark.value = isDarkNow;
+}
 
-watch([showLanguageMenu, locale], () => {
-  if (!showLanguageMenu.value) return;
-  const idx = languageOptions.value.findIndex((o) => o.value === (locale.value as SupportedLocale));
-  activeLanguageIndex.value = idx >= 0 ? idx : 0;
-});
+function applyThemeClasses(dark: boolean) {
+  document.documentElement.classList.toggle("dark", dark);
+  document.body.classList.toggle("dark", dark);
+  document.body.classList.toggle("theme-dark", dark);
+  document.body.classList.toggle("theme-light", !dark);
+}
 
-// 同步 RTL 方向
-const syncRTL = () => {
-  if (typeof document === "undefined") return;
-  const html = document.documentElement;
-  const currentLocale = locale.value as string;
-  const rtlLocales = ['ar', 'he', 'fa', 'ur'];
-  const isRTL = rtlLocales.some(rtl => currentLocale.toLowerCase().includes(rtl));
-  if (isRTL) {
-    html.setAttribute('dir', 'rtl');
-  } else {
-    html.setAttribute('dir', 'ltr');
-  }
-};
+function toggleTheme() {
+  const nextDark = !document.body.classList.contains("theme-dark");
+  applyThemeClasses(nextDark);
+  updateThemeIcons();
+}
 
-// 监听语言变化，更新 RTL
-watch(locale, () => {
-  syncRTL();
-});
+function openModal() {
+  showPreview.value = true;
+}
 
-const getLanguageLabel = (loc: SupportedLocale): string => {
-  const localeMap: Record<SupportedLocale, string> = {
-    'zh-CN': t("language.zhCN"),
-    'zh-TW': t("language.zhTW"),
-    'en-US': t("language.enUS"),
-    'ja-JP': t("language.jaJP"),
-    'ko-KR': t("language.koKR"),
-    'fr-FR': t("language.frFR"),
-    'de-DE': t("language.deDE"),
-    'es-ES': t("language.esES"),
-  };
-  return localeMap[loc] || loc;
-};
+function closeModal() {
+  showPreview.value = false;
+}
 
-// 同步当前 DOM 上的主题到状态
-const syncThemeFromDom = () => {
-  if (typeof document === "undefined") return;
-  const html = document.documentElement;
-  isDarkMode.value = html.getAttribute("data-theme") === "dark";
-};
+function removeToast(id: number) {
+  toasts.value = toasts.value.filter((t) => t.id !== id);
+}
 
-// 应用主题并写入 localStorage
-const applyTheme = (dark: boolean) => {
-  if (typeof document === "undefined") return;
-  const html = document.documentElement;
-  if (dark) {
-    html.setAttribute("data-theme", "dark");
-    localStorage.setItem("theme", "dark");
-  } else {
-    html.removeAttribute("data-theme");
-    localStorage.setItem("theme", "light");
-  }
-  isDarkMode.value = dark;
-};
+function showToast(message: string) {
+  const id = ++toastIdSeed;
+  toasts.value.push({ id, message });
+  window.setTimeout(() => removeToast(id), 4000);
+}
 
-const toggleTheme = () => {
-  applyTheme(!isDarkMode.value);
-};
+function startTranslation() {
+  showToast("正在初始化翻译引擎...");
+  window.setTimeout(() => {
+    showToast("正在上传并分析文档...");
+    closeModal();
+  }, 800);
+}
 
-const handleThemeChange = (theme: 'light' | 'dark') => {
-  applyTheme(theme === 'dark');
-};
+function handleAuthed() {
+  isLoggedIn.value = true;
+  page.value = "home";
+  showToast("登录成功（原型）");
+}
 
-// 高优先级：修复缺失的头像处理方法
-const handleAvatarError = (e: Event) => {
-  const img = e.target as HTMLImageElement;
-  // 隐藏加载失败的图片，显示默认头像文字
-  img.style.display = 'none';
-  // 可以在这里添加错误日志记录
-  console.debug('Avatar image failed to load:', img.src);
-};
+function handleOnline() {
+  isOnline.value = true;
+}
 
-const handleAvatarLoad = (e: Event) => {
-  const img = e.target as HTMLImageElement;
-  // 确保图片正常显示
-  img.style.display = 'block';
-};
+function handleOffline() {
+  isOnline.value = false;
+}
 
-const goToLogin = () => {
-  const redirect = route.path === "/" ? "/" : route.fullPath;
-  router.push(`/auth?redirect=${encodeURIComponent(redirect)}`);
-};
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape") closeModal();
+}
 
-const handleLogout = () => {
-  userStore.logout();
-  showMenu.value = false;
-  // 退出后回到登录页
-  router.replace("/auth?redirect=/");
-};
-
-const goToProfile = () => {
-  showMenu.value = false;
-  // 这里暂时跳到设置页中的个人资料区域，后续可以替换为单独的 /profile 路由
-  router.push("/settings?tab=profile");
-};
-
-const goToHelp = () => {
-  showMenu.value = false;
-  // 这里暂时跳到设置页中的帮助 / 反馈区域，后续可以替换为单独的 /help 路由
-  router.push("/settings?tab=help");
-};
-
-const goToSettings = () => {
-  showMenu.value = false;
-  router.push("/settings");
-};
-
-const applyLanguage = (value: SupportedLocale) => {
-  locale.value = value;
-  localStorage.setItem("language", value);
-};
-
-const selectLanguage = (newLocale: SupportedLocale) => {
-  if (locale.value === newLocale) {
-    showLanguageMenu.value = false;
-    return;
-  }
-  applyLanguage(newLocale);
-  showLanguageMenu.value = false;
-  // 添加语言切换反馈
-  if (typeof window !== 'undefined' && (window as any).showToast) {
-    (window as any).showToast({
-      type: 'success',
-      title: t("language.switchedTo", { 
-        lang: getLanguageLabel(newLocale)
-      }),
-      duration: 2000,
-    });
-  }
-};
-
-const moveLanguageSelection = (delta: number) => {
-  const n = languageOptions.value.length;
-  if (n <= 0) return;
-  activeLanguageIndex.value = (activeLanguageIndex.value + delta + n) % n;
-};
-
-const openLanguageMenuAndMove = (delta: number) => {
-  if (!showLanguageMenu.value) {
-    showLanguageMenu.value = true;
-    nextTick(() => moveLanguageSelection(delta));
-  } else {
-    moveLanguageSelection(delta);
-  }
-};
-
-const selectActiveLanguage = () => {
-  const opt = languageOptions.value[activeLanguageIndex.value];
-  if (!opt) return;
-  selectLanguage(opt.value);
-};
-
-
-
-// 检测是否为移动设备
-const isMobile = () => {
-  return typeof window !== 'undefined' && window.innerWidth <= 768;
-};
-
-// 动态定位语言菜单（移动端）
-const positionLanguageMenu = () => {
-  if (!isMobile()) return;
-  nextTick(() => {
-    const button = document.querySelector('.nav-language-button') as HTMLElement;
-    const menu = document.querySelector('.nav-language-menu') as HTMLElement;
-    if (button && menu && showLanguageMenu.value) {
-      const rect = button.getBoundingClientRect();
-      menu.style.left = `${rect.left}px`;
-      menu.style.top = `${rect.bottom + 6}px`;
-      // 确保菜单不超出屏幕
-      setTimeout(() => {
-        const menuRect = menu.getBoundingClientRect();
-        if (menuRect.right > window.innerWidth) {
-          menu.style.left = `${window.innerWidth - menuRect.width - 12}px`;
-        }
-        if (menuRect.left < 0) {
-          menu.style.left = '12px';
-        }
-      }, 0);
-    }
-  });
-};
-
-// 动态定位用户菜单（移动端）
-const positionUserMenu = () => {
-  if (!isMobile()) return;
-  nextTick(() => {
-    const button = document.querySelector('.user-avatar-button') as HTMLElement;
-    const menu = document.querySelector('.user-menu') as HTMLElement;
-    if (button && menu && showMenu.value) {
-      const rect = button.getBoundingClientRect();
-      menu.style.left = `${rect.left}px`;
-      menu.style.top = `${rect.bottom + 6}px`;
-      // 确保菜单不超出屏幕
-      setTimeout(() => {
-        const menuRect = menu.getBoundingClientRect();
-        if (menuRect.right > window.innerWidth) {
-          menu.style.left = `${window.innerWidth - menuRect.width - 12}px`;
-        }
-        if (menuRect.left < 0) {
-          menu.style.left = '12px';
-        }
-      }, 0);
-    }
-  });
-};
-
-// 处理语言按钮点击
-const handleLanguageButtonClick = (e: Event) => {
-  e.stopPropagation();
-  showLanguageMenu.value = !showLanguageMenu.value;
-  if (showLanguageMenu.value) {
-    nextTick(() => {
-      positionLanguageMenu();
-    });
-  }
-};
-
-// 处理用户菜单按钮点击
-const handleUserMenuClick = (e: Event) => {
-  e.stopPropagation();
-  showMenu.value = !showMenu.value;
-  if (showMenu.value) {
-    nextTick(() => {
-      positionUserMenu();
-    });
-  }
-};
-
-const handleClickOutside = (e: MouseEvent) => {
-  const target = e.target as HTMLElement;
-  // 用户菜单点击外部关闭
-  if (!target.closest(".user-menu-wrapper") && !target.closest(".user-menu")) {
-    showMenu.value = false;
-  }
-  // 语言菜单点击外部关闭
-  if (!target.closest(".nav-language-selector") && !target.closest(".nav-language-menu")) {
-    showLanguageMenu.value = false;
-  }
-};
-
-// 监听语言菜单显示状态
-watch(showLanguageMenu, (newVal) => {
-  if (newVal) {
-    positionLanguageMenu();
-    window.addEventListener('resize', positionLanguageMenu);
-    window.addEventListener('scroll', positionLanguageMenu, true);
-  } else {
-    window.removeEventListener('resize', positionLanguageMenu);
-    window.removeEventListener('scroll', positionLanguageMenu, true);
-  }
-});
-
-// 监听用户菜单显示状态
-watch(showMenu, (newVal) => {
-  if (newVal) {
-    positionUserMenu();
-    window.addEventListener('resize', positionUserMenu);
-    window.addEventListener('scroll', positionUserMenu, true);
-  } else {
-    window.removeEventListener('resize', positionUserMenu);
-    window.removeEventListener('scroll', positionUserMenu, true);
-  }
-});
-
-// 中优先级：键盘导航支持
-const handleKeydown = (e: KeyboardEvent) => {
-  // ESC 键关闭菜单
-  if (e.key === 'Escape') {
-    if (showMenu.value) {
-      showMenu.value = false;
-      // 将焦点返回到触发按钮
-      nextTick(() => {
-        const avatarButton = document.querySelector('.user-avatar-button') as HTMLElement;
-        avatarButton?.focus();
-      });
-    }
-    if (showLanguageMenu.value) {
-      showLanguageMenu.value = false;
-    }
-  }
-};
-
-// 处理用户菜单焦点移出事件
-const handleMenuFocusOut = (e: FocusEvent) => {
-  const target = e.currentTarget as HTMLElement;
-  const relatedTarget = e.relatedTarget as Node | null;
-  // 如果焦点移出整个菜单区域，关闭菜单
-  if (relatedTarget && !target.contains(relatedTarget)) {
-    showMenu.value = false;
-  }
-};
-
-let removeBeforeGuard: (() => void) | null = null;
-let removeAfterGuard: (() => void) | null = null;
-
-// 滚动监听 - 实现滚动时的导航栏样式变化
-const handleScroll = () => {
-  const headerElement = document.querySelector('.app-header') as HTMLElement;
-  if (!headerElement) return;
-  
-  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-  if (scrollTop > 10) {
-    headerElement.classList.add('scrolled');
-  } else {
-    headerElement.classList.remove('scrolled');
-  }
-};
+function handleLoad() {
+  loadingBarWidth.value = 30;
+  loadingTimerA = window.setTimeout(() => {
+    loadingBarWidth.value = 100;
+  }, 300);
+  loadingTimerB = window.setTimeout(() => {
+    loadingBarOpacity.value = 0;
+  }, 600);
+}
 
 onMounted(() => {
-  document.addEventListener("click", handleClickOutside);
+  applyThemeClasses(document.documentElement.classList.contains("dark"));
+  updateThemeIcons();
+  window.addEventListener("load", handleLoad);
+  window.addEventListener("offline", handleOffline);
+  window.addEventListener("online", handleOnline);
   document.addEventListener("keydown", handleKeydown);
-  // 添加滚动监听
-  window.addEventListener('scroll', handleScroll, { passive: true });
-  // 初始化检查滚动位置
-  handleScroll();
-  userStore.loadUserFromStorage();
-
-  // 语言设置已在 i18n/index.ts 中自动处理（包括自动检测和从 localStorage 读取）
-  // 这里只需要同步到 localStorage（如果 i18n 初始化时没有读取到）
-  const storedLang = localStorage.getItem("language") as SupportedLocale | null;
-  if (storedLang && supportedLocales.includes(storedLang)) {
-    locale.value = storedLang;
-  } else {
-    // 如果没有存储的语言，保存当前 i18n 检测到的语言
-    localStorage.setItem("language", locale.value as string);
-  }
-
-  // 初始化主题状态（与 main.ts 中 DOM 状态保持一致）
-  syncThemeFromDom();
-  
-  // 初始化 RTL 方向
-  syncRTL();
-
-  // 路由切换进度条
-  removeBeforeGuard = router.beforeEach((to, from, next) => {
-    if (to.path !== from.path) {
-      isRouteLoading.value = true;
-    }
-    next();
-  });
-
-  removeAfterGuard = router.afterEach(() => {
-    // 略微延迟，避免闪烁
-    setTimeout(() => {
-      isRouteLoading.value = false;
-    }, 200);
-  });
-  
-  // 监听网络状态变化
-  const removeNetworkListener = onNetworkStatusChange((online) => {
-    isOnline.value = online;
-    if (online) {
-      // 网络恢复时显示提示
-      const { showToast } = window as any;
-      if (typeof showToast === 'function') {
-        showToast({
-          type: 'success',
-          title: t('common.online') || '网络已恢复',
-          message: t('common.onlineMessage') || '您的网络连接已恢复',
-        });
-      }
-    }
-  });
-  
-  // 清理网络监听器
-  onUnmounted(() => {
-    if (removeNetworkListener) {
-      removeNetworkListener();
-    }
-    document.removeEventListener("click", handleClickOutside);
-    document.removeEventListener("keydown", handleKeydown);
-    window.removeEventListener('scroll', handleScroll);
-    window.removeEventListener('resize', positionLanguageMenu);
-    window.removeEventListener('scroll', positionLanguageMenu, true);
-    window.removeEventListener('resize', positionUserMenu);
-    window.removeEventListener('scroll', positionUserMenu, true);
-    if (removeBeforeGuard) removeBeforeGuard();
-    if (removeAfterGuard) removeAfterGuard();
-  });
+  clockTimer = window.setInterval(() => {
+    now.value = new Date();
+  }, 1000);
+  if (document.readyState === "complete") handleLoad();
 });
 
-// 根据路由动态设置 body 类名
-watch(isLandingPage, (isLanding) => {
-  if (isLanding) {
-    document.body.classList.add("landing-page");
-  } else {
-    document.body.classList.remove("landing-page");
-  }
-}, { immediate: true });
-
-watch(isAuthPage, (isAuth) => {
-  if (isAuth) {
-    document.body.classList.add("auth-page");
-  } else {
-    document.body.classList.remove("auth-page");
-  }
-}, { immediate: true });
+onBeforeUnmount(() => {
+  window.removeEventListener("load", handleLoad);
+  window.removeEventListener("offline", handleOffline);
+  window.removeEventListener("online", handleOnline);
+  document.removeEventListener("keydown", handleKeydown);
+  if (loadingTimerA) window.clearTimeout(loadingTimerA);
+  if (loadingTimerB) window.clearTimeout(loadingTimerB);
+  if (clockTimer) window.clearInterval(clockTimer);
+});
 </script>
-
-

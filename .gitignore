@@ -1,0 +1,38 @@
+## OS / Editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+## Logs
+*.log
+logs/
+axiomflow-api/logs/
+
+## Dependencies
+node_modules/
+
+## Frontend build output
+axiomflow-web/dist/
+dist/
+
+## Vite / tooling caches
+.vite/
+.cache/
+
+## Env / secrets
+.env
+.env.*
+!.env.example
+
+## TypeScript
+*.tsbuildinfo
+
+## IDE settings
+.vscode/
+.idea/
+
+## Misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

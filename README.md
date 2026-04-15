@@ -1,40 +1,42 @@
 # AxiomFlow
 
-**基于 AI 的智能 PDF 翻译平台**
+当前仓库已调整为**前端 UI 原型重设计阶段**：
 
-精准保留数学公式、图表布局与排版结构
+- `axiomflow-web`：Vue 3 + TypeScript 单页原型（已按最新首页设计迁移）
+- `axiomflow-api`：后端代码已清空，仅保留目录结构（不提供可运行服务）
 
-## 📋 系统要求
+## 当前技术栈
 
-- **Python** >= 3.10
-- **Node.js** >= 18.0
-- **MySQL** >= 8.0
-- **Ollama** (可选，用于本地 AI 翻译)
+- Vue 3
+- TypeScript
+- Vite
 
-## 🚀 完整启动指南
+## 运行前端（开发环境）
 
-## 🪟 Windows（PowerShell）快速启动（推荐）
-
-在项目根目录 `AxiomFlow` 下依次执行（PowerShell 用 `;` 连接命令）：
-
-### 1) 启动后端（FastAPI）
+在项目根目录执行：
 
 ```powershell
-cd axiomflow-api; pip install -e .; uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+cd axiomflow-web
+npm install
+npm run dev
 ```
 
-### 2) 启动 Celery Worker（异步任务）
+默认访问地址：
 
-打开新的 PowerShell 窗口：
+- [http://localhost:5173](http://localhost:5173)
+
+## 构建前端（生产构建）
 
 ```powershell
-cd axiomflow-api; python scripts/start_celery_worker.py
+cd axiomflow-web
+npm run build
 ```
 
-### 3) 启动前端（Vue）
+构建产物位于：
 
-打开新的 PowerShell 窗口：
+- `axiomflow-web/dist`
 
-```powershell
-cd axiomflow-web; npm install; npm run dev
-```
+## 说明
+
+- 当前版本重点是 UI 设计对齐与前端原型重建。
+- 页面中的部分链接（如 `documents.html`）来自原型稿，用于保留交互演示路径。
