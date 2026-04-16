@@ -5,9 +5,25 @@
     @toggle-theme="toggleTheme"
     @back="page = 'home'"
     @authed="handleAuthed"
+    @verify-email="handleGoVerifyEmail"
+  />
+  <VerifyEmailPage
+    v-else-if="page === 'verify-email'"
+    :is-dark="isDark"
+    :email="lastRegisterEmail"
+    @toggle-theme="toggleTheme"
+    @back="page = 'auth'"
+    @verified="handleVerified"
+  />
+  <PreviewPage
+    v-else-if="page === 'preview'"
+    :service-time="serviceTime"
+    @toggle-theme="toggleTheme"
+    @back="page = 'documents'"
   />
 
   <template v-else>
+  <div class="min-h-screen flex flex-col">
   <!-- 跳过链接 -->
   <a class="sr-only focus:not-sr-only fixed top-4 left-4 z-[200] bg-indigo-600 text-white px-4 py-2 rounded-lg" href="#main-content">跳过导航</a>
   <!-- 顶部进度条 -->
@@ -30,8 +46,18 @@
         </div>
         <!-- 菜单 -->
         <div class="hidden md:flex items-center space-x-8">
-          <a class="text-sm font-medium hover:text-indigo-600 transition-colors" href="#" @click.prevent>首页</a>
-          <a class="text-sm font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors" href="#" @click.prevent>文档</a>
+          <a
+            class="text-sm font-medium transition-colors"
+            :class="page === 'home' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+            href="#"
+            @click.prevent="page = 'home'"
+          >首页</a>
+          <a
+            class="text-sm font-medium transition-colors"
+            :class="page === 'documents' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'"
+            href="#"
+            @click.prevent="page = 'documents'"
+          >文档</a>
         </div>
         <!-- 工具栏 -->
         <div class="flex items-center gap-3">
@@ -42,9 +68,8 @@
               <span>中文</span>
             </button>
             <div class="absolute right-0 mt-2 w-40 bg-white dark:bg-slate-900 rounded-xl shadow-xl border dark:border-slate-800 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-2">
+              <a class="block px-3 py-2 text-sm rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30" href="#">中文</a>
               <a class="block px-3 py-2 text-sm rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30" href="#">English</a>
-              <a class="block px-3 py-2 text-sm rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30" href="#">日本語</a>
-              <a class="block px-3 py-2 text-sm rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30" href="#">Français</a>
             </div>
           </div>
           <!-- 主题切换 -->
@@ -66,14 +91,14 @@
               <Icon class="text-xs text-slate-400" icon="ph:caret-down-bold" />
             </button>
             <div class="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border dark:border-slate-800 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-2">
-              <a class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" href="#" @click.prevent>
+              <a class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" href="#" @click.prevent="page = 'profile'">
                 <Icon icon="ph:user-bold" /> 个人资料
               </a>
-              <a class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" href="#" @click.prevent>
+              <a class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" href="#" @click.prevent="page = 'settings'">
                 <Icon icon="ph:gear-six-bold" /> 账户设置
               </a>
               <div class="h-px bg-slate-100 dark:bg-slate-800 my-1"></div>
-              <a class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30" href="#" @click.prevent>
+              <a class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30" href="#" @click.prevent="handleLogout">
                 <Icon icon="ph:sign-out-bold" /> 退出登录
               </a>
             </div>
@@ -83,7 +108,7 @@
     </div>
 
   </nav>
-  <main class="hero-gradient" id="main-content">
+  <main v-if="page === 'home'" class="hero-gradient" id="main-content">
     <!-- Hero Section -->
     <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
       <div class="grid lg:grid-cols-2 gap-16 items-center">
@@ -178,8 +203,21 @@
       </div>
     </section>
   </main>
+  <DocumentsPage
+    v-else-if="page === 'documents'"
+    :as-of-date="serviceDateCn"
+    @new-translation="page = 'home'"
+    @open-preview="page = 'preview'"
+  />
+  <ProfilePage v-else-if="page === 'profile'" />
+  <SettingsPage v-else :service-time="serviceTime" @toggle-theme="toggleTheme" />
   <!-- 预览弹窗 (Mock) -->
-  <div class="fixed inset-0 z-[150] items-center justify-center px-4" id="preview-modal" :class="showPreview ? 'flex' : 'hidden'">
+  <div
+    v-if="page === 'home'"
+    class="fixed inset-0 z-[150] items-center justify-center px-4"
+    id="preview-modal"
+    :class="showPreview ? 'flex' : 'hidden'"
+  >
     <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" @click="closeModal"></div>
     <div class="relative bg-white dark:bg-slate-900 w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
       <div class="p-4 border-b dark:border-slate-800 flex items-center justify-between">
@@ -215,7 +253,7 @@
     </div>
   </div>
   <!-- Toast 容器 -->
-  <div class="fixed bottom-8 right-8 z-[200] flex flex-col gap-3" id="toast-container">
+  <div v-if="page === 'home'" class="fixed bottom-8 right-8 z-[200] flex flex-col gap-3" id="toast-container">
     <div
       v-for="toast in toasts"
       :key="toast.id"
@@ -228,7 +266,7 @@
       </button>
     </div>
   </div>
-  <footer class="section-surface pt-20 pb-10">
+  <footer v-if="page === 'home'" class="section-surface pt-20 pb-10">
     <div class="max-w-7xl mx-auto px-4">
       <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-12 mb-20">
         <div class="col-span-2 lg:col-span-2">
@@ -288,6 +326,16 @@
       </div>
     </div>
   </footer>
+  <footer v-else class="mt-auto border-t dark:border-slate-800 py-8">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-3 text-sm text-slate-500">
+      <p>© 2026 Axiomflow. 保留所有权利。</p>
+      <div class="flex items-center gap-6">
+        <span class="flex items-center gap-2"><span class="status-light w-2.5 h-2.5 rounded-full"></span> 系统状态: 正常</span>
+        <span>服务时间: {{ serviceTime }}</span>
+      </div>
+    </div>
+  </footer>
+  </div>
 </template>
 </template>
 
@@ -295,6 +343,12 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import AuthPage from "./AuthPage.vue";
+import DocumentsPage from "./DocumentsPage.vue";
+import ProfilePage from "./ProfilePage.vue";
+import SettingsPage from "./SettingsPage.vue";
+import PreviewPage from "./PreviewPage.vue";
+import VerifyEmailPage from "./VerifyEmailPage.vue";
+import * as authApi from "./api/auth";
 
 type ToastItem = {
   id: number;
@@ -303,7 +357,9 @@ type ToastItem = {
 
 const isDark = ref(false);
 const isLoggedIn = ref(false);
-const page = ref<"home" | "auth">("home");
+const accessToken = ref<string>("");
+const lastRegisterEmail = ref<string>(localStorage.getItem("axiomflow:lastRegisterEmail") || "");
+const page = ref<"home" | "auth" | "documents" | "profile" | "settings" | "preview" | "verify-email">("home");
 const isOnline = ref(navigator.onLine);
 const showPreview = ref(false);
 const loadingBarWidth = ref(0);
@@ -315,6 +371,7 @@ let toastIdSeed = 0;
 let loadingTimerA: number | null = null;
 let loadingTimerB: number | null = null;
 let clockTimer: number | null = null;
+let themeSwitchTimer: number | null = null;
 
 const currentYear = computed(() => now.value.getFullYear());
 const serviceTime = computed(() => {
@@ -326,6 +383,13 @@ const serviceTime = computed(() => {
   const mm = pad(now.value.getMinutes());
   const ss = pad(now.value.getSeconds());
   return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+});
+const serviceDateCn = computed(() => {
+  const pad = (v: number) => String(v).padStart(2, "0");
+  const y = now.value.getFullYear();
+  const m = pad(now.value.getMonth() + 1);
+  const d = pad(now.value.getDate());
+  return `${y}年${m}月${d}日`;
 });
 
 function updateThemeIcons() {
@@ -341,9 +405,15 @@ function applyThemeClasses(dark: boolean) {
 }
 
 function toggleTheme() {
+  document.body.classList.add("theme-switching");
+  if (themeSwitchTimer) window.clearTimeout(themeSwitchTimer);
   const nextDark = !document.body.classList.contains("theme-dark");
   applyThemeClasses(nextDark);
   updateThemeIcons();
+  themeSwitchTimer = window.setTimeout(() => {
+    document.body.classList.remove("theme-switching");
+    themeSwitchTimer = null;
+  }, 380);
 }
 
 function openModal() {
@@ -372,10 +442,39 @@ function startTranslation() {
   }, 800);
 }
 
-function handleAuthed() {
+function handleAuthed(payload: { accessToken: string }) {
   isLoggedIn.value = true;
+  accessToken.value = payload.accessToken;
+  sessionStorage.setItem("axiomflow:accessToken", payload.accessToken);
   page.value = "home";
-  showToast("登录成功（原型）");
+  showToast("登录成功");
+}
+
+function handleVerified(payload: { accessToken: string }) {
+  isLoggedIn.value = true;
+  accessToken.value = payload.accessToken;
+  sessionStorage.setItem("axiomflow:accessToken", payload.accessToken);
+  page.value = "home";
+  showToast("邮箱验证成功");
+}
+
+function handleGoVerifyEmail(payload: { email: string }) {
+  lastRegisterEmail.value = payload.email;
+  page.value = "verify-email";
+  showToast("验证邮件已发送，请查收邮箱");
+}
+
+function handleLogout() {
+  authApi
+    .logout()
+    .catch(() => {})
+    .finally(() => {
+      isLoggedIn.value = false;
+      accessToken.value = "";
+      sessionStorage.removeItem("axiomflow:accessToken");
+      page.value = "home";
+      showToast("已退出登录");
+    });
 }
 
 function handleOnline() {
@@ -400,6 +499,18 @@ function handleLoad() {
   }, 600);
 }
 
+function syncPageFromHash() {
+  const h = window.location.hash || "";
+  if (h.startsWith("#/verify-email")) {
+    page.value = "verify-email";
+    return;
+  }
+  if (h.startsWith("#/auth")) {
+    page.value = "auth";
+    return;
+  }
+}
+
 onMounted(() => {
   applyThemeClasses(document.documentElement.classList.contains("dark"));
   updateThemeIcons();
@@ -407,10 +518,19 @@ onMounted(() => {
   window.addEventListener("offline", handleOffline);
   window.addEventListener("online", handleOnline);
   document.addEventListener("keydown", handleKeydown);
+  syncPageFromHash();
+  window.addEventListener("hashchange", syncPageFromHash);
   clockTimer = window.setInterval(() => {
     now.value = new Date();
   }, 1000);
   if (document.readyState === "complete") handleLoad();
+
+  // Try restore login state (best-effort). Refresh is cookie-based.
+  const saved = sessionStorage.getItem("axiomflow:accessToken");
+  if (saved) {
+    accessToken.value = saved;
+    isLoggedIn.value = true;
+  }
 });
 
 onBeforeUnmount(() => {
@@ -418,8 +538,10 @@ onBeforeUnmount(() => {
   window.removeEventListener("offline", handleOffline);
   window.removeEventListener("online", handleOnline);
   document.removeEventListener("keydown", handleKeydown);
+  window.removeEventListener("hashchange", syncPageFromHash);
   if (loadingTimerA) window.clearTimeout(loadingTimerA);
   if (loadingTimerB) window.clearTimeout(loadingTimerB);
   if (clockTimer) window.clearInterval(clockTimer);
+  if (themeSwitchTimer) window.clearTimeout(themeSwitchTimer);
 });
 </script>
