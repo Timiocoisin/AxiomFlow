@@ -37,6 +37,15 @@ def new_token_raw(nbytes: int = 32) -> str:
     return _b64url(secrets.token_bytes(nbytes))
 
 
+def new_code_raw(length: int = 6) -> str:
+    """
+    Generate a short human-enterable code.
+    Used for password reset "verification code".
+    """
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
 def token_sha256(token_raw: str) -> str:
     # Store hash only (not raw) in DB
     return hashlib.sha256(token_raw.encode("utf-8")).hexdigest()

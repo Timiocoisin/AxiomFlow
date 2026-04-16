@@ -456,6 +456,8 @@ function handleVerified(payload: { accessToken: string }) {
   sessionStorage.setItem("axiomflow:accessToken", payload.accessToken);
   page.value = "home";
   showToast("邮箱验证成功");
+  // 清理 URL 的 token，避免带着验证参数回到首页
+  window.location.hash = "#/";
 }
 
 function handleGoVerifyEmail(payload: { email: string }) {
@@ -509,6 +511,8 @@ function syncPageFromHash() {
     page.value = "auth";
     return;
   }
+  // 默认落回首页，避免 hash 被清理/切换后残留页面状态
+  page.value = "home";
 }
 
 onMounted(() => {

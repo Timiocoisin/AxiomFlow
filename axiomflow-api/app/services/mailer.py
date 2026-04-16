@@ -98,10 +98,6 @@ def send_verification_email(*, to_email: str, token: str) -> None:
                     </td>
                   </tr>
                 </table>
-                <p style="margin:0 0 10px;font-size:13px;color:#64748b;">若按钮不可点击，请复制以下链接到浏览器打开：</p>
-                <p style="margin:0 0 8px;word-break:break-all;">
-                  <a href="{link}" style="color:#4f46e5;font-size:13px;line-height:1.7;text-decoration:none;">{link}</a>
-                </p>
                 <p style="margin:0 0 14px;font-size:13px;color:#94a3b8;">该链接有效期为 60 分钟。</p>
               </td>
             </tr>
@@ -130,11 +126,12 @@ def send_password_reset_email(*, to_email: str, token: str) -> None:
     subject = "Axiomflow 重置密码"
     text = (
         "Axiomflow 重置密码\n\n"
-        "请点击下方链接继续重置密码：\n"
-        f"{link}\n\n"
-        "该链接将在 30 分钟后过期。\n"
+        f"你的验证码是：{token}\n\n"
+        "请在重置密码页面输入验证码并设置新密码。\n"
+        "该验证码将在 30 分钟后过期。\n\n"
         "如果这不是你的操作，请忽略这封邮件。"
     )
+
     html = f"""\
 <!doctype html>
 <html lang="zh-CN">
@@ -147,29 +144,28 @@ def send_password_reset_email(*, to_email: str, token: str) -> None:
               <td style="padding:28px 32px 18px;background:linear-gradient(120deg,#0f172a,#334155);">
                 <div style="font-size:12px;letter-spacing:.08em;color:#cbd5e1;font-weight:700;">AXIOMFLOW</div>
                 <div style="margin-top:8px;font-size:24px;line-height:1.3;color:#ffffff;font-weight:700;">重置密码</div>
-                <div style="margin-top:8px;font-size:14px;line-height:1.6;color:#cbd5e1;">请在链接有效期内完成密码重置操作。</div>
+                <div style="margin-top:8px;font-size:14px;line-height:1.6;color:#cbd5e1;">验证码将在 30 分钟后过期</div>
               </td>
             </tr>
             <tr>
               <td style="padding:28px 32px 8px;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;color:#0f172a;">
                 <p style="margin:0 0 16px;font-size:15px;line-height:1.8;color:#334155;">你好，</p>
                 <p style="margin:0 0 18px;font-size:15px;line-height:1.8;color:#334155;">
-                  系统收到了重置密码请求，请点击下方按钮继续。
+                  系统收到了重置密码请求。请使用下方“验证码”完成重置。
                 </p>
+
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;">
                   <tr>
-                    <td align="center" bgcolor="#0f172a" style="border-radius:10px;">
-                      <a href="{link}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;">
-                        重置密码
-                      </a>
+                    <td align="center" bgcolor="#f8fafc" style="border-radius:12px;padding:16px 18px;border:1px solid #e5e7eb;">
+                      <div style="font-size:12px;letter-spacing:.08em;color:#64748b;font-weight:700;margin-bottom:8px;">验证码</div>
+                      <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;font-size:15px;line-height:1.5;color:#0f172a;font-weight:800;word-break:break-all;">
+                        {token}
+                      </div>
                     </td>
                   </tr>
                 </table>
-                <p style="margin:0 0 10px;font-size:13px;color:#64748b;">若按钮不可点击，请复制以下链接到浏览器打开：</p>
-                <p style="margin:0 0 8px;word-break:break-all;">
-                  <a href="{link}" style="color:#0f172a;font-size:13px;line-height:1.7;text-decoration:none;">{link}</a>
-                </p>
-                <p style="margin:0 0 14px;font-size:13px;color:#94a3b8;">该链接有效期为 30 分钟。</p>
+
+                <p style="margin:0 0 14px;font-size:13px;color:#94a3b8;">该验证码用于本次重置密码请求。</p>
               </td>
             </tr>
             <tr>

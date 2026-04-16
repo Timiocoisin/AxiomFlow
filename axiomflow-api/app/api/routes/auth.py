@@ -11,6 +11,7 @@ from app.core.security import (
     create_access_token,
     hash_password,
     new_token_raw,
+    new_code_raw,
     now_utc,
     token_sha256,
     verify_password,
@@ -265,7 +266,8 @@ def request_password_reset(
         # avoid enumeration
         return OkResponse(ok=True)
 
-    token_raw = new_token_raw()
+    # 6-char human-enterable code (A-Z a-z 0-9)
+    token_raw = new_code_raw(6)
     token = PasswordResetToken(
         user_id=user.id,
         token_hash=token_sha256(token_raw),

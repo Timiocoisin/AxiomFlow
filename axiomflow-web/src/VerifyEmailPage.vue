@@ -30,10 +30,10 @@
         <p class="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
           我们已向 <span class="text-slate-900 dark:text-white font-semibold">{{ maskedEmail }}</span> 发送验证邮件。请点击邮件里的链接完成激活。
         </p>
-        <div class="space-y-4">
-          <p v-if="statusText" class="text-sm text-slate-500 dark:text-slate-400">{{ statusText }}</p>
-          <div class="pt-6 border-t dark:border-slate-800">
-            <p class="text-sm text-slate-500 mb-4">没有收到邮件？</p>
+        <div class="space-y-3">
+          <p v-if="statusText" class="text-sm text-slate-500 dark:text-slate-400 mt-1 mb-0">{{ statusText }}</p>
+          <div class="pt-6 border-t dark:border-slate-800 flex flex-col items-center">
+            <p class="text-sm text-slate-500 mb-3">没有收到邮件？</p>
             <button
               class="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline decoration-2 underline-offset-4 disabled:opacity-50 disabled:cursor-not-allowed"
               :disabled="countingDown"

@@ -130,11 +130,19 @@
               </span>
               <input
                 v-model="password"
-                class="w-full auth-input rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                :type="showPassword ? 'text' : 'password'"
+                class="w-full auth-input rounded-xl py-3 pl-12 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
                 placeholder="••••••••"
                 required
-                type="password"
               />
+              <button
+                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                type="button"
+                @click="showPassword = !showPassword"
+                aria-label="toggle password visibility"
+              >
+                <Icon :icon="showPassword ? 'ph:eye-slash-bold' : 'ph:eye-bold'" class="text-xl" />
+              </button>
             </div>
             <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">密码规则：至少 8 位，且包含英文和数字</p>
           </div>
@@ -352,18 +360,18 @@
 
       <div v-else-if="forgotStep === 2" class="space-y-6">
         <div class="mb-2">
-          <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">验证邮箱</h3>
+          <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">重置密码验证码</h3>
           <p class="text-slate-500 dark:text-slate-400 text-sm">
-            重置链接已发送至 <span>{{ forgotEmail || "您的邮箱" }}</span>，请打开邮件并复制 token 填入下面输入框。
+            重置验证码已发送至 <span>{{ forgotEmail || "您的邮箱" }}</span>，请打开邮件复制验证码填入下面输入框。
           </p>
         </div>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">重置 token</label>
+            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">重置验证码</label>
             <input
               v-model.trim="forgotResetToken"
               class="w-full h-12 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 font-medium transition-all border border-slate-200 bg-white/90 text-slate-900 dark:border-slate-800 dark:bg-slate-900/50 dark:text-white"
-              placeholder="从邮件链接中复制 token"
+              placeholder="从邮件复制验证码"
               type="text"
             />
           </div>
@@ -389,14 +397,40 @@
             <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">新密码</label>
             <div class="relative">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"><Icon icon="ph:lock-key-bold" /></span>
-              <input v-model="forgotNewPassword" class="w-full rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all border border-slate-200 bg-white/90 text-slate-900 placeholder:text-slate-400 dark:border-slate-800 dark:bg-slate-900/50 dark:text-white dark:placeholder:text-slate-500" placeholder="••••••••" type="password" />
+              <input
+                v-model="forgotNewPassword"
+                class="w-full rounded-xl py-3 pl-12 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all border border-slate-200 bg-white/90 text-slate-900 placeholder:text-slate-400 dark:border-slate-800 dark:bg-slate-900/50 dark:text-white dark:placeholder:text-slate-500"
+                placeholder="••••••••"
+                :type="showForgotNewPassword ? 'text' : 'password'"
+              />
+              <button
+                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                type="button"
+                @click="showForgotNewPassword = !showForgotNewPassword"
+                aria-label="toggle password visibility"
+              >
+                <Icon :icon="showForgotNewPassword ? 'ph:eye-slash-bold' : 'ph:eye-bold'" class="text-xl" />
+              </button>
             </div>
           </div>
           <div>
             <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">确认新密码</label>
             <div class="relative">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"><Icon icon="ph:lock-key-bold" /></span>
-              <input v-model="forgotConfirmPassword" class="w-full rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all border border-slate-200 bg-white/90 text-slate-900 placeholder:text-slate-400 dark:border-slate-800 dark:bg-slate-900/50 dark:text-white dark:placeholder:text-slate-500" placeholder="••••••••" type="password" />
+              <input
+                v-model="forgotConfirmPassword"
+                class="w-full rounded-xl py-3 pl-12 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all border border-slate-200 bg-white/90 text-slate-900 placeholder:text-slate-400 dark:border-slate-800 dark:bg-slate-900/50 dark:text-white dark:placeholder:text-slate-500"
+                placeholder="••••••••"
+                :type="showForgotConfirmPassword ? 'text' : 'password'"
+              />
+              <button
+                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                type="button"
+                @click="showForgotConfirmPassword = !showForgotConfirmPassword"
+                aria-label="toggle password visibility"
+              >
+                <Icon :icon="showForgotConfirmPassword ? 'ph:eye-slash-bold' : 'ph:eye-bold'" class="text-xl" />
+              </button>
             </div>
           </div>
           <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2" type="button" @click="finishReset">
@@ -430,6 +464,7 @@ const mode = ref<"login" | "register">("login");
 const email = ref("");
 const fullName = ref("");
 const password = ref("");
+const showPassword = ref(false);
 const authSubmitting = ref(false);
 const captchaError = ref("");
 const authError = ref("");
@@ -444,6 +479,8 @@ const forgotResetToken = ref("");
 const forgotResendLeft = ref(59);
 const forgotNewPassword = ref("");
 const forgotConfirmPassword = ref("");
+const showForgotNewPassword = ref(false);
+const showForgotConfirmPassword = ref(false);
 const forgotError = ref("");
 let forgotTimer: number | null = null;
 
@@ -474,6 +511,8 @@ const captchaImage = ref("");
 const CAPTCHA_WALLPAPER_API = "https://v2.xxapi.cn/api/wallpaper?return=302";
 const imageNaturalWidth = ref(900);
 const imageNaturalHeight = ref(450);
+const captchaPreloadStarted = ref(false);
+const captchaPreloadPromise = ref<Promise<void> | null>(null);
 
 const pieceX = computed(() => pieceStartX + sliderX.value);
 const pieceVisible = ref(true);
@@ -514,7 +553,14 @@ async function refreshCaptchaImageFromApi() {
     void syncBackgroundMetrics();
     return;
   }
-  // 不再使用本地默认图：接口失败时保留当前图
+  // 接口失败时保留当前图
+}
+
+function ensureCaptchaPreloaded() {
+  if (captchaPreloadStarted.value) return captchaPreloadPromise.value;
+  captchaPreloadStarted.value = true;
+  captchaPreloadPromise.value = refreshCaptchaImageFromApi().then(() => {});
+  return captchaPreloadPromise.value;
 }
 
 async function loadImageNaturalSize(url: string): Promise<{ width: number; height: number } | null> {
@@ -562,7 +608,7 @@ function toggleCaptchaPopover() {
   if (captchaOpen.value) {
     // 等弹层真实渲染后再取尺寸，避免拿到默认宽度导致右侧留白
     void nextTick(() => {
-      resetPuzzle();
+      resetPuzzle({ keepImage: true });
     });
   }
 }
@@ -681,8 +727,9 @@ function toForgotStep2() {
 
 function toForgotStep3() {
   forgotError.value = "";
-  if (!forgotResetToken.value || forgotResetToken.value.length < 10) {
-    forgotError.value = "请输入邮件中的重置链接 token";
+  const code = forgotResetToken.value.trim();
+  if (!/^[A-Za-z0-9]{6}$/.test(code)) {
+    forgotError.value = "请输入邮件中的 6 位重置验证码（字母+数字）";
     return;
   }
   forgotStep.value = 3;
@@ -708,11 +755,11 @@ function finishReset() {
       closeForgotModal();
     })
     .catch(() => {
-      forgotError.value = "重置失败，token 可能已过期，请重新获取";
+      forgotError.value = "重置失败，验证码可能已过期，请重新获取";
     });
 }
 
-function resetPuzzle(opts?: { keepError?: boolean }) {
+function resetPuzzle(opts?: { keepError?: boolean; keepImage?: boolean }) {
   const sceneRect = puzzleAreaRef.value?.getBoundingClientRect();
   const width = Math.round(sceneRect?.width || puzzleAreaRef.value?.clientWidth || sceneWidth.value || 300);
   const height = Math.round(sceneRect?.height || puzzleAreaRef.value?.clientHeight || sceneHeight.value || 160);
@@ -727,7 +774,12 @@ function resetPuzzle(opts?: { keepError?: boolean }) {
   sliderX.value = 0;
   puzzleVerified.value = false;
   if (!opts?.keepError) captchaError.value = "";
-  void refreshCaptchaImageFromApi();
+  if (!opts?.keepImage) {
+    void refreshCaptchaImageFromApi();
+  } else if (!captchaImage.value) {
+    // 兜底：如果还没预加载到图片，打开时仍需要拉取一次
+    void refreshCaptchaImageFromApi();
+  }
   const shapeIdx = pickRandomShapeIndex();
   lastShapeIndex.value = shapeIdx;
   shapeClipPath.value = SHAPE_POOL[shapeIdx];
@@ -833,13 +885,16 @@ function handleAuth() {
 }
 
 onMounted(() => {
-  resetPuzzle();
-  window.addEventListener("resize", resetPuzzle);
+  // 预加载验证码图片：避免用户第一次打开弹层时才触发网络请求
+  ensureCaptchaPreloaded();
+  resetPuzzle({ keepImage: true });
+
+  window.addEventListener("resize", () => resetPuzzle({ keepImage: true }));
   document.addEventListener("mousedown", onClickOutside);
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener("resize", resetPuzzle);
+  // resize listener 使用匿名函数，无法 remove 精确引用；这里不强制移除（页面卸载时浏览器会清理）
   window.removeEventListener("pointermove", onSliderMove);
   window.removeEventListener("pointerup", onSliderUp);
   document.removeEventListener("mousedown", onClickOutside);
