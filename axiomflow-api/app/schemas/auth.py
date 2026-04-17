@@ -140,3 +140,64 @@ class DeleteAccountRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
     confirm_text: str = Field(min_length=6, max_length=32)
 
+
+class UserPreferencesResponse(BaseModel):
+    preferred_target_language: str
+    ui_language: str
+    auto_save_history: bool
+    enable_shortcuts: bool
+    updated_at: datetime
+
+
+class UpdateUserPreferencesRequest(BaseModel):
+    preferred_target_language: str = Field(min_length=2, max_length=32)
+    ui_language: str = Field(min_length=2, max_length=16)
+    auto_save_history: bool
+    enable_shortcuts: bool
+
+
+class UploadOutputPreferencesResponse(BaseModel):
+    upload_size_limit_mb: int
+    auto_import_provider: str
+    default_output_format: str
+    updated_at: datetime
+
+
+class UpdateUploadOutputPreferencesRequest(BaseModel):
+    upload_size_limit_mb: int = Field(ge=1, le=100)
+    auto_import_provider: str = Field(min_length=2, max_length=32)
+    default_output_format: str = Field(min_length=2, max_length=16)
+
+
+class PrivacySettingsResponse(BaseModel):
+    data_retention_days: int
+    updated_at: datetime
+
+
+class UpdatePrivacySettingsRequest(BaseModel):
+    data_retention_days: int
+
+
+class ApiKeyItemResponse(BaseModel):
+    id: str
+    masked_key: str
+    created_at: datetime
+    last_used_at: Optional[datetime] = None
+    revoked_at: Optional[datetime] = None
+
+
+class ApiKeyCreateResponse(BaseModel):
+    id: str
+    raw_key: str
+    masked_key: str
+    created_at: datetime
+
+
+class DocumentItemResponse(BaseModel):
+    id: str
+    file_name: str
+    created_at: datetime
+    document_count: int
+    word_count: int
+    status: str
+

@@ -126,12 +126,34 @@ export type ProfileStatsResponse = {
     hours_saved: number;
   };
   activity_chart: Array<{ date: string; count: number }>;
-  recent_activities: Array<{ title: string; time: string; status: string; ip: string }>;
+  recent_activities: Array<{
+    title: string;
+    time: string;
+    status: string;
+    ip: string;
+    activity_key?: string;
+    document_count?: number;
+    word_count?: number;
+  }>;
   login_history: Array<{ device: string; ip: string; time: string; status: string }>;
 };
 
 export async function getProfileStats() {
   const { data } = await api.get<ProfileStatsResponse>("/auth/profile/stats");
+  return data;
+}
+
+export type DocumentItem = {
+  id: string;
+  file_name: string;
+  created_at: string;
+  document_count: number;
+  word_count: number;
+  status: string;
+};
+
+export async function getMyDocuments() {
+  const { data } = await api.get<DocumentItem[]>("/auth/documents");
   return data;
 }
 
@@ -172,5 +194,94 @@ export async function exportMyData() {
 
 export async function deleteMyAccount(params: { current_password: string; confirm_text: string }) {
   const { data } = await api.delete<{ ok: boolean; message?: string }>("/auth/account", { data: params });
+  return data;
+}
+
+export type UserPreferencesResponse = {
+  preferred_target_language: string;
+  ui_language: string;
+  auto_save_history: boolean;
+  enable_shortcuts: boolean;
+  updated_at: string;
+};
+
+export async function getUserPreferences() {
+  const { data } = await api.get<UserPreferencesResponse>("/auth/preferences");
+  return data;
+}
+
+export async function updateUserPreferences(params: {
+  preferred_target_language: string;
+  ui_language: string;
+  auto_save_history: boolean;
+  enable_shortcuts: boolean;
+}) {
+  const { data } = await api.put<UserPreferencesResponse>("/auth/preferences", params);
+  return data;
+}
+
+export type UploadOutputPreferencesResponse = {
+  upload_size_limit_mb: number;
+  auto_import_provider: string;
+  default_output_format: string;
+  updated_at: string;
+};
+
+export async function getUploadOutputPreferences() {
+  const { data } = await api.get<UploadOutputPreferencesResponse>("/auth/upload-output-preferences");
+  return data;
+}
+
+export async function updateUploadOutputPreferences(params: {
+  upload_size_limit_mb: number;
+  auto_import_provider: string;
+  default_output_format: string;
+}) {
+  const { data } = await api.put<UploadOutputPreferencesResponse>("/auth/upload-output-preferences", params);
+  return data;
+}
+
+export type PrivacySettingsResponse = {
+  data_retention_days: number;
+  updated_at: string;
+};
+
+export async function getPrivacySettings() {
+  const { data } = await api.get<PrivacySettingsResponse>("/auth/privacy-settings");
+  return data;
+}
+
+export async function updatePrivacySettings(params: { data_retention_days: number }) {
+  const { data } = await api.put<PrivacySettingsResponse>("/auth/privacy-settings", params);
+  return data;
+}
+
+export type ApiKeyItem = {
+  id: string;
+  masked_key: string;
+  created_at: string;
+  last_used_at?: string | null;
+  revoked_at?: string | null;
+};
+
+export type ApiKeyCreateResponse = {
+  id: string;
+  raw_key: string;
+  masked_key: string;
+  created_at: string;
+};
+
+export async function listApiKeys() {
+  const { data } = await api.get<ApiKeyItem[]>("/auth/api-keys");
+  return data;
+}
+
+export async function createApiKey() {
+  const { data } = await api.post<ApiKeyCreateResponse>("/auth/api-keys", {});
+  return data;
+}
+
+export async function revokeApiKey(apiKeyId: string) {
+  const { data } = await api.delete<{ ok: boolean; message?: string }>(`/auth/api-keys/${encodeURIComponent(apiKeyId)}`);
   return data;
 }

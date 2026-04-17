@@ -96,3 +96,12 @@ cd axiomflow-api
 
 - 当前版本重点是 UI 设计对齐与前端原型重建，同时已补齐可运行的认证后端能力。
 - 前端页面为单页原型，部分功能仍为演示数据；认证相关（注册/登录/邮箱验证/重置密码）已对接后端。
+
+## i18n 开发约定（前端）
+
+- 所有用户可见文案必须使用 `vue-i18n` 的 `t("key")`，禁止在 `.vue` 中直接写中文/英文提示语。
+- 统一在 `axiomflow-web/src/i18n/locales/zh-CN.ts` 与 `axiomflow-web/src/i18n/locales/en-US.ts` 同步新增 key，保持双语结构一致。
+- 推荐按页面或模块划分命名空间（如 `auth.*`、`profile.*`、`settings.*`），避免无语义的扁平 key。
+- 错误提示、按钮文案、placeholder、空状态文案、toast 文案都属于“用户可见文案”，同样必须走 i18n。
+- 允许保留 locale 相关格式逻辑（例如日期 `年/月/日` 拼接），但不应把完整提示句硬编码在组件中。
+- 提交前建议执行：`cd axiomflow-web && npm run build`，并手动验证中英文切换与刷新后语言保持。

@@ -28,6 +28,7 @@ from app.core.security import (
 )
 from app.db.session import get_db
 from app.models.email_token import EmailVerificationToken
+from app.models.api_key import ApiKey
 from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_token import RefreshToken
 from app.models.translation_activity import TranslationActivity
@@ -42,6 +43,15 @@ from app.schemas.auth import (
     UpdateNotificationPreferencesRequest,
     TranslationCompletedNotifyRequest,
     DeleteAccountRequest,
+    UpdateUserPreferencesRequest,
+    UserPreferencesResponse,
+    UpdateUploadOutputPreferencesRequest,
+    UploadOutputPreferencesResponse,
+    PrivacySettingsResponse,
+    UpdatePrivacySettingsRequest,
+    ApiKeyItemResponse,
+    ApiKeyCreateResponse,
+    DocumentItemResponse,
     NotificationPreferencesResponse,
     ResendVerificationRequest,
     ResetPasswordRequest,
@@ -198,6 +208,10 @@ def _ua_to_device_label(ua: str | None) -> str:
     elif "linux" in text:
         os_name = "Linux"
     return f"{browser} on {os_name}"
+
+
+def _mask_api_key(*, key_prefix: str, key_last4: str) -> str:
+    return f"{key_prefix}{'*' * 20}{key_last4}"
 
 
 def _issue_login_response_for_user(*, request: Request, db: Session, user: User) -> tuple[TokenResponse, str]:
@@ -452,6 +466,184 @@ def update_notification_preferences(
     )
 
 
+@router.get("/preferences", response_model=UserPreferencesResponse)
+@limiter.limit("120/minute")
+def get_user_preferences(request: Request, user: User = Depends(get_current_user)) -> UserPreferencesResponse:
+    return UserPreferencesResponse(
+        preferred_target_language=(user.preferred_target_language or "zh-CN"),
+        ui_language=(user.ui_language or "zh-CN"),
+        auto_save_history=bool(user.auto_save_history),
+        enable_shortcuts=bool(user.enable_shortcuts),
+        updated_at=user.updated_at,
+    )
+
+
+@router.put("/preferences", response_model=UserPreferencesResponse)
+@limiter.limit("60/minute")
+def update_user_preferences(
+    request: Request,
+    payload: UpdateUserPreferencesRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserPreferencesResponse:
+    target = (payload.preferred_target_language or "").strip()
+    ui = (payload.ui_language or "").strip()
+    allowed_langs = {"zh-CN", "en-US"}
+    if target not in allowed_langs or ui not in allowed_langs:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_language_code")
+    user.preferred_target_language = target
+    user.ui_language = ui
+    user.auto_save_history = bool(payload.auto_save_history)
+    user.enable_shortcuts = bool(payload.enable_shortcuts)
+    db.commit()
+    db.refresh(user)
+    return UserPreferencesResponse(
+        preferred_target_language=(user.preferred_target_language or "zh-CN"),
+        ui_language=(user.ui_language or "zh-CN"),
+        auto_save_history=bool(user.auto_save_history),
+        enable_shortcuts=bool(user.enable_shortcuts),
+        updated_at=user.updated_at,
+    )
+
+
+@router.get("/upload-output-preferences", response_model=UploadOutputPreferencesResponse)
+@limiter.limit("120/minute")
+def get_upload_output_preferences(request: Request, user: User = Depends(get_current_user)) -> UploadOutputPreferencesResponse:
+    return UploadOutputPreferencesResponse(
+        upload_size_limit_mb=int(user.upload_size_limit_mb or 20),
+        auto_import_provider=(user.auto_import_provider or "none"),
+        default_output_format=(user.default_output_format or "pdf"),
+        updated_at=user.updated_at,
+    )
+
+
+@router.put("/upload-output-preferences", response_model=UploadOutputPreferencesResponse)
+@limiter.limit("60/minute")
+def update_upload_output_preferences(
+    request: Request,
+    payload: UpdateUploadOutputPreferencesRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UploadOutputPreferencesResponse:
+    allowed_sizes = {20, 50, 100}
+    allowed_providers = {"none", "google_drive"}
+    allowed_formats = {"pdf", "docx", "txt"}
+    if int(payload.upload_size_limit_mb) not in allowed_sizes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_upload_size_limit")
+    if payload.auto_import_provider not in allowed_providers:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_auto_import_provider")
+    if payload.default_output_format not in allowed_formats:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_default_output_format")
+
+    user.upload_size_limit_mb = int(payload.upload_size_limit_mb)
+    user.auto_import_provider = payload.auto_import_provider
+    user.default_output_format = payload.default_output_format
+    db.commit()
+    db.refresh(user)
+    return UploadOutputPreferencesResponse(
+        upload_size_limit_mb=int(user.upload_size_limit_mb or 20),
+        auto_import_provider=(user.auto_import_provider or "none"),
+        default_output_format=(user.default_output_format or "pdf"),
+        updated_at=user.updated_at,
+    )
+
+
+@router.get("/privacy-settings", response_model=PrivacySettingsResponse)
+@limiter.limit("120/minute")
+def get_privacy_settings(request: Request, user: User = Depends(get_current_user)) -> PrivacySettingsResponse:
+    return PrivacySettingsResponse(
+        data_retention_days=int(user.data_retention_days if user.data_retention_days is not None else 7),
+        updated_at=user.updated_at,
+    )
+
+
+@router.put("/privacy-settings", response_model=PrivacySettingsResponse)
+@limiter.limit("60/minute")
+def update_privacy_settings(
+    request: Request,
+    payload: UpdatePrivacySettingsRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PrivacySettingsResponse:
+    allowed = {-1, 0, 1, 7, 30}
+    if int(payload.data_retention_days) not in allowed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_data_retention_days")
+    user.data_retention_days = int(payload.data_retention_days)
+    db.commit()
+    db.refresh(user)
+    return PrivacySettingsResponse(
+        data_retention_days=int(user.data_retention_days if user.data_retention_days is not None else 7),
+        updated_at=user.updated_at,
+    )
+
+
+@router.get("/api-keys", response_model=list[ApiKeyItemResponse])
+@limiter.limit("120/minute")
+def list_api_keys(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[ApiKeyItemResponse]:
+    rows = db.execute(
+        select(ApiKey)
+        .where(ApiKey.user_id == user.id)
+        .order_by(ApiKey.created_at.desc())
+        .limit(100)
+    ).scalars().all()
+    return [
+        ApiKeyItemResponse(
+            id=row.id,
+            masked_key=_mask_api_key(key_prefix=row.key_prefix, key_last4=row.key_last4),
+            created_at=row.created_at,
+            last_used_at=row.last_used_at,
+            revoked_at=row.revoked_at,
+        )
+        for row in rows
+    ]
+
+
+@router.post("/api-keys", response_model=ApiKeyCreateResponse)
+@limiter.limit("20/minute")
+def create_api_key(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ApiKeyCreateResponse:
+    raw = f"sk-trans-{new_token_raw(24)}"
+    key = ApiKey(
+        user_id=user.id,
+        key_hash=token_sha256(raw),
+        key_prefix=raw[:9],
+        key_last4=raw[-4:],
+    )
+    db.add(key)
+    db.commit()
+    db.refresh(key)
+    return ApiKeyCreateResponse(
+        id=key.id,
+        raw_key=raw,
+        masked_key=_mask_api_key(key_prefix=key.key_prefix, key_last4=key.key_last4),
+        created_at=key.created_at,
+    )
+
+
+@router.delete("/api-keys/{api_key_id}", response_model=OkResponse)
+@limiter.limit("60/minute")
+def revoke_api_key(
+    api_key_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> OkResponse:
+    key = db.scalar(select(ApiKey).where(ApiKey.id == api_key_id, ApiKey.user_id == user.id))
+    if not key:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="api_key_not_found")
+    if key.revoked_at is None:
+        key.revoked_at = now_utc()
+        db.commit()
+    return OkResponse(ok=True)
+
+
 @router.post("/notify/translation-completed", response_model=OkResponse)
 @limiter.limit("30/minute")
 def notify_translation_completed(
@@ -515,12 +707,17 @@ def profile_stats(request: Request, user: User = Depends(get_current_user), db: 
 
     recent: list[dict] = []
     for created_at, document_count, word_count, title in activity_rows[:6]:
+        doc_count = int(document_count or 0)
+        words = int(word_count or 0)
         recent.append(
             {
-                "title": f"{(title or '翻译文档')[:80]}（{int(document_count or 0)} 份）",
+                "title": (title or "Untitled document")[:80],
                 "time": created_at.isoformat(),
                 "status": "translated",
-                "ip": f"{int(word_count or 0)} 字",
+                "ip": "-",
+                "activity_key": "translation_completed",
+                "document_count": doc_count,
+                "word_count": words,
             }
         )
     reset_rows = db.execute(
@@ -532,10 +729,11 @@ def profile_stats(request: Request, user: User = Depends(get_current_user), db: 
     for (created_at,) in reset_rows:
         recent.append(
             {
-                "title": "发起了密码重置请求",
+                "title": "password_reset_requested",
                 "time": created_at.isoformat(),
                 "status": "password_reset",
                 "ip": "-",
+                "activity_key": "password_reset_requested",
             }
         )
 
@@ -550,20 +748,22 @@ def profile_stats(request: Request, user: User = Depends(get_current_user), db: 
             continue
         recent.append(
             {
-                "title": "完成了邮箱验证",
+                "title": "email_verified",
                 "time": used_at.isoformat(),
                 "status": "email_verified",
                 "ip": "-",
+                "activity_key": "email_verified",
             }
         )
 
     if user.last_login_at:
         recent.append(
             {
-                "title": "登录了账户",
+                "title": "login_succeeded",
                 "time": user.last_login_at.isoformat(),
                 "status": "login",
                 "ip": "-",
+                "activity_key": "login_succeeded",
             }
         )
     recent = sorted(recent, key=lambda x: x["time"], reverse=True)[:10]
@@ -642,6 +842,35 @@ def profile_stats(request: Request, user: User = Depends(get_current_user), db: 
         "recent_activities": recent,
         "login_history": login_history,
     }
+
+
+@router.get("/documents", response_model=list[DocumentItemResponse])
+@limiter.limit("120/minute")
+def list_documents(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[DocumentItemResponse]:
+    rows = db.execute(
+        select(
+            TranslationActivity.id,
+            TranslationActivity.title,
+            TranslationActivity.created_at,
+            TranslationActivity.document_count,
+            TranslationActivity.word_count,
+        )
+        .where(TranslationActivity.user_id == user.id)
+        .order_by(TranslationActivity.created_at.desc())
+        .limit(200)
+    ).all()
+
+    return [
+        DocumentItemResponse(
+            id=row_id,
+            file_name=(title or "Untitled document")[:255],
+            created_at=created_at,
+            document_count=int(document_count or 0),
+            word_count=int(word_count or 0),
+            status="completed",
+        )
+        for row_id, title, created_at, document_count, word_count in rows
+    ]
 
 
 @router.post("/avatar", response_model=OkResponse)
@@ -1090,6 +1319,7 @@ def delete_account(
     db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id))
     db.execute(delete(EmailVerificationToken).where(EmailVerificationToken.user_id == user.id))
     db.execute(delete(TranslationActivity).where(TranslationActivity.user_id == user.id))
+    db.execute(delete(ApiKey).where(ApiKey.user_id == user.id))
     db.execute(delete(User).where(User.id == user.id))
     db.commit()
 

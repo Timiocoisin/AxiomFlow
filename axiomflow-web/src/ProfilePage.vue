@@ -17,7 +17,7 @@
 
       <div class="flex-grow space-y-8">
         <div v-if="activeTab === 'basic'" class="glass rounded-3xl p-8">
-          <h2 class="text-2xl font-bold mb-8">个人基本信息</h2>
+          <h2 class="text-2xl font-bold mb-8">{{ t("profile.basicTitle") }}</h2>
           <div class="flex flex-col sm:flex-row items-center gap-8 mb-10">
             <div class="relative group">
               <img
@@ -43,20 +43,20 @@
               </button>
             </div>
             <div class="text-center sm:text-left space-y-1">
-              <h3 class="text-xl font-bold">{{ profileUsername || "未设置用户名" }}</h3>
-              <p class="text-slate-500 text-sm">注册时间：{{ registerDate }}</p>
+              <h3 class="text-xl font-bold">{{ profileUsername || t("profile.noUsername") }}</h3>
+              <p class="text-slate-500 text-sm">{{ t("profile.registerDatePrefix") }}{{ registerDate }}</p>
               <p v-if="avatarMsg" class="text-sm" :class="avatarMsgType === 'error' ? 'text-rose-500' : 'text-emerald-500'">
                 {{ avatarMsg }}
               </p>
               <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-bold mt-2">
                 <Icon icon="ph:crown-bold" />
-                专业版用户
+                {{ t("profile.proUser") }}
               </div>
             </div>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="space-y-2">
-              <label class="text-sm font-semibold text-slate-500 ml-1">用户名</label>
+              <label class="text-sm font-semibold text-slate-500 ml-1">{{ t("profile.usernameLabel") }}</label>
               <input
                 class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                 type="text"
@@ -65,7 +65,7 @@
               />
             </div>
             <div class="space-y-2">
-              <label class="text-sm font-semibold text-slate-500 ml-1">电子邮箱</label>
+              <label class="text-sm font-semibold text-slate-500 ml-1">{{ t("profile.emailLabel") }}</label>
               <input
                 class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                 type="email"
@@ -79,40 +79,40 @@
         <div v-else-if="activeTab === 'stats'" class="space-y-8">
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="glass rounded-3xl p-6 border-l-4 border-l-indigo-600">
-              <p class="text-slate-500 text-sm font-medium mb-1">已翻译文档</p>
+              <p class="text-slate-500 text-sm font-medium mb-1">{{ t("profile.translatedDocs") }}</p>
               <h3 class="text-3xl font-bold">{{ formatNumber(translatedDocuments) }}</h3>
               <p class="text-xs mt-2 flex items-center gap-1" :class="monthDeltaPct >= 0 ? 'text-green-500' : 'text-rose-500'">
-                <Icon icon="ph:trend-up-bold" /> 比上月 {{ monthDeltaPct >= 0 ? "+" : "" }}{{ monthDeltaPct }}%
+                <Icon icon="ph:trend-up-bold" /> {{ t("profile.vsLastMonth") }} {{ monthDeltaPct >= 0 ? "+" : "" }}{{ monthDeltaPct }}%
               </p>
             </div>
             <div class="glass rounded-3xl p-6 border-l-4 border-l-purple-600">
-              <p class="text-slate-500 text-sm font-medium mb-1">总翻译字数</p>
+              <p class="text-slate-500 text-sm font-medium mb-1">{{ t("profile.totalWords") }}</p>
               <h3 class="text-3xl font-bold">{{ formatNumber(translatedWords) }}</h3>
-              <p class="text-xs text-slate-500 mt-2">约节省 {{ formatNumber(hoursSaved) }} 小时工作量</p>
+              <p class="text-xs text-slate-500 mt-2">{{ t("profile.savedHoursPrefix") }} {{ formatNumber(hoursSaved) }} {{ t("profile.savedHoursSuffix") }}</p>
             </div>
             <div class="glass rounded-3xl p-6 border-l-4 border-l-orange-600">
-              <p class="text-slate-500 text-sm font-medium mb-1">翻译积分余额</p>
+              <p class="text-slate-500 text-sm font-medium mb-1">{{ t("profile.creditsBalance") }}</p>
               <h3 class="text-3xl font-bold">{{ formatNumber(creditsBalance) }}</h3>
-              <p class="text-xs text-indigo-600 mt-2 font-medium cursor-pointer hover:underline">立即充值 →</p>
+              <p class="text-xs text-indigo-600 mt-2 font-medium cursor-pointer hover:underline">{{ t("profile.topUpNow") }}</p>
             </div>
           </div>
           <div class="glass rounded-3xl p-8">
-            <h2 class="text-xl font-bold mb-6">活跃度分析</h2>
+            <h2 class="text-xl font-bold mb-6">{{ t("profile.activityAnalytics") }}</h2>
             <div ref="activityChartRef" class="w-full h-80"></div>
           </div>
 
           <div class="glass rounded-3xl p-8">
-            <h2 class="text-xl font-bold mb-6">最近活动</h2>
-            <div v-if="statsLoading" class="text-sm text-slate-500">加载中...</div>
-            <div v-else-if="recentActivities.length === 0" class="text-sm text-slate-500">暂无活动</div>
+            <h2 class="text-xl font-bold mb-6">{{ t("profile.recentActivities") }}</h2>
+            <div v-if="statsLoading" class="text-sm text-slate-500">{{ t("profile.loading") }}</div>
+            <div v-else-if="recentActivities.length === 0" class="text-sm text-slate-500">{{ t("profile.noActivity") }}</div>
             <div v-else class="space-y-6">
               <div v-for="item in recentActivities" :key="`${item.time}-${item.title}`" class="flex gap-4">
                 <div class="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 flex-shrink-0">
                   <Icon class="text-xl" icon="ph:activity-bold" />
                 </div>
                 <div>
-                  <p class="text-sm font-bold">{{ item.title }}</p>
-                  <p class="text-xs text-slate-500">{{ formatTimeText(item.time) }} · {{ activityStatusLabel(item.status) }} · {{ item.ip || "-" }}</p>
+                  <p class="text-sm font-bold">{{ recentActivityTitle(item) }}</p>
+                  <p class="text-xs text-slate-500">{{ formatTimeText(item.time) }} · {{ activityStatusLabel(item.status) }} · {{ recentActivityMeta(item) }}</p>
                 </div>
               </div>
             </div>
@@ -121,10 +121,10 @@
 
         <div v-else-if="activeTab === 'security'" class="space-y-8">
           <div class="glass rounded-3xl p-8">
-            <h2 class="text-2xl font-bold mb-8">修改密码</h2>
+            <h2 class="text-2xl font-bold mb-8">{{ t("profile.changePasswordTitle") }}</h2>
             <form class="space-y-6 max-w-md" @submit.prevent="submitPasswordChange">
               <div class="space-y-2">
-                <label class="text-sm font-semibold text-slate-500 ml-1">当前密码</label>
+                <label class="text-sm font-semibold text-slate-500 ml-1">{{ t("profile.currentPassword") }}</label>
                 <input
                   v-model="secCurrent"
                   class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
@@ -134,21 +134,21 @@
                 />
               </div>
               <div class="space-y-2">
-                <label class="text-sm font-semibold text-slate-500 ml-1">新密码</label>
+                <label class="text-sm font-semibold text-slate-500 ml-1">{{ t("profile.newPassword") }}</label>
                 <input
                   v-model="secNew"
                   class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
-                  placeholder="至少 8 位，包含数字和字母"
+                  :placeholder="t('profile.newPasswordPlaceholder')"
                   type="password"
                   autocomplete="new-password"
                 />
               </div>
               <div class="space-y-2">
-                <label class="text-sm font-semibold text-slate-500 ml-1">确认新密码</label>
+                <label class="text-sm font-semibold text-slate-500 ml-1">{{ t("profile.confirmNewPassword") }}</label>
                 <input
                   v-model="secNew2"
                   class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
-                  placeholder="再次输入新密码"
+                  :placeholder="t('profile.confirmNewPasswordPlaceholder')"
                   type="password"
                   autocomplete="new-password"
                 />
@@ -159,21 +159,21 @@
                 type="submit"
                 :disabled="secSubmitting"
               >
-                {{ secSubmitting ? "提交中…" : "更新密码" }}
+                {{ secSubmitting ? t("profile.submitting") : t("profile.updatePassword") }}
               </button>
             </form>
           </div>
 
           <div class="glass rounded-3xl p-8">
-            <h2 class="text-xl font-bold mb-6">登录历史</h2>
+            <h2 class="text-xl font-bold mb-6">{{ t("profile.loginHistory") }}</h2>
             <div class="overflow-x-auto">
               <table class="w-full text-left text-sm">
                 <thead>
                   <tr class="text-slate-500 border-b dark:border-slate-800">
-                    <th class="pb-4 font-semibold">设备/浏览器</th>
-                    <th class="pb-4 font-semibold">IP 地址</th>
-                    <th class="pb-4 font-semibold">时间</th>
-                    <th class="pb-4 font-semibold">状态</th>
+                    <th class="pb-4 font-semibold">{{ t("profile.deviceBrowser") }}</th>
+                    <th class="pb-4 font-semibold">{{ t("profile.ipAddress") }}</th>
+                    <th class="pb-4 font-semibold">{{ t("profile.time") }}</th>
+                    <th class="pb-4 font-semibold">{{ t("profile.status") }}</th>
                   </tr>
                 </thead>
                 <tbody v-if="displayLoginHistory.length > 0" class="divide-y dark:divide-slate-800">
@@ -185,10 +185,10 @@
                       <span :class="row.status.startsWith('online') ? 'text-green-500 font-bold' : 'text-slate-500'">
                         {{
                           row.status === "online_current"
-                            ? "• 当前"
+                            ? t("profile.currentDot")
                             : row.status === "online"
-                              ? "• 在线"
-                              : "已过期"
+                              ? t("profile.onlineDot")
+                              : t("profile.statusExpired")
                         }}
                       </span>
                     </td>
@@ -196,7 +196,7 @@
                 </tbody>
                 <tbody v-else>
                   <tr>
-                    <td class="py-4 text-slate-500" colspan="4">暂无登录历史</td>
+                    <td class="py-4 text-slate-500" colspan="4">{{ t("profile.noLoginHistory") }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -205,12 +205,12 @@
         </div>
 
         <div v-else-if="activeTab === 'notifications'" class="glass rounded-3xl p-8">
-          <h2 class="text-2xl font-bold mb-8">通知设置</h2>
+          <h2 class="text-2xl font-bold mb-8">{{ t("profile.notificationSettings") }}</h2>
           <div class="space-y-8">
             <div class="flex items-center justify-between">
               <div>
-                <p class="font-bold">邮件通知</p>
-                <p class="text-sm text-slate-500">当文档翻译完成、积分变动或有重要安全提醒时发送邮件。</p>
+                <p class="font-bold">{{ t("profile.emailNotifications") }}</p>
+                <p class="text-sm text-slate-500">{{ t("profile.emailNotificationsDesc") }}</p>
               </div>
               <button
                 class="relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full"
@@ -223,8 +223,8 @@
             </div>
             <div class="flex items-center justify-between">
               <div>
-                <p class="font-bold">浏览器推送</p>
-                <p class="text-sm text-slate-500">在浏览器通知栏实时推送翻译状态更新。</p>
+                <p class="font-bold">{{ t("profile.browserPush") }}</p>
+                <p class="text-sm text-slate-500">{{ t("profile.browserPushDesc") }}</p>
               </div>
               <button
                 class="relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full"
@@ -237,8 +237,8 @@
             </div>
             <div class="flex items-center justify-between">
               <div>
-                <p class="font-bold">产品动态与市场推广</p>
-                <p class="text-sm text-slate-500">接收有关新功能发布、特别优惠和活动的信息。</p>
+                <p class="font-bold">{{ t("profile.marketing") }}</p>
+                <p class="text-sm text-slate-500">{{ t("profile.marketingDesc") }}</p>
               </div>
               <button
                 class="relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full"
@@ -255,7 +255,7 @@
               {{ notifyMsg }}
             </p>
             <p v-else-if="notifyUpdatedAt" class="text-xs text-slate-500 mb-4">
-              上次更新：{{ formatTimeText(notifyUpdatedAt) }}
+              {{ t("profile.lastUpdatedPrefix") }}{{ formatTimeText(notifyUpdatedAt) }}
             </p>
             <button
               class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-indigo-600/20 active:scale-95 disabled:opacity-60"
@@ -263,15 +263,15 @@
               :disabled="notifySaving"
               @click="saveNotificationPreferences"
             >
-              {{ notifySaving ? "保存中…" : "保存设置" }}
+              {{ notifySaving ? t("common.saving") : t("profile.saveSettings") }}
             </button>
           </div>
         </div>
 
         <div v-else class="space-y-8">
           <div class="glass rounded-3xl p-8">
-            <h2 class="text-xl font-bold mb-4">导出个人数据</h2>
-            <p class="text-slate-500 text-sm mb-6">您可以下载包含所有个人信息、翻译记录和设置偏好的数据包（JSON 格式）。</p>
+            <h2 class="text-xl font-bold mb-4">{{ t("profile.exportDataTitle") }}</h2>
+            <p class="text-slate-500 text-sm mb-6">{{ t("profile.exportDataDesc") }}</p>
             <p v-if="exportMsg" class="text-sm mb-4" :class="exportMsgType === 'error' ? 'text-rose-500' : 'text-emerald-500'">
               {{ exportMsg }}
             </p>
@@ -282,28 +282,28 @@
               @click="handleExportData"
             >
               <Icon icon="ph:download-simple-bold" />
-              {{ exportingData ? "导出中…" : "申请导出数据" }}
+              {{ exportingData ? t("profile.exporting") : t("profile.exportData") }}
             </button>
           </div>
           <div class="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-3xl p-8">
             <h2 class="text-xl font-bold text-red-600 mb-4 flex items-center gap-2">
               <Icon icon="ph:warning-circle-bold" />
-              危险区域
+              {{ t("profile.dangerZone") }}
             </h2>
-            <p class="text-red-700/70 dark:text-red-400/70 text-sm mb-6">一旦注销账户，所有翻译文档和积分将永久丢失且无法找回。请谨慎操作。</p>
+            <p class="text-red-700/70 dark:text-red-400/70 text-sm mb-6">{{ t("profile.dangerZoneDesc") }}</p>
             <div class="space-y-3 max-w-md">
               <input
                 v-model="deletePassword"
                 class="w-full bg-white/90 dark:bg-slate-900/40 border border-red-200 dark:border-red-900/40 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500/40 transition-all"
                 type="password"
                 autocomplete="current-password"
-                placeholder="输入当前密码"
+                :placeholder="t('profile.deletePasswordPlaceholder')"
               />
               <input
                 v-model="deleteConfirmText"
                 class="w-full bg-white/90 dark:bg-slate-900/40 border border-red-200 dark:border-red-900/40 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500/40 transition-all"
                 type="text"
-                placeholder="输入 DELETE 进行二次确认"
+                :placeholder="t('profile.deleteConfirmPlaceholder')"
               />
               <p v-if="deleteMsg" class="text-sm" :class="deleteMsgType === 'error' ? 'text-rose-500' : 'text-emerald-500'">
                 {{ deleteMsg }}
@@ -314,7 +314,7 @@
                 :disabled="deletingAccount"
                 @click="openDeleteConfirm"
               >
-                {{ deletingAccount ? "处理中…" : "永久注销账户" }}
+                {{ deletingAccount ? t("profile.processing") : t("profile.deleteAccount") }}
               </button>
             </div>
           </div>
@@ -330,9 +330,9 @@
   >
     <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
     <div class="relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6">
-      <h3 class="text-lg font-bold text-red-600 mb-2">确认永久注销账户</h3>
+      <h3 class="text-lg font-bold text-red-600 mb-2">{{ t("profile.deleteConfirmTitle") }}</h3>
       <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-5">
-        注销后将永久删除你的账户数据，且无法恢复。请确认你已完成数据导出。
+        {{ t("profile.deleteConfirmDesc") }}
       </p>
       <div class="flex justify-end gap-3">
         <button
@@ -340,7 +340,7 @@
           type="button"
           @click="closeDeleteConfirm"
         >
-          取消
+          {{ t("profile.cancel") }}
         </button>
         <button
           class="px-4 py-2 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-60"
@@ -348,7 +348,7 @@
           :disabled="deletingAccount"
           @click="confirmDeleteAccount"
         >
-          {{ deletingAccount ? "处理中…" : "确认注销" }}
+          {{ deletingAccount ? t("profile.processing") : t("profile.confirmDelete") }}
         </button>
       </div>
     </div>
@@ -357,11 +357,13 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Icon } from "@iconify/vue";
 import * as echarts from "echarts";
 import * as authApi from "./api/auth";
 
 const emit = defineEmits<{ (e: "password-changed"): void; (e: "avatar-updated", value: string): void; (e: "account-deleted"): void }>();
+const { locale, t } = useI18n();
 const props = defineProps<{ avatarUrl?: string }>();
 
 type TabId = "basic" | "stats" | "security" | "notifications" | "actions";
@@ -403,22 +405,34 @@ const creditsBalance = ref(0);
 const monthDeltaPct = ref(0);
 const hoursSaved = ref(0);
 const activityChartData = ref<Array<{ date: string; count: number }>>([]);
-const recentActivities = ref<Array<{ title: string; time: string; status: string; ip: string }>>([]);
+type RecentActivityItem = {
+  title: string;
+  time: string;
+  status: string;
+  ip: string;
+  activity_key?: string;
+  document_count?: number;
+  word_count?: number;
+};
+
+const recentActivities = ref<Array<RecentActivityItem>>([]);
 const loginHistory = ref<Array<{ device: string; ip: string; time: string; status: string }>>([]);
 let activityChart: echarts.ECharts | null = null;
 
-const tabs: Array<{ id: TabId; label: string; icon: string }> = [
-  { id: "basic", label: "基本信息", icon: "ph:user-circle-bold" },
-  { id: "stats", label: "数据统计", icon: "ph:chart-bar-bold" },
-  { id: "security", label: "账户安全", icon: "ph:shield-check-bold" },
-  { id: "notifications", label: "通知偏好", icon: "ph:bell-bold" },
-  { id: "actions", label: "更多操作", icon: "ph:dots-three-circle-bold" },
-];
+const tabs = computed<Array<{ id: TabId; label: string; icon: string }>>(() => [
+  { id: "basic", label: t("profile.tabBasic"), icon: "ph:user-circle-bold" },
+  { id: "stats", label: t("profile.tabStats"), icon: "ph:chart-bar-bold" },
+  { id: "security", label: t("profile.tabSecurity"), icon: "ph:shield-check-bold" },
+  { id: "notifications", label: t("profile.tabNotifications"), icon: "ph:bell-bold" },
+  { id: "actions", label: t("profile.tabMore"), icon: "ph:dots-three-circle-bold" },
+]);
 
 const registerDate = computed(() => {
   const d = new Date();
   const pad = (v: number) => String(v).padStart(2, "0");
-  return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日`;
+  return locale.value === "zh-CN"
+    ? `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日`
+    : `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 });
 
 function normalizeDeviceLabel(raw: string): string {
@@ -482,14 +496,14 @@ async function onAvatarFileChange(ev: Event) {
   avatarMsg.value = "";
   if (!file.type.startsWith("image/")) {
     avatarMsgType.value = "error";
-    avatarMsg.value = "请选择图片文件";
+    avatarMsg.value = t("profile.msgChooseImage");
     input.value = "";
     return;
   }
   const maxBytes = 1024 * 1024;
   if (file.size > maxBytes) {
     avatarMsgType.value = "error";
-    avatarMsg.value = "图片不能超过 1MB";
+    avatarMsg.value = t("profile.msgImageTooLarge");
     input.value = "";
     return;
   }
@@ -509,10 +523,10 @@ async function onAvatarFileChange(ev: Event) {
       emit("avatar-updated", dataUrl);
     }
     avatarMsgType.value = "success";
-    avatarMsg.value = "头像已更新";
+    avatarMsg.value = t("profile.msgAvatarUpdated");
   } catch {
     avatarMsgType.value = "error";
-    avatarMsg.value = "头像更新失败，请稍后重试";
+    avatarMsg.value = t("profile.msgAvatarUpdateFailed");
   } finally {
     avatarUploading.value = false;
     input.value = "";
@@ -522,15 +536,15 @@ async function onAvatarFileChange(ev: Event) {
 async function submitPasswordChange() {
   secMsg.value = "";
   if (!sessionStorage.getItem("axiomflow:accessToken")) {
-    secMsg.value = "请先登录后再修改密码";
+    secMsg.value = t("profile.msgLoginFirstForPassword");
     return;
   }
   if (secNew.value.length < 8 || !/[A-Za-z]/.test(secNew.value) || !/\d/.test(secNew.value)) {
-    secMsg.value = "新密码至少 8 位，且包含英文和数字";
+    secMsg.value = t("profile.msgPasswordRule");
     return;
   }
   if (secNew.value !== secNew2.value) {
-    secMsg.value = "两次输入的新密码不一致";
+    secMsg.value = t("profile.msgPasswordMismatch");
     return;
   }
   secSubmitting.value = true;
@@ -542,8 +556,8 @@ async function submitPasswordChange() {
     emit("password-changed");
   } catch (err: unknown) {
     const detail = (err as { response?: { data?: { detail?: string }; status?: number } })?.response?.data?.detail;
-    if (detail === "invalid_current_password") secMsg.value = "当前密码不正确";
-    else secMsg.value = "修改失败，请稍后重试";
+    if (detail === "invalid_current_password") secMsg.value = t("profile.msgCurrentPasswordIncorrect");
+    else secMsg.value = t("profile.msgPasswordUpdateFailed");
   } finally {
     secSubmitting.value = false;
   }
@@ -572,9 +586,28 @@ function formatTimeText(v: string): string {
 }
 
 function activityStatusLabel(status: string): string {
-  if (status === "online") return "在线";
-  if (status === "expired") return "已过期";
-  return "信息";
+  if (status === "online") return t("profile.statusOnline");
+  if (status === "expired") return t("profile.statusExpired");
+  return t("profile.statusInfo");
+}
+
+function recentActivityTitle(item: RecentActivityItem): string {
+  if (item.activity_key === "translation_completed") {
+    return (item.title || t("profile.untitledDocument")).trim();
+  }
+  if (item.activity_key === "password_reset_requested") return t("profile.activityPasswordResetRequested");
+  if (item.activity_key === "email_verified") return t("profile.activityEmailVerified");
+  if (item.activity_key === "login_succeeded") return t("profile.activityLoginSucceeded");
+  return item.title || "-";
+}
+
+function recentActivityMeta(item: RecentActivityItem): string {
+  if (item.activity_key === "translation_completed") {
+    const docs = Math.max(0, Number(item.document_count ?? 0));
+    const words = Math.max(0, Number(item.word_count ?? 0));
+    return t("profile.activityTranslateMeta", { docs, words });
+  }
+  return item.ip || "-";
 }
 
 async function loadProfileStats() {
@@ -616,7 +649,7 @@ async function loadNotificationPreferences() {
     notifyUpdatedAt.value = String(pref.updated_at || "");
   } catch {
     notifyMsgType.value = "error";
-    notifyMsg.value = "通知设置加载失败";
+    notifyMsg.value = t("profile.msgNotifyLoadFailed");
   }
 }
 
@@ -625,21 +658,21 @@ async function toggleBrowserNotify() {
   if (!notifyBrowser.value) {
     if (!("Notification" in window)) {
       notifyMsgType.value = "error";
-      notifyMsg.value = "当前浏览器不支持推送通知";
+      notifyMsg.value = t("profile.msgBrowserNotSupported");
       return;
     }
     if (Notification.permission === "default") {
       const granted = await Notification.requestPermission();
       if (granted !== "granted") {
         notifyMsgType.value = "error";
-        notifyMsg.value = "浏览器通知权限未开启";
+        notifyMsg.value = t("profile.msgBrowserPermissionDenied");
         notifyBrowser.value = false;
         return;
       }
     }
     if (Notification.permission !== "granted") {
       notifyMsgType.value = "error";
-      notifyMsg.value = "浏览器通知权限未开启";
+      notifyMsg.value = t("profile.msgBrowserPermissionDenied");
       notifyBrowser.value = false;
       return;
     }
@@ -660,10 +693,10 @@ async function saveNotificationPreferences() {
     });
     notifyUpdatedAt.value = String(pref.updated_at || "");
     notifyMsgType.value = "success";
-    notifyMsg.value = "通知设置已保存";
+    notifyMsg.value = t("profile.msgNotifySaved");
   } catch {
     notifyMsgType.value = "error";
-    notifyMsg.value = "通知设置保存失败，请稍后重试";
+    notifyMsg.value = t("profile.msgNotifySaveFailed");
   } finally {
     notifySaving.value = false;
   }
@@ -687,10 +720,10 @@ async function handleExportData() {
     a.remove();
     URL.revokeObjectURL(url);
     exportMsgType.value = "success";
-    exportMsg.value = "数据导出成功";
+    exportMsg.value = t("profile.msgExportSuccess");
   } catch {
     exportMsgType.value = "error";
-    exportMsg.value = "数据导出失败，请稍后重试";
+    exportMsg.value = t("profile.msgExportFailed");
   } finally {
     exportingData.value = false;
   }
@@ -700,12 +733,12 @@ async function handleDeleteAccount() {
   deleteMsg.value = "";
   if (!deletePassword.value) {
     deleteMsgType.value = "error";
-    deleteMsg.value = "请输入当前密码";
+    deleteMsg.value = t("profile.msgDeleteNeedPassword");
     return;
   }
   if ((deleteConfirmText.value || "").trim().toUpperCase() !== "DELETE") {
     deleteMsgType.value = "error";
-    deleteMsg.value = "请输入 DELETE 进行确认";
+    deleteMsg.value = t("profile.msgDeleteNeedConfirm");
     return;
   }
   deletingAccount.value = true;
@@ -715,20 +748,20 @@ async function handleDeleteAccount() {
       confirm_text: deleteConfirmText.value,
     });
     deleteMsgType.value = "success";
-    deleteMsg.value = "账户已注销";
+    deleteMsg.value = t("profile.msgDeleteSuccess");
     showDeleteConfirmModal.value = false;
     emit("account-deleted");
   } catch (err: unknown) {
     const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
     if (detail === "invalid_current_password") {
       deleteMsgType.value = "error";
-      deleteMsg.value = "当前密码不正确";
+      deleteMsg.value = t("profile.msgCurrentPasswordIncorrect");
     } else if (detail === "invalid_confirm_text") {
       deleteMsgType.value = "error";
-      deleteMsg.value = "确认文本不正确";
+      deleteMsg.value = t("profile.msgDeleteConfirmWrong");
     } else {
       deleteMsgType.value = "error";
-      deleteMsg.value = "注销失败，请稍后重试";
+      deleteMsg.value = t("profile.msgDeleteFailed");
     }
   } finally {
     deletingAccount.value = false;
@@ -806,7 +839,7 @@ function renderActivityChart() {
     },
     series: [
       {
-        name: "翻译文档数",
+        name: t("profile.chartSeriesName"),
         type: "line",
         smooth: true,
         data: activityChartData.value.map((x) => Number(x.count || 0)),

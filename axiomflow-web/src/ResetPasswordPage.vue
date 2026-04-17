@@ -21,31 +21,31 @@
 
     <div class="flex-grow flex items-center justify-center p-4">
       <div class="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-8 lg:p-10 shadow-2xl border dark:border-slate-800">
-        <h1 class="text-2xl font-bold mb-2">重置密码</h1>
-        <p class="text-sm text-slate-500 dark:text-slate-400 mb-8">请输入邮件中的 6 位验证码，并设置新密码。</p>
+        <h1 class="text-2xl font-bold mb-2">{{ t_("resetPassword.title") }}</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mb-8">{{ t_("resetPassword.subtitle") }}</p>
 
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">验证码</label>
+            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ t_("resetPassword.codeLabel") }}</label>
             <input
               v-model.trim="token"
               class="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 font-mono tracking-widest"
-              placeholder="6 位字母或数字"
+              :placeholder="t_('resetPassword.codePlaceholder')"
               type="text"
               autocomplete="one-time-code"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">新密码</label>
+            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ t_("resetPassword.newPasswordLabel") }}</label>
             <input
               v-model="newPassword"
               class="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-              placeholder="至少 8 位，含英文与数字"
+              :placeholder="t_('resetPassword.newPasswordPlaceholder')"
               type="password"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">确认新密码</label>
+            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ t_("resetPassword.confirmPasswordLabel") }}</label>
             <input
               v-model="confirmPassword"
               class="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
@@ -59,7 +59,7 @@
             type="button"
             @click="submit"
           >
-            {{ submitting ? "提交中…" : "完成重置" }}
+            {{ submitting ? t_("resetPassword.submitting") : t_("resetPassword.submit") }}
           </button>
         </div>
       </div>
@@ -69,6 +69,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { Icon } from "@iconify/vue";
 import * as authApi from "./api/auth";
 
@@ -80,6 +81,7 @@ const newPassword = ref("");
 const confirmPassword = ref("");
 const error = ref("");
 const submitting = ref(false);
+const { t: t_ } = useI18n();
 
 function readTokenFromHash(): string {
   const hash = window.location.hash || "";
@@ -98,15 +100,15 @@ async function submit() {
   error.value = "";
   const t = token.value.trim();
   if (!/^[A-Za-z0-9]{6}$/.test(t)) {
-    error.value = "请输入邮件中的 6 位验证码";
+    error.value = t_("resetPassword.codeInvalid");
     return;
   }
   if (newPassword.value.length < 8 || !/[A-Za-z]/.test(newPassword.value) || !/\d/.test(newPassword.value)) {
-    error.value = "新密码至少 8 位，且包含英文和数字";
+    error.value = t_("resetPassword.passwordRule");
     return;
   }
   if (newPassword.value !== confirmPassword.value) {
-    error.value = "两次输入的密码不一致";
+    error.value = t_("resetPassword.passwordMismatch");
     return;
   }
   submitting.value = true;
@@ -115,7 +117,7 @@ async function submit() {
     window.location.hash = "#/auth";
     emit("done");
   } catch {
-    error.value = "重置失败，验证码可能已过期";
+    error.value = t_("resetPassword.resetFailed");
   } finally {
     submitting.value = false;
   }

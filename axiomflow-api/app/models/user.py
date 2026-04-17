@@ -49,6 +49,30 @@ class User(Base, UuidPrimaryKeyMixin, TimestampMixin):
     notify_marketing: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0", comment="是否接收营销通知"
     )
+    preferred_target_language: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="zh-CN", server_default="zh-CN", comment="默认目标语言"
+    )
+    ui_language: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="zh-CN", server_default="zh-CN", comment="界面语言"
+    )
+    auto_save_history: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="1", comment="是否自动保存翻译历史"
+    )
+    enable_shortcuts: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="1", comment="是否启用快捷键"
+    )
+    upload_size_limit_mb: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=20, server_default="20", comment="上传大小限制(MB)"
+    )
+    auto_import_provider: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="none", server_default="none", comment="自动导入提供方"
+    )
+    default_output_format: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pdf", server_default="pdf", comment="默认输出格式"
+    )
+    data_retention_days: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=7, server_default="7", comment="文档云端保留天数（-1=永久）"
+    )
     last_login_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="最近登录时间"
     )

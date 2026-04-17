@@ -26,21 +26,21 @@
         <div class="mb-8 inline-flex items-center justify-center w-24 h-24 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 animate-pulse">
           <Icon class="text-5xl" icon="ph:envelope-open-bold" />
         </div>
-        <h1 class="text-3xl font-bold mb-4">查收您的邮箱</h1>
+        <h1 class="text-3xl font-bold mb-4">{{ t("verifyEmail.checkInboxTitle") }}</h1>
         <p class="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
-          我们已向 <span class="text-slate-900 dark:text-white font-semibold">{{ maskedEmail }}</span> 发送验证邮件。请点击邮件里的链接完成激活。
+          {{ t("verifyEmail.checkInboxBody", { email: maskedEmail }) }}
         </p>
         <div class="space-y-3">
           <p v-if="statusText" class="text-sm text-slate-500 dark:text-slate-400 mt-1 mb-0">{{ statusText }}</p>
           <div class="pt-6 border-t dark:border-slate-800 flex flex-col items-center">
-            <p class="text-sm text-slate-500 mb-3">没有收到邮件？</p>
+            <p class="text-sm text-slate-500 mb-3">{{ t("verifyEmail.noEmailTip") }}</p>
             <button
               class="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline decoration-2 underline-offset-4 disabled:opacity-50 disabled:cursor-not-allowed"
               :disabled="countingDown"
               type="button"
               @click="resend"
             >
-              {{ countingDown ? `重新发送 (${countdown}s)` : "重新发送验证邮件" }}
+              {{ countingDown ? t("verifyEmail.resendCountdown", { s: countdown }) : t("verifyEmail.resend") }}
             </button>
           </div>
         </div>
@@ -50,14 +50,14 @@
         <div class="mb-8 inline-flex items-center justify-center w-24 h-24 rounded-full bg-green-50 dark:bg-green-900/30 text-green-500">
           <Icon class="text-5xl" icon="ph:check-circle-bold" />
         </div>
-        <h1 class="text-3xl font-bold mb-4">验证成功！</h1>
-        <p class="text-slate-500 dark:text-slate-400 mb-8">您的邮箱已通过验证。现在您可以开始翻译您的第一个 PDF 文档了。</p>
+        <h1 class="text-3xl font-bold mb-4">{{ t("verifyEmail.successTitle") }}</h1>
+        <p class="text-slate-500 dark:text-slate-400 mb-8">{{ t("verifyEmail.successBody") }}</p>
         <button
           class="inline-block w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold py-4 rounded-xl transition-all"
           type="button"
           @click="emitVerifiedOnce"
         >
-          进入工作台
+          {{ t("verifyEmail.enterWorkspace") }}
         </button>
       </div>
     </div>
@@ -66,6 +66,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { Icon } from "@iconify/vue";
 import * as authApi from "./api/auth";
 
@@ -87,12 +88,14 @@ const accessExpiresAt = ref("");
 let verifyEmitted = false;
 
 const maskedEmail = computed(() => {
-  const v = props.email || localStorage.getItem("axiomflow:lastRegisterEmail") || "您的邮箱";
+  const v = props.email || localStorage.getItem("axiomflow:lastRegisterEmail") || t("verifyEmail.checkInboxTitle");
   if (!v.includes("@")) return v;
   const [name, domain] = v.split("@");
   const safe = name.length <= 2 ? `${name[0] ?? "*"}*` : `${name.slice(0, 2)}***`;
   return `${safe}@${domain}`;
 });
+
+const { t } = useI18n();
 
 function getTokenFromHash(): string | null {
   const hash = window.location.hash || "";
@@ -104,7 +107,7 @@ function getTokenFromHash(): string | null {
 }
 
 function openMailHint() {
-  statusText.value = "请打开邮箱，点击验证链接即可自动完成验证。";
+  statusText.value = t("verifyEmail.openMailHint");
 }
 
 function startCountdown() {
@@ -124,17 +127,17 @@ function startCountdown() {
 function resend() {
   const email = props.email || localStorage.getItem("axiomflow:lastRegisterEmail") || "";
   if (!email) {
-    statusText.value = "缺少邮箱信息，请返回注册页重新发送。";
+    statusText.value = t("verifyEmail.missingEmail");
     return;
   }
   authApi
     .resendVerification({ email })
     .then(() => {
-      statusText.value = "已重新发送验证邮件，请查收。";
+      statusText.value = t("verifyEmail.resendSent");
       startCountdown();
     })
     .catch(() => {
-      statusText.value = "发送失败，请稍后重试。";
+      statusText.value = t("verifyEmail.resendFailed");
     });
 }
 
@@ -150,7 +153,7 @@ function emitVerifiedOnce() {
 async function tryVerifyFromToken() {
   const token = getTokenFromHash();
   if (!token) return;
-  statusText.value = "正在验证，请稍候…";
+  statusText.value = t("verifyEmail.verifying");
   try {
     const res = await authApi.verifyEmail({ token });
     verified.value = true;
@@ -159,7 +162,7 @@ async function tryVerifyFromToken() {
     statusText.value = "";
     emitVerifiedOnce();
   } catch {
-    statusText.value = "验证失败或已过期，请重新发送验证邮件。";
+    statusText.value = t("verifyEmail.verifyFailed");
   }
 }
 

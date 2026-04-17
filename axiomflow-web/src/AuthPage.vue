@@ -1,6 +1,6 @@
 <template>
   <div class="auth-shell min-h-screen flex flex-col">
-    <!-- 导航栏 -->
+    <!-- Navbar -->
     <nav class="sticky top-0 z-50 glass border-b border-white/10">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16 items-center">
@@ -9,9 +9,9 @@
             <img alt="Axiomflow Logo" class="w-8 h-8 rounded-lg" src="/icons/favicon.svg" />
             <span class="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Axiomflow</span>
           </button>
-          <!-- 工具栏（占位，不跳转） -->
+          <!-- Toolbar -->
           <div class="flex items-center gap-3">
-            <!-- 主题切换（与首页一致） -->
+            <!-- Theme toggle -->
             <button
               class="h-10 w-10 inline-flex items-center justify-center rounded-full transition-colors text-slate-700 hover:bg-slate-900/5 dark:text-slate-200 dark:hover:bg-white/10"
               type="button"
@@ -28,7 +28,7 @@
               @click="emit('back')"
             >
               <Icon icon="ph:arrow-left-bold" />
-              返回
+              {{ t("common.back") }}
             </button>
           </div>
         </div>
@@ -46,7 +46,7 @@
       </div>
 
       <div class="w-full max-w-md auth-card rounded-3xl p-8 lg:p-10 shadow-2xl">
-        <!-- Tab 切换 -->
+        <!-- Tabs -->
         <div class="flex p-1 rounded-xl mb-8 auth-tabs">
           <button
             class="flex-1 py-2 text-sm font-semibold rounded-lg shadow-sm transition-all"
@@ -54,7 +54,7 @@
             type="button"
             @click="mode = 'login'"
           >
-            登录
+            {{ t("nav.login") }}
           </button>
           <button
             class="flex-1 py-2 text-sm font-semibold rounded-lg shadow-sm transition-all"
@@ -62,28 +62,28 @@
             type="button"
             @click="mode = 'register'"
           >
-            注册
+            {{ t("auth.signup") }}
           </button>
         </div>
 
-        <!-- 标题区域 -->
+        <!-- Header -->
         <div class="mb-8">
           <h2 class="text-2xl font-bold mb-2">
-            {{ mode === "login" ? "欢迎回来" : "创建新账号" }}
+            {{ mode === "login" ? t("auth.welcomeBack") : t("auth.createAccount") }}
           </h2>
           <p class="text-slate-400">
             {{
               mode === "login"
-                ? "使用您的账号访问智能翻译能力"
-                : "加入用户社区，开始您的智能翻译之旅"
+                ? t("auth.loginSubtitle")
+                : t("auth.registerSubtitle")
             }}
           </p>
         </div>
 
-        <!-- 表单 -->
+        <!-- Form -->
         <form class="space-y-5" @submit.prevent="handleAuth">
           <div>
-            <label class="block text-sm font-medium text-slate-400 mb-2">邮箱地址</label>
+            <label class="block text-sm font-medium text-slate-400 mb-2">{{ t("auth.emailLabel") }}</label>
             <div class="relative">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
                 <Icon icon="ph:envelope-simple-bold" />
@@ -99,7 +99,7 @@
           </div>
 
           <div v-if="mode === 'register'">
-            <label class="block text-sm font-medium text-slate-400 mb-2">用户名</label>
+            <label class="block text-sm font-medium text-slate-400 mb-2">{{ t("auth.usernameLabel") }}</label>
             <div class="relative">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
                 <Icon icon="ph:user-bold" />
@@ -107,7 +107,7 @@
               <input
                 v-model.trim="fullName"
                 class="w-full auth-input rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
-                placeholder="请输入用户名"
+                :placeholder="t('auth.usernamePlaceholder')"
                 type="text"
               />
             </div>
@@ -115,13 +115,13 @@
 
           <div>
             <div class="flex justify-between items-center mb-2">
-              <label class="text-sm font-medium text-slate-400">密码</label>
+              <label class="text-sm font-medium text-slate-400">{{ t("auth.passwordLabel") }}</label>
               <a
                 v-if="mode === 'login'"
                 class="text-xs text-indigo-400 hover:text-indigo-300"
                 href="#"
                 @click.prevent="openForgotModal"
-                >忘记密码?</a
+                >{{ t("auth.forgotPassword") }}</a
               >
             </div>
             <div class="relative">
@@ -144,13 +144,13 @@
                 <Icon :icon="showPassword ? 'ph:eye-slash-bold' : 'ph:eye-bold'" class="text-xl" />
               </button>
             </div>
-            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">密码规则：至少 8 位，且包含英文和数字</p>
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">{{ t("auth.passwordRule") }}</p>
           </div>
 
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <label class="text-sm font-medium text-slate-400">验证码</label>
-              <span v-if="puzzleVerified" class="text-xs text-emerald-400">已验证</span>
+              <label class="text-sm font-medium text-slate-400">{{ t("auth.captchaLabel") }}</label>
+              <span v-if="puzzleVerified" class="text-xs text-emerald-400">{{ t("auth.verified") }}</span>
             </div>
 
             <div ref="captchaWrapRef" class="relative">
@@ -164,10 +164,10 @@
               >
                 <span class="flex items-center gap-2">
                   <Icon :icon="puzzleVerified ? 'ph:check-circle-bold' : 'ph:shield-check-bold'" />
-                  {{ puzzleVerified ? "验证成功" : "点击验证" }}
+                  {{ puzzleVerified ? t("auth.verifySuccess") : t("auth.clickToVerify") }}
                 </span>
                 <span class="text-xs text-slate-500 dark:text-slate-400">
-                  {{ puzzleVerified ? "已通过" : "需要完成滑动拼图" }}
+                  {{ puzzleVerified ? t("auth.passed") : t("auth.needPuzzle") }}
                 </span>
               </button>
 
@@ -178,14 +178,14 @@
                 <div class="captcha-popover-arrow"></div>
                 <div class="p-4 space-y-3">
                   <div class="flex items-center justify-between">
-                    <div class="text-sm font-semibold text-slate-100 dark:text-slate-100">滑动拼图验证</div>
+                    <div class="text-sm font-semibold text-slate-100 dark:text-slate-100">{{ t("auth.sliderTitle") }}</div>
                     <button
                       class="text-xs text-indigo-300 hover:text-indigo-200 disabled:opacity-50"
                       type="button"
                       :disabled="captchaLoading"
                       @click="transitionToNewPuzzle()"
                     >
-                      刷新
+                      {{ t("auth.refresh") }}
                     </button>
                   </div>
 
@@ -194,7 +194,7 @@
                     class="rounded-xl border bg-slate-900/60 border-slate-700/60 animate-pulse"
                     :style="{ width: `${sceneWidth}px`, height: `${sceneHeight}px`, maxWidth: '100%' }"
                   >
-                    <div class="h-full w-full flex items-center justify-center text-xs text-slate-300">验证码加载中...</div>
+                    <div class="h-full w-full flex items-center justify-center text-xs text-slate-300">{{ t("auth.captchaLoading") }}</div>
                   </div>
 
                   <div
@@ -249,14 +249,14 @@
                     </div>
 
                     <div class="absolute bottom-2 left-3 text-[11px] text-slate-200/90">
-                      {{ puzzleVerified ? "验证通过" : "拖动滑块，把拼图移动到缺口处" }}
+                      {{ puzzleVerified ? t("auth.passed") : t("auth.sliderHint") }}
                     </div>
                   </div>
 
                   <div class="captcha-track relative h-12 rounded-xl border overflow-hidden">
                     <div class="captcha-track-fill absolute inset-y-0 left-0" :style="{ width: `${sliderX + 22}px` }"></div>
                     <div class="absolute inset-0 flex items-center justify-center text-xs font-medium text-slate-200/90 pointer-events-none">
-                      {{ puzzleVerified ? "验证成功" : "向右拖动滑块完成验证" }}
+                      {{ puzzleVerified ? t("auth.verifySuccess") : t("auth.sliderAction") }}
                     </div>
                     <button
                       class="captcha-handle absolute top-1/2 -translate-y-1/2 h-10 w-10 rounded-lg flex items-center justify-center"
@@ -280,23 +280,23 @@
             type="submit"
             :disabled="authSubmitting"
           >
-            {{ authSubmitting ? "提交中..." : "继续" }}
+            {{ authSubmitting ? t("common.saving") : t("auth.continue") }}
           </button>
 
           <p v-if="authError" class="mt-3 text-xs text-rose-300">{{ authError }}</p>
         </form>
 
-        <!-- 分割线 -->
+        <!-- Divider -->
         <div v-if="mode === 'login'" class="relative my-8">
           <div class="absolute inset-0 flex items-center">
             <div class="w-full border-t border-slate-800"></div>
           </div>
           <div class="relative flex justify-center text-xs uppercase">
-            <span class="auth-divider px-4 text-slate-500 tracking-widest">或者通过</span>
+            <span class="auth-divider px-4 text-slate-500 tracking-widest">{{ t("auth.orContinueWith") }}</span>
           </div>
         </div>
 
-        <!-- 社交登录（占位，不跳转） -->
+        <!-- Social login -->
         <div v-if="mode === 'login'" class="grid grid-cols-2 gap-4">
           <button
             class="flex items-center justify-center gap-2 py-3 border border-slate-800 rounded-xl hover:bg-white/5 transition-all"
@@ -317,18 +317,18 @@
         </div>
 
         <p class="mt-8 text-center text-xs text-slate-500">
-          点击“继续”即表示您同意我们的
-          <a class="underline hover:text-slate-300" href="#" @click.prevent>服务条款</a>
-          和
-          <a class="underline hover:text-slate-300" href="#" @click.prevent>隐私政策</a>
+          {{ t("auth.tosLead") }}
+          <a class="underline hover:text-slate-300" href="#" @click.prevent>{{ t("auth.terms") }}</a>
+          {{ t("auth.and") }}
+          <a class="underline hover:text-slate-300" href="#" @click.prevent>{{ t("auth.privacy") }}</a>
         </p>
       </div>
 
-      <!-- 安全提示 -->
+      <!-- Security hint -->
       <div class="mt-10 flex items-center gap-4 text-slate-500 text-sm">
-        <span class="flex items-center gap-1.5"><Icon class="text-green-500" icon="ph:shield-check-bold" /> 256-bit SSL 加密</span>
+        <span class="flex items-center gap-1.5"><Icon class="text-green-500" icon="ph:shield-check-bold" /> {{ t("auth.ssl") }}</span>
         <span class="w-1 h-1 rounded-full bg-slate-700"></span>
-        <span class="flex items-center gap-1.5"><Icon class="text-indigo-400" icon="ph:fingerprint-bold" /> 安全合规标准</span>
+        <span class="flex items-center gap-1.5"><Icon class="text-indigo-400" icon="ph:fingerprint-bold" /> {{ t("auth.securityStandard") }}</span>
       </div>
     </div>
   </div>
@@ -345,12 +345,12 @@
 
       <div v-if="forgotStep === 1" class="space-y-6">
         <div class="mb-2">
-          <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">重置密码</h3>
-          <p class="text-slate-500 dark:text-slate-400 text-sm">请输入您的注册邮箱以获取验证码</p>
+          <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">{{ t("auth.forgotTitle") }}</h3>
+          <p class="text-slate-500 dark:text-slate-400 text-sm">{{ t("auth.forgotSubtitle") }}</p>
         </div>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">邮箱地址</label>
+            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ t("auth.emailLabel") }}</label>
             <div class="relative">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
                 <Icon icon="ph:envelope-simple-bold" />
@@ -359,16 +359,16 @@
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">算术验证码（服务端校验）</label>
+            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ t("auth.mathCaptchaLabel") }}</label>
             <div class="flex gap-4">
               <div class="relative flex-grow">
                 <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
                   <Icon icon="ph:shield-warning-bold" />
                 </span>
-                <input v-model.trim="forgotCaptchaInput" class="w-full rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all border border-slate-200 bg-white/90 text-slate-900 placeholder:text-slate-400 dark:border-slate-800 dark:bg-slate-900/50 dark:text-white dark:placeholder:text-slate-500" placeholder="结果" type="text" />
+                <input v-model.trim="forgotCaptchaInput" class="w-full rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all border border-slate-200 bg-white/90 text-slate-900 placeholder:text-slate-400 dark:border-slate-800 dark:bg-slate-900/50 dark:text-white dark:placeholder:text-slate-500" :placeholder="t('auth.mathResultPlaceholder')" type="text" />
               </div>
               <button class="w-36 h-12 rounded-xl px-2 flex items-center justify-between font-mono text-[1.05rem] leading-none select-none transition-all border border-indigo-200/90 bg-white text-indigo-700 hover:border-indigo-400/90 hover:shadow-sm hover:shadow-indigo-500/12 dark:border-slate-700 dark:bg-slate-900 dark:text-indigo-300 dark:hover:border-indigo-500/50 overflow-hidden" type="button" @click="loadForgotMathCaptcha">
-                <span class="flex-1 min-w-0 text-center whitespace-nowrap tracking-[0.06em]">{{ forgotMathCaptchaId ? forgotCaptchaText : "加载中…" }}</span>
+                <span class="flex-1 min-w-0 text-center whitespace-nowrap tracking-[0.06em]">{{ forgotMathCaptchaId ? forgotCaptchaText : t("auth.loading") }}</span>
                 <span class="ml-1 shrink-0 w-7 h-7 rounded-lg inline-flex items-center justify-center border border-indigo-200/80 bg-indigo-50 text-indigo-600 dark:border-slate-600 dark:bg-slate-800 dark:text-indigo-300">
                   <Icon class="text-sm" icon="ph:arrows-clockwise-bold" />
                 </span>
@@ -376,7 +376,7 @@
             </div>
           </div>
           <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2" type="button" @click="toForgotStep2">
-            <span>获取验证码</span>
+            <span>{{ t("auth.getCode") }}</span>
             <Icon icon="ph:arrow-right-bold" />
           </button>
           <p v-if="forgotError" class="text-xs text-rose-400">{{ forgotError }}</p>
@@ -385,29 +385,29 @@
 
       <div v-else-if="forgotStep === 2" class="space-y-6">
         <div class="mb-2">
-          <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">重置密码验证码</h3>
+          <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">{{ t("auth.resetCodeTitle") }}</h3>
           <p class="text-slate-500 dark:text-slate-400 text-sm">
-            重置验证码已发送至 <span>{{ forgotEmail || "您的邮箱" }}</span>，请打开邮件复制验证码填入下面输入框。
+            {{ t("auth.resetCodeSentPrefix") }} <span>{{ forgotEmail || t("auth.yourEmail") }}</span>{{ t("auth.resetCodeSentSuffix") }}
           </p>
         </div>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">重置验证码</label>
+            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ t("auth.resetCodeLabel") }}</label>
             <input
               v-model.trim="forgotResetToken"
               class="w-full h-12 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 font-medium transition-all border border-slate-200 bg-white/90 text-slate-900 dark:border-slate-800 dark:bg-slate-900/50 dark:text-white"
-              placeholder="从邮件复制验证码"
+              :placeholder="t('auth.resetCodePlaceholder')"
               type="text"
             />
           </div>
           <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2" type="button" @click="toForgotStep3">
-            <span>验证并继续</span>
+            <span>{{ t("auth.verifyAndContinue") }}</span>
           </button>
           <div class="text-center space-y-1">
             <button class="text-xs text-slate-500 hover:text-indigo-400 transition-colors disabled:opacity-50" :disabled="forgotResendLeft > 0" type="button" @click="restartForgotResend">
-              {{ forgotResendLeft > 0 ? `重新发送验证码 (${forgotResendLeft}s)` : "重新发送验证码" }}
+              {{ forgotResendLeft > 0 ? t("auth.resendCodeCountdown", { s: forgotResendLeft }) : t("auth.resendCode") }}
             </button>
-            <p class="text-[11px] text-slate-400">重新发送将返回上一步，需重新完成算术验证</p>
+            <p class="text-[11px] text-slate-400">{{ t("auth.resendHint") }}</p>
           </div>
           <p v-if="forgotError" class="text-xs text-rose-400">{{ forgotError }}</p>
         </div>
@@ -415,12 +415,12 @@
 
       <div v-else class="space-y-6">
         <div class="mb-2">
-          <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">设置新密码</h3>
-          <p class="text-slate-500 dark:text-slate-400 text-sm">请设置一个新的、安全的强密码</p>
+          <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">{{ t("auth.setNewPasswordTitle") }}</h3>
+          <p class="text-slate-500 dark:text-slate-400 text-sm">{{ t("auth.setNewPasswordSubtitle") }}</p>
         </div>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">新密码</label>
+            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ t("auth.newPasswordLabel") }}</label>
             <div class="relative">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"><Icon icon="ph:lock-key-bold" /></span>
               <input
@@ -440,7 +440,7 @@
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">确认新密码</label>
+            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ t("auth.confirmNewPasswordLabel") }}</label>
             <div class="relative">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"><Icon icon="ph:lock-key-bold" /></span>
               <input
@@ -460,7 +460,7 @@
             </div>
           </div>
           <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2" type="button" @click="finishReset">
-            <span>完成重置</span>
+            <span>{{ t("auth.finishReset") }}</span>
           </button>
           <p v-if="forgotError" class="text-xs text-rose-400">{{ forgotError }}</p>
         </div>
@@ -471,6 +471,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Icon } from "@iconify/vue";
 import * as authApi from "./api/auth";
 
@@ -484,6 +485,8 @@ const emit = defineEmits<{
 defineProps<{
   isDark: boolean;
 }>();
+
+const { locale, t } = useI18n();
 
 const mode = ref<"login" | "register">("login");
 const email = ref("");
@@ -570,7 +573,7 @@ function applyContainMetrics() {
   const sh = sceneHeight.value;
   if (iw <= 0 || ih <= 0 || sw <= 0 || sh <= 0) return;
 
-  // 图片占满验证码框（cover），必要时裁切
+  // Fill captcha area using cover mode
   const scale = Math.max(sw / iw, sh / ih);
   bgRenderWidth.value = iw * scale;
   bgRenderHeight.value = ih * scale;
@@ -646,7 +649,7 @@ async function loadSlideChallengeAndReset(opts?: { keepError?: boolean }) {
   try {
     ch = await authApi.issueSlideCaptcha(reqW, reqH);
   } catch {
-    captchaError.value = "验证码加载失败，请稍后重试";
+    captchaError.value = t("auth.errCaptchaLoad");
     captchaLoading.value = false;
     return;
   }
@@ -664,13 +667,13 @@ async function loadSlideChallengeAndReset(opts?: { keepError?: boolean }) {
 
   const hole = await detectHoleTopLeftFromPngDataUrl(captchaImage.value, w, h);
   if (!hole) {
-    captchaError.value = "无法解析验证码图片，请点击刷新重试";
+    captchaError.value = t("auth.errCaptchaParse");
     captchaLoading.value = false;
     return;
   }
 
   serverCaptchaId.value = ch.captcha_id;
-  // 服务端 PNG 为圆形缺口，遮罩与滑块必须与圆形一致（不能与随机多边形混用）
+  // Server PNG uses a circular cutout; mask and piece must stay circular
   shapeClipPath.value = SHAPE_POOL[0];
   targetX.value = hole.x;
   targetY.value = hole.y;
@@ -719,7 +722,7 @@ function transitionToNewPuzzle(opts?: { message?: string; asFail?: boolean }) {
   captchaFailAnimating.value = !!opts?.asFail;
   captchaScenePhase.value = "out";
 
-  // 等淡出结束后再真正换“图+形状”，避免瞬间跳变
+  // Wait for fade-out before swapping scene to avoid sudden jumps
   captchaTransitionTimer = window.setTimeout(() => {
     void loadSlideChallengeAndReset({ keepError: true }).then(() => {
       captchaScenePhase.value = "in";
@@ -752,7 +755,7 @@ async function loadForgotMathCaptcha() {
     forgotMathRight.value = m.right;
     forgotCaptchaInput.value = "";
   } catch {
-    forgotError.value = "算术验证码加载失败，请稍后重试";
+    forgotError.value = t("auth.errMathLoad");
   }
 }
 
@@ -805,16 +808,16 @@ function runForgotResendTimer() {
 function toForgotStep2() {
   forgotError.value = "";
   if (!forgotEmail.value || !forgotEmail.value.includes("@")) {
-    forgotError.value = "请输入有效邮箱地址";
+    forgotError.value = t("auth.errEmailInvalid");
     return;
   }
   const answer = Number(forgotCaptchaInput.value);
   if (!Number.isFinite(answer)) {
-    forgotError.value = "请输入算术结果";
+    forgotError.value = t("auth.errMathResult");
     return;
   }
   if (!forgotMathCaptchaId.value) {
-    forgotError.value = "验证码已过期，请刷新";
+    forgotError.value = t("auth.errCaptchaExpired");
     void loadForgotMathCaptcha();
     return;
   }
@@ -832,11 +835,11 @@ function toForgotStep2() {
     .catch((err) => {
       const detail = err?.response?.data?.detail;
       if (detail === "invalid_math_captcha") {
-        forgotError.value = "算术验证错误，请重新计算";
+        forgotError.value = t("auth.errMathInvalid");
         void loadForgotMathCaptcha();
         return;
       }
-      forgotError.value = "发送失败，请稍后重试";
+      forgotError.value = t("auth.errSendFailed");
     });
 }
 
@@ -844,7 +847,7 @@ function toForgotStep3() {
   forgotError.value = "";
   const code = forgotResetToken.value.trim();
   if (!/^[A-Za-z0-9]{6}$/.test(code)) {
-    forgotError.value = "请输入邮件中的 6 位重置验证码（字母+数字）";
+    forgotError.value = t("auth.errResetCodeInvalid");
     return;
   }
   forgotStep.value = 3;
@@ -853,15 +856,15 @@ function toForgotStep3() {
 function finishReset() {
   forgotError.value = "";
   if (!forgotNewPassword.value || forgotNewPassword.value.length < 8) {
-    forgotError.value = "新密码至少 8 位，且包含英文和数字";
+    forgotError.value = t("auth.errPasswordRule1");
     return;
   }
   if (!/[A-Za-z]/.test(forgotNewPassword.value) || !/\d/.test(forgotNewPassword.value)) {
-    forgotError.value = "新密码必须包含至少 1 个英文和 1 个数字";
+    forgotError.value = t("auth.errPasswordRule2");
     return;
   }
   if (forgotNewPassword.value !== forgotConfirmPassword.value) {
-    forgotError.value = "两次输入的新密码不一致";
+    forgotError.value = t("auth.errPasswordMismatch");
     return;
   }
   authApi
@@ -870,7 +873,7 @@ function finishReset() {
       closeForgotModal();
     })
     .catch(() => {
-      forgotError.value = "重置失败，验证码可能已过期，请重新获取";
+      forgotError.value = t("auth.errResetFailed");
     });
 }
 
@@ -924,7 +927,7 @@ function onSliderUp() {
     return;
   }
 
-  captchaError.value = "验证失败，已为你刷新，请再试一次";
+  captchaError.value = t("auth.errVerifyFailed");
   transitionToNewPuzzle({ asFail: true });
 }
 
@@ -936,7 +939,7 @@ function handleAuth() {
   if (authSubmitting.value) return;
   authError.value = "";
   if (!puzzleVerified.value) {
-    captchaError.value = "请先完成滑动拼图验证码";
+    captchaError.value = t("auth.errNeedCaptcha");
     captchaOpen.value = true;
     return;
   }
@@ -944,7 +947,7 @@ function handleAuth() {
   if (mode.value === "register") {
     const username = fullName.value.trim();
     if (!username) {
-      captchaError.value = "请输入用户名";
+      captchaError.value = t("auth.errNeedUsername");
       authSubmitting.value = false;
       return;
     }
@@ -958,7 +961,7 @@ function handleAuth() {
       })
       .then((res) => {
         if (res?.message === "verification_email_send_failed") {
-          authError.value = "账号已创建，但验证邮件发送失败，请检查 SMTP 或稍后重试";
+          authError.value = t("auth.errVerifyMailFailed");
           return;
         }
         localStorage.setItem("axiomflow:lastRegisterEmail", email.value);
@@ -968,22 +971,22 @@ function handleAuth() {
         invalidateClientCaptcha();
         const detail = err?.response?.data?.detail;
         if (err?.response?.status === 422) {
-          authError.value = "密码至少 8 位，且必须包含至少 1 个英文和 1 个数字";
+          authError.value = t("auth.errRegisterValidation");
           return;
         }
         if (err?.response?.status === 400 && detail === "invalid_slide_captcha") {
-          authError.value = "滑动验证已失效，请重新完成验证";
+          authError.value = t("auth.errSlideExpired");
           return;
         }
         if (err?.response?.status === 409 && detail === "username_taken") {
-          authError.value = "该用户名已被占用，请换一个";
+          authError.value = t("auth.errUsernameTaken");
           return;
         }
         if (err?.response?.status === 409) {
-          authError.value = "该邮箱已注册，请直接登录或找回密码";
+          authError.value = t("auth.errEmailTaken");
           return;
         }
-        authError.value = "注册失败，请稍后重试";
+        authError.value = t("auth.errRegisterFailed");
       })
       .finally(() => {
         authSubmitting.value = false;
@@ -1005,19 +1008,19 @@ function handleAuth() {
       invalidateClientCaptcha();
       const detail = err?.response?.data?.detail;
       if (err?.response?.status === 403 && detail === "email_not_verified") {
-        authError.value = "请先完成邮箱验证后再登录";
+        authError.value = t("auth.errNeedEmailVerify");
         emit("verify-email", { email: email.value });
         return;
       }
       if (err?.response?.status === 400 && detail === "invalid_slide_captcha") {
-        authError.value = "滑动验证已失效，请重新完成验证";
+        authError.value = t("auth.errSlideExpired");
         return;
       }
       if (err?.response?.status === 401) {
-        authError.value = "账号或密码错误";
+        authError.value = t("auth.errInvalidCredentials");
         return;
       }
-      authError.value = "登录失败，请稍后重试";
+      authError.value = t("auth.errLoginFailed");
     })
     .finally(() => {
       authSubmitting.value = false;
@@ -1040,7 +1043,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  // resize listener 使用匿名函数，无法 remove 精确引用；这里不强制移除（页面卸载时浏览器会清理）
+  // resize listener uses anonymous callback; browser cleanup on unmount is enough
   window.removeEventListener("pointermove", onSliderMove);
   window.removeEventListener("pointerup", onSliderUp);
   document.removeEventListener("mousedown", onClickOutside);

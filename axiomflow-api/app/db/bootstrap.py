@@ -158,6 +158,46 @@ def ensure_users_notification_columns() -> None:
         logger.warning("Could not ensure users notification columns", exc_info=True)
 
 
+def ensure_users_preference_columns() -> None:
+    """
+    Best-effort migration: add preference columns on users if missing.
+    """
+    try:
+        insp = inspect(engine)
+        if not insp.has_table("users"):
+            return
+        cols = {c.get("name") for c in insp.get_columns("users")}
+        with engine.begin() as conn:
+            if "preferred_target_language" not in cols:
+                conn.execute(
+                    text("ALTER TABLE users ADD COLUMN preferred_target_language VARCHAR(32) NOT NULL DEFAULT 'zh-CN'")
+                )
+                logger.info("Added users.preferred_target_language column")
+            if "ui_language" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN ui_language VARCHAR(16) NOT NULL DEFAULT 'zh-CN'"))
+                logger.info("Added users.ui_language column")
+            if "auto_save_history" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN auto_save_history TINYINT(1) NOT NULL DEFAULT 1"))
+                logger.info("Added users.auto_save_history column")
+            if "enable_shortcuts" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN enable_shortcuts TINYINT(1) NOT NULL DEFAULT 1"))
+                logger.info("Added users.enable_shortcuts column")
+            if "upload_size_limit_mb" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN upload_size_limit_mb INT NOT NULL DEFAULT 20"))
+                logger.info("Added users.upload_size_limit_mb column")
+            if "auto_import_provider" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN auto_import_provider VARCHAR(32) NOT NULL DEFAULT 'none'"))
+                logger.info("Added users.auto_import_provider column")
+            if "default_output_format" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN default_output_format VARCHAR(16) NOT NULL DEFAULT 'pdf'"))
+                logger.info("Added users.default_output_format column")
+            if "data_retention_days" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN data_retention_days INT NOT NULL DEFAULT 7"))
+                logger.info("Added users.data_retention_days column")
+    except Exception:
+        logger.warning("Could not ensure users preference columns", exc_info=True)
+
+
 def ensure_database_ready() -> None:
     try:
         ensure_database_exists()
@@ -176,4 +216,5 @@ def ensure_database_ready() -> None:
     ensure_users_oauth_verified_column()
     ensure_users_usage_columns()
     ensure_users_notification_columns()
+    ensure_users_preference_columns()
 
