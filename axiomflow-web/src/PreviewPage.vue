@@ -8,8 +8,8 @@
         </button>
         <div class="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden md:block"></div>
         <div class="truncate max-w-[220px]">
-          <h1 class="text-sm font-bold truncate">Q1_2026_Financial_Analysis_Report.pdf</h1>
-          <p class="text-[10px] text-slate-500 uppercase font-mono tracking-tighter">14 Pages • 2.4MB • Translated</p>
+          <h1 class="text-sm font-bold truncate">{{ documentName || "-" }}</h1>
+          <p class="text-[10px] text-slate-500 uppercase font-mono tracking-tighter">{{ pageCount }} Pages</p>
         </div>
       </div>
       <div class="flex-grow flex justify-center gap-2">
@@ -19,10 +19,10 @@
           <button class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors" type="button" @click="changeZoom(0.25)"><Icon icon="ph:plus-bold" /></button>
         </div>
         <div class="flex items-center bg-white dark:bg-slate-900 rounded-lg border dark:border-slate-800 p-1 shadow-sm">
-          <button class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors" type="button"><Icon icon="ph:caret-left-bold" /></button>
-          <input class="w-8 text-center text-xs font-bold bg-transparent outline-none" type="text" value="1" />
-          <span class="text-xs text-slate-400">/ 14</span>
-          <button class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors" type="button"><Icon icon="ph:caret-right-bold" /></button>
+          <button class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors disabled:opacity-40" type="button" :disabled="currentPage <= 1" @click="goPrevPage"><Icon icon="ph:caret-left-bold" /></button>
+          <input class="w-8 text-center text-xs font-bold bg-transparent outline-none" type="text" :value="currentPage" readonly />
+          <span class="text-xs text-slate-400">/ {{ pageCount }}</span>
+          <button class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors disabled:opacity-40" type="button" :disabled="currentPage >= pageCount" @click="goNextPage"><Icon icon="ph:caret-right-bold" /></button>
         </div>
       </div>
       <div class="flex items-center justify-end gap-3 w-1/3">
@@ -45,11 +45,6 @@
           </button>
           <span class="text-xs font-medium text-slate-500">{{ t("preview.syncScroll") }}</span>
         </div>
-        <div class="h-4 w-px bg-slate-200 dark:bg-slate-800"></div>
-        <div class="flex items-center gap-1">
-          <button class="p-1.5 rounded" :class="compareMode === 'side' ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'" type="button" @click="compareMode = 'side'"><Icon icon="ph:layout-bold" /></button>
-          <button class="p-1.5 rounded" :class="compareMode === 'vertical' ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'" type="button" @click="compareMode = 'vertical'"><Icon class="rotate-90" icon="ph:columns-bold" /></button>
-        </div>
       </div>
       <div class="flex items-center gap-4 text-xs font-medium text-slate-500">
         <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>{{ t("preview.realtimeSynced") }}</div>
@@ -57,35 +52,51 @@
       </div>
     </div>
 
-    <div class="flex-grow flex overflow-hidden" :class="compareMode === 'vertical' ? 'flex-col' : ''">
-      <div ref="originalPaneRef" class="pdf-viewport border-r dark:border-slate-800 bg-slate-200/50 dark:bg-slate-900/30" :class="compareMode === 'vertical' ? 'basis-1/2 border-r-0 border-b' : ''" :style="compareMode === 'side' ? { flex: `0 0 ${leftPanePercent}%` } : undefined" @scroll="onOriginalScroll">
-        <div class="p-8">
-          <div class="flex justify-between items-center mb-4 sticky top-0 bg-slate-200/80 dark:bg-slate-900/80 backdrop-blur-sm py-2 px-4 rounded-lg z-10 border dark:border-slate-800">
-            <span class="text-xs font-bold uppercase tracking-widest text-slate-400">{{ t("preview.sourceLabel") }}</span>
-            <Icon class="text-slate-400" icon="ph:globe-bold" />
+    <div class="flex-grow flex overflow-hidden">
+      <div ref="originalPaneRef" class="pdf-viewport border-r dark:border-slate-800 bg-slate-200/50 dark:bg-slate-900/30 basis-1/2" @scroll="onOriginalScroll">
+        <div class="p-0 sm:p-1">
+          <div v-if="pdfPages.length > 0" class="space-y-6">
+            <div
+              v-for="(pageNo, idx) in pdfPages"
+              :key="`src-p-${pageNo}`"
+              :ref="(el) => setPageWrapRef(el, idx)"
+              class="pdf-page p-0 sm:p-1"
+              :style="{ transform: `scale(${currentZoom})` }"
+            >
+              <div class="bg-white dark:bg-slate-900 overflow-hidden border-y border-slate-200 dark:border-slate-700 shadow-sm">
+                <canvas :ref="(el) => setPageCanvasRef(el, idx)" class="block w-full h-auto"></canvas>
+              </div>
+            </div>
           </div>
-          <div v-for="i in 2" :key="`o-${i}`" class="pdf-page p-12 space-y-4" :style="{ transform: `scale(${currentZoom})` }">
-            <div class="h-8 bg-slate-200 dark:bg-slate-700 w-3/4 rounded"></div>
-            <div class="h-4 bg-slate-100 dark:bg-slate-800 w-full rounded"></div>
-            <div class="h-4 bg-slate-100 dark:bg-slate-800 w-full rounded"></div>
-            <div class="h-64 bg-slate-100 dark:bg-slate-800 w-full rounded-xl my-8"></div>
+          <div v-else class="pdf-page p-0 sm:p-1">
+            <div class="h-40 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-sm text-slate-500">
+              {{ t("documents.loading") }}
+            </div>
           </div>
         </div>
       </div>
 
-      <div v-if="compareMode === 'side'" id="resizer" @mousedown="startResize"></div>
-
-      <div ref="translatedPaneRef" class="pdf-viewport bg-white/50 dark:bg-slate-900/10 flex-1" :class="compareMode === 'vertical' ? 'basis-1/2' : ''" @scroll="onTranslatedScroll">
-        <div class="p-8">
-          <div class="flex justify-between items-center mb-4 sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm py-2 px-4 rounded-lg z-10 border dark:border-slate-800">
-            <span class="text-xs font-bold uppercase tracking-widest text-indigo-600">{{ t("preview.translatedLabel") }}</span>
-            <Icon class="text-green-500" icon="ph:check-circle-fill" />
+      <div ref="translatedPaneRef" class="pdf-viewport bg-white/50 dark:bg-slate-900/10 basis-1/2" @scroll="onTranslatedScroll">
+        <div class="p-0 sm:p-1">
+          <div v-if="pdfPages.length > 0" class="space-y-6">
+            <div v-for="pageNo in pdfPages" :key="`t-${pageNo}`" class="pdf-page p-0 sm:p-1" :style="{ transform: `scale(${currentZoom})` }">
+              <div class="bg-white dark:bg-slate-900 overflow-hidden border-y border-slate-200 dark:border-slate-700 shadow-sm p-8 sm:p-10 space-y-5">
+              <div class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ t("preview.translatedLabel") }} · Page {{ pageNo }}</div>
+              <div class="h-4 bg-slate-100 dark:bg-slate-800/70 w-full rounded"></div>
+              <div class="h-4 bg-slate-100 dark:bg-slate-800/70 w-[92%] rounded"></div>
+              <div class="h-4 bg-slate-100 dark:bg-slate-800/70 w-[96%] rounded"></div>
+              <div class="h-4 bg-slate-100 dark:bg-slate-800/70 w-[90%] rounded"></div>
+              <div class="h-4 bg-slate-100 dark:bg-slate-800/70 w-[94%] rounded"></div>
+              <div class="h-4 bg-slate-100 dark:bg-slate-800/70 w-[88%] rounded"></div>
+              <div class="h-4 bg-slate-100 dark:bg-slate-800/70 w-[95%] rounded"></div>
+              <div class="h-4 bg-slate-100 dark:bg-slate-800/70 w-[91%] rounded"></div>
+              </div>
+            </div>
           </div>
-          <div v-for="i in 2" :key="`t-${i}`" class="pdf-page p-12 space-y-4" :style="{ transform: `scale(${currentZoom})` }">
-            <div class="h-8 bg-indigo-50 dark:bg-indigo-900/20 w-3/4 rounded border-l-4 border-indigo-500 pl-4 flex items-center font-bold text-slate-800 dark:text-slate-200">Q1 2026 Financial Analysis Report</div>
-            <div class="h-4 bg-slate-50 dark:bg-slate-800/50 w-full rounded"></div>
-            <div class="h-4 bg-slate-50 dark:bg-slate-800/50 w-full rounded"></div>
-            <div class="h-64 bg-slate-50 dark:bg-slate-800/50 w-full rounded-xl my-8"></div>
+          <div v-else class="pdf-page p-0 sm:p-1">
+            <div class="h-40 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-sm text-slate-500">
+              {{ t("documents.loading") }}
+            </div>
           </div>
         </div>
       </div>
@@ -112,59 +123,143 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Icon } from "@iconify/vue";
+import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { downloadMyDocument } from "./api/auth";
 
-defineProps<{ serviceTime: string }>();
+const props = defineProps<{ serviceTime: string; documentId: string; documentName: string; documentMimeType: string }>();
 defineEmits<{ (e: "back"): void; (e: "toggle-theme"): void }>();
 
 const isSync = ref(true);
 const currentZoom = ref(1);
-const compareMode = ref<"side" | "vertical">("side");
 const showOverlay = ref(true);
-const leftPanePercent = ref(50);
-const resizing = ref(false);
 const originalPaneRef = ref<HTMLElement | null>(null);
 const translatedPaneRef = ref<HTMLElement | null>(null);
 const { t } = useI18n();
+const sourcePdfUrl = ref("");
+const pdfPages = ref<number[]>([]);
+const pageCanvasRefs = ref<Array<HTMLCanvasElement | null>>([]);
+const pageWrapRefs = ref<Array<HTMLElement | null>>([]);
+const pageCount = ref(1);
+const currentPage = ref(1);
+let renderVersion = 0;
+
+GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 function changeZoom(delta: number) {
   currentZoom.value = Math.min(Math.max(0.25, currentZoom.value + delta), 4);
 }
+function setPageCanvasRef(el: Element | null, idx: number) {
+  pageCanvasRefs.value[idx] = (el as HTMLCanvasElement | null) || null;
+}
+function setPageWrapRef(el: Element | null, idx: number) {
+  pageWrapRefs.value[idx] = (el as HTMLElement | null) || null;
+}
+function scrollToPage(pageNum: number) {
+  const pane = originalPaneRef.value;
+  const wrap = pageWrapRefs.value[pageNum - 1];
+  if (!pane || !wrap) return;
+  pane.scrollTo({ top: Math.max(0, wrap.offsetTop - 12), behavior: "smooth" });
+}
+function goPrevPage() {
+  const next = Math.max(1, currentPage.value - 1);
+  currentPage.value = next;
+  scrollToPage(next);
+}
+function goNextPage() {
+  const next = Math.min(pageCount.value, currentPage.value + 1);
+  currentPage.value = next;
+  scrollToPage(next);
+}
 function onOriginalScroll() {
-  if (!isSync.value || !originalPaneRef.value || !translatedPaneRef.value) return;
-  translatedPaneRef.value.scrollTop = originalPaneRef.value.scrollTop;
+  const pane = originalPaneRef.value;
+  if (!pane) return;
+  if (isSync.value && translatedPaneRef.value) {
+    translatedPaneRef.value.scrollTop = pane.scrollTop;
+  }
+  const anchor = pane.scrollTop + 24;
+  for (let i = 0; i < pageWrapRefs.value.length; i += 1) {
+    const wrap = pageWrapRefs.value[i];
+    if (!wrap) continue;
+    if (anchor >= wrap.offsetTop) {
+      currentPage.value = i + 1;
+    } else {
+      break;
+    }
+  }
 }
 function onTranslatedScroll() {
   if (!isSync.value || !originalPaneRef.value || !translatedPaneRef.value) return;
   originalPaneRef.value.scrollTop = translatedPaneRef.value.scrollTop;
 }
-function startResize() {
-  resizing.value = true;
-  document.body.style.cursor = "col-resize";
-}
-function onMouseMove(e: MouseEvent) {
-  if (!resizing.value || compareMode.value !== "side") return;
-  const percentage = (e.clientX / window.innerWidth) * 100;
-  if (percentage > 20 && percentage < 80) leftPanePercent.value = percentage;
-}
-function stopResize() {
-  if (!resizing.value) return;
-  resizing.value = false;
-  document.body.style.cursor = "";
+
+async function loadSourcePdf() {
+  const currentRun = ++renderVersion;
+  if (!props.documentId) return;
+  if (sourcePdfUrl.value) {
+    URL.revokeObjectURL(sourcePdfUrl.value);
+    sourcePdfUrl.value = "";
+  }
+  pdfPages.value = [];
+  pageCanvasRefs.value = [];
+  pageWrapRefs.value = [];
+  pageCount.value = 1;
+  currentPage.value = 1;
+  try {
+    const { blob } = await downloadMyDocument(props.documentId, "original");
+    if (currentRun !== renderVersion) return;
+    sourcePdfUrl.value = URL.createObjectURL(blob);
+    const isPdf = String(props.documentMimeType || "").toLowerCase().includes("pdf") || (props.documentName || "").toLowerCase().endsWith(".pdf");
+    if (isPdf) {
+      const bytes = await blob.arrayBuffer();
+      if (currentRun !== renderVersion) return;
+      const loadingTask = getDocument({ data: bytes });
+      const pdf = await loadingTask.promise;
+      if (currentRun !== renderVersion) return;
+      pageCount.value = Math.max(1, pdf.numPages);
+      pdfPages.value = Array.from({ length: pageCount.value }, (_, i) => i + 1);
+      await nextTick();
+      for (let i = 0; i < pageCount.value; i += 1) {
+        if (currentRun !== renderVersion) return;
+        const page = await pdf.getPage(i + 1);
+        const viewport = page.getViewport({ scale: 1.75 });
+        const canvas = pageCanvasRefs.value[i];
+        if (!canvas) continue;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) continue;
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+      }
+      await loadingTask.destroy();
+    } else {
+      pageCount.value = 1;
+      pdfPages.value = [];
+    }
+  } catch {
+    pageCount.value = 1;
+    pdfPages.value = [];
+  }
 }
 
 onMounted(() => {
   window.setTimeout(() => (showOverlay.value = false), 1800);
-  document.addEventListener("mousemove", onMouseMove);
-  document.addEventListener("mouseup", stopResize);
+  void loadSourcePdf();
 });
 
 onBeforeUnmount(() => {
-  document.removeEventListener("mousemove", onMouseMove);
-  document.removeEventListener("mouseup", stopResize);
+  if (sourcePdfUrl.value) URL.revokeObjectURL(sourcePdfUrl.value);
 });
+
+watch(
+  () => props.documentId,
+  () => {
+    void loadSourcePdf();
+  },
+);
 </script>
 
 <style scoped>
@@ -177,10 +272,10 @@ onBeforeUnmount(() => {
 .pdf-page {
   background: white;
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  margin: 20px auto;
-  min-height: 520px;
+  margin: 0 auto;
+  min-height: calc(100vh - 180px);
   width: 100%;
-  max-width: 600px;
+  max-width: none;
   transform-origin: top center;
   transition: transform 0.2s ease;
 }
@@ -190,13 +285,4 @@ onBeforeUnmount(() => {
   border: 1px solid #334155;
 }
 
-#resizer {
-  cursor: col-resize;
-  width: 4px;
-  background: transparent;
-  transition: background 0.2s;
-}
-#resizer:hover {
-  background: #6366f1;
-}
 </style>

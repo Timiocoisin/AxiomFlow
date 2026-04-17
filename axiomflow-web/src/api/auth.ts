@@ -147,14 +147,46 @@ export type DocumentItem = {
   id: string;
   file_name: string;
   created_at: string;
+  mime_type: string;
   file_size_bytes: number;
   document_count: number;
   word_count: number;
   status: string;
+  has_original_file: boolean;
+  has_translated_file: boolean;
 };
 
 export async function getMyDocuments() {
   const { data } = await api.get<DocumentItem[]>("/auth/documents");
+  return data;
+}
+
+export async function uploadMyDocument(file: File) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const { data } = await api.post<DocumentItem>("/auth/documents/upload", fd, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 120000,
+  });
+  return data;
+}
+
+export async function downloadMyDocument(documentId: string, kind: "original" | "translated" = "original") {
+  const { data, headers } = await api.get<Blob>(`/auth/documents/${encodeURIComponent(documentId)}/download`, {
+    params: { kind },
+    responseType: "blob",
+    timeout: 120000,
+  });
+  return { blob: data, headers };
+}
+
+export async function getMyDocumentMeta(documentId: string) {
+  const { data } = await api.get<{ id: string; page_count: number }>(`/auth/documents/${encodeURIComponent(documentId)}/meta`);
+  return data;
+}
+
+export async function deleteMyDocument(documentId: string) {
+  const { data } = await api.delete<{ ok: boolean; message?: string }>(`/auth/documents/${encodeURIComponent(documentId)}`);
   return data;
 }
 
@@ -183,6 +215,7 @@ export async function notifyTranslationCompleted(params: {
   title: string;
   document_count: number;
   word_count: number;
+  file_size_bytes?: number;
 }) {
   const { data } = await api.post<{ ok: boolean; message?: string }>("/auth/notify/translation-completed", params);
   return data;

@@ -198,6 +198,41 @@ def ensure_users_preference_columns() -> None:
         logger.warning("Could not ensure users preference columns", exc_info=True)
 
 
+def ensure_user_documents_columns() -> None:
+    """
+    Best-effort migration: ensure user_documents storage columns exist.
+    """
+    try:
+        insp = inspect(engine)
+        if not insp.has_table("user_documents"):
+            return
+        cols = {c.get("name") for c in insp.get_columns("user_documents")}
+        with engine.begin() as conn:
+            if "mime_type" not in cols:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_documents "
+                        "ADD COLUMN mime_type VARCHAR(128) NOT NULL DEFAULT 'application/octet-stream'"
+                    )
+                )
+            if "original_storage_path" not in cols:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_documents "
+                        "ADD COLUMN original_storage_path VARCHAR(1024) NOT NULL DEFAULT ''"
+                    )
+                )
+            if "translated_storage_path" not in cols:
+                conn.execute(
+                    text(
+                        "ALTER TABLE user_documents "
+                        "ADD COLUMN translated_storage_path VARCHAR(1024) NULL"
+                    )
+                )
+    except Exception:
+        logger.warning("Could not ensure user_documents storage columns", exc_info=True)
+
+
 def ensure_database_ready() -> None:
     try:
         ensure_database_exists()
@@ -217,4 +252,5 @@ def ensure_database_ready() -> None:
     ensure_users_usage_columns()
     ensure_users_notification_columns()
     ensure_users_preference_columns()
+    ensure_user_documents_columns()
 

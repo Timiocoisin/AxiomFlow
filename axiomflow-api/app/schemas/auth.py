@@ -134,6 +134,7 @@ class TranslationCompletedNotifyRequest(BaseModel):
     title: str = Field(default="文档翻译", min_length=1, max_length=255)
     document_count: int = Field(default=1, ge=1, le=100)
     word_count: int = Field(default=0, ge=0, le=2000000)
+    file_size_bytes: int = Field(default=0, ge=0, le=2000000000)
 
 
 class DeleteAccountRequest(BaseModel):
@@ -197,8 +198,16 @@ class DocumentItemResponse(BaseModel):
     id: str
     file_name: str
     created_at: datetime
+    mime_type: str
     file_size_bytes: int
     document_count: int
     word_count: int
     status: str
+    has_original_file: bool = False
+    has_translated_file: bool = False
+
+
+class DocumentMetaResponse(BaseModel):
+    id: str
+    page_count: int
 

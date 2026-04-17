@@ -17,6 +17,15 @@ class UserDocument(Base, UuidPrimaryKeyMixin, TimestampMixin):
     file_name: Mapped[str] = mapped_column(
         String(255), nullable=False, default="Untitled document", server_default="Untitled document", comment="原始文件名"
     )
+    mime_type: Mapped[str] = mapped_column(
+        String(128), nullable=False, default="application/octet-stream", server_default="application/octet-stream", comment="MIME 类型"
+    )
+    original_storage_path: Mapped[str] = mapped_column(
+        String(1024), nullable=False, default="", server_default="", comment="原始文件存储相对路径"
+    )
+    translated_storage_path: Mapped[str | None] = mapped_column(
+        String(1024), nullable=True, comment="翻译后文件存储相对路径"
+    )
     file_size_bytes: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0", comment="文件大小（字节）"
     )

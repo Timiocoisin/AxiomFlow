@@ -24,6 +24,9 @@
   <PreviewPage
     v-else-if="page === 'preview'"
     :service-time="serviceTime"
+    :document-id="previewDocumentId"
+    :document-name="previewDocumentName"
+    :document-mime-type="previewDocumentMimeType"
     @toggle-theme="toggleTheme"
     @back="page = 'documents'"
   />
@@ -149,11 +152,18 @@
         </div>
         <!-- Upload entry -->
           <div class="relative group">
+          <input
+            ref="uploadInputRef"
+            class="hidden"
+            type="file"
+            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            @change="onUploadFileSelected"
+          >
           <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
           <div
             class="upload-breath upload-surface relative border-2 border-dashed p-10 lg:p-16 rounded-3xl text-center cursor-pointer hover:border-indigo-500 transition-all"
             id="drop-zone"
-            @click="openModal"
+            @click="openUploadPicker"
             @dragover.prevent
             @drop.prevent="handleUploadDrop"
           >
@@ -232,7 +242,7 @@
     v-else-if="page === 'documents'"
     :as-of-date="serviceDateCn"
     @new-translation="page = 'home'"
-    @open-preview="page = 'preview'"
+    @open-preview="openDocumentPreview"
   />
   <ProfilePage
     v-else-if="page === 'profile'"
@@ -259,27 +269,48 @@
     <div class="relative bg-white dark:bg-slate-900 w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
       <div class="p-4 border-b dark:border-slate-800 flex items-center justify-between">
         <h3 class="font-bold flex items-center gap-2">
-          <Icon icon="ph:eye-bold" /> {{ t("home.previewTitle") }}
+          <Icon icon="ph:eye-bold" /> {{ t("home.previewTitle", { name: selectedUploadFileName }) }}
         </h3>
         <button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" @click="closeModal">
           <Icon icon="ph:x-bold" />
         </button>
       </div>
-      <div class="grid md:grid-cols-2 h-[60vh] overflow-hidden">
-        <div class="border-r dark:border-slate-800 bg-slate-100 dark:bg-slate-800 p-8 overflow-y-auto">
+      <div class="h-[60vh] overflow-hidden">
+        <div class="bg-slate-100 dark:bg-slate-800 p-8 overflow-y-auto h-full">
           <div class="text-xs font-bold text-slate-400 mb-4 uppercase tracking-wider">{{ t("home.previewSource") }}</div>
-          <img alt="Original PDF content with charts" class="w-full rounded shadow-md border" src="/icons/favicon.svg">
-          <div class="mt-4 p-4 bg-white dark:bg-slate-900 rounded-lg space-y-2">
-            <div class="h-4 w-3/4 bg-slate-200 dark:bg-slate-800 rounded"></div>
-            <div class="h-4 w-1/2 bg-slate-200 dark:bg-slate-800 rounded"></div>
+          <div v-if="isPdfSelected && previewObjectUrl" class="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl overflow-hidden">
+            <div class="h-12 px-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-between">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ t("home.previewSource") }}</span>
+                <span class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{{ selectedUploadFileName }}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <a
+                  class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-all"
+                  :href="previewObjectUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Icon icon="ph:arrows-out-simple-bold" />
+                  {{ t("home.previewOpenNew") }}
+                </a>
+              </div>
+            </div>
+            <div class="h-[46vh] bg-slate-200 dark:bg-slate-950 p-2">
+              <iframe
+                :src="previewObjectUrl"
+                class="w-full h-full rounded-xl bg-white border border-slate-300 dark:border-slate-700 shadow-inner"
+                :title="selectedUploadFileName"
+              ></iframe>
+            </div>
           </div>
-        </div>
-        <div class="p-8 overflow-y-auto">
-          <div class="text-xs font-bold text-indigo-500 mb-4 uppercase tracking-wider">{{ t("home.previewTranslated") }}</div>
-          <img alt="Translated PDF content with same layout" class="w-full rounded shadow-md border border-indigo-200" src="/icons/favicon.svg">
-          <div class="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg space-y-2">
-            <div class="h-4 w-3/4 bg-indigo-100 dark:bg-indigo-800/50 rounded"></div>
-            <div class="h-4 w-1/2 bg-indigo-100 dark:bg-indigo-800/50 rounded"></div>
+          <div v-else class="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-md p-6">
+            <div class="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">{{ t("home.previewTextTitle") }}</div>
+            <div v-if="previewTextLoading" class="text-sm text-slate-500">{{ t("home.previewExtracting") }}</div>
+            <div v-else-if="previewTextError" class="text-sm text-rose-500">{{ t("home.previewTextError", { reason: previewTextError }) }}</div>
+            <pre v-else-if="previewText" class="text-sm whitespace-pre-wrap leading-relaxed text-slate-700 dark:text-slate-200 max-h-[30vh] overflow-auto">{{ previewText }}</pre>
+            <div v-else class="text-sm text-slate-500">{{ t("home.previewTextEmpty") }}</div>
           </div>
         </div>
       </div>
@@ -381,6 +412,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Icon } from "@iconify/vue";
 import axios from "axios";
+import mammoth from "mammoth";
 import AuthPage from "./AuthPage.vue";
 import DocumentsPage from "./DocumentsPage.vue";
 import ProfilePage from "./ProfilePage.vue";
@@ -409,6 +441,15 @@ const page = ref<
 >("home");
 const isOnline = ref(navigator.onLine);
 const showPreview = ref(false);
+const uploadInputRef = ref<HTMLInputElement | null>(null);
+const selectedUploadFile = ref<File | null>(null);
+const previewObjectUrl = ref("");
+const previewDocumentId = ref("");
+const previewDocumentName = ref("");
+const previewDocumentMimeType = ref("application/octet-stream");
+const previewText = ref("");
+const previewTextLoading = ref(false);
+const previewTextError = ref("");
 const loadingBarWidth = ref(0);
 const loadingBarOpacity = ref(1);
 const toasts = ref<ToastItem[]>([]);
@@ -469,26 +510,112 @@ function toggleTheme() {
   }, 380);
 }
 
-function openModal() {
+const selectedUploadFileName = computed(() => selectedUploadFile.value?.name || "-");
+const isPdfSelected = computed(() => {
+  const f = selectedUploadFile.value;
+  if (!f) return false;
+  const name = (f.name || "").toLowerCase();
+  const type = (f.type || "").toLowerCase();
+  return name.endsWith(".pdf") || type.includes("pdf");
+});
+
+function openUploadPicker() {
   if (!isLoggedIn.value) {
     page.value = "auth";
     showToast(t("toast.loginFirstToUpload"));
     return;
   }
+  uploadInputRef.value?.click();
+}
+
+function openModal() {
+  if (!selectedUploadFile.value) return;
   showPreview.value = true;
 }
 
-function handleUploadDrop(_e: DragEvent) {
+function onUploadFileSelected(e: Event) {
+  const input = e.target as HTMLInputElement | null;
+  const file = input?.files?.[0];
+  if (!file) return;
+  if (previewObjectUrl.value) {
+    URL.revokeObjectURL(previewObjectUrl.value);
+    previewObjectUrl.value = "";
+  }
+  selectedUploadFile.value = file;
+  if ((file.name || "").toLowerCase().endsWith(".pdf") || (file.type || "").toLowerCase().includes("pdf")) {
+    previewObjectUrl.value = URL.createObjectURL(file);
+  }
+  void loadPreviewText(file);
+  showPreview.value = true;
+  input.value = "";
+}
+
+function handleUploadDrop(e: DragEvent) {
   if (!isLoggedIn.value) {
     page.value = "auth";
     showToast(t("toast.loginFirstToUpload"));
     return;
   }
+  const file = e.dataTransfer?.files?.[0];
+  if (!file) return;
+  if (previewObjectUrl.value) {
+    URL.revokeObjectURL(previewObjectUrl.value);
+    previewObjectUrl.value = "";
+  }
+  selectedUploadFile.value = file;
+  if ((file.name || "").toLowerCase().endsWith(".pdf") || (file.type || "").toLowerCase().includes("pdf")) {
+    previewObjectUrl.value = URL.createObjectURL(file);
+  }
+  void loadPreviewText(file);
   openModal();
 }
 
 function closeModal() {
   showPreview.value = false;
+}
+
+function openDocumentPreview(payload: { id: string; fileName: string; mimeType: string }) {
+  previewDocumentId.value = String(payload?.id || "");
+  previewDocumentName.value = String(payload?.fileName || "");
+  previewDocumentMimeType.value = String(payload?.mimeType || "application/octet-stream");
+  page.value = "preview";
+}
+
+async function extractPreviewTextFromDocx(file: File): Promise<string> {
+  const { value } = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+  return String(value || "").trim();
+}
+
+async function loadPreviewText(file: File) {
+  previewText.value = "";
+  previewTextError.value = "";
+  previewTextLoading.value = true;
+  try {
+    const name = (file.name || "").toLowerCase();
+    const type = (file.type || "").toLowerCase();
+    let text = "";
+    if (name.endsWith(".pdf") || type.includes("pdf")) {
+      text = "";
+    } else if (
+      name.endsWith(".docx") ||
+      type.includes("wordprocessingml.document") ||
+      type.includes("officedocument")
+    ) {
+      text = await extractPreviewTextFromDocx(file);
+    } else if (type.startsWith("text/") || name.endsWith(".txt") || name.endsWith(".md")) {
+      text = await file.text();
+    } else {
+      previewTextError.value = t("home.previewUnsupported");
+      return;
+    }
+
+    previewText.value = (text || "").slice(0, 12000).trim();
+    if (!previewText.value && !isPdfSelected.value) previewTextError.value = t("home.previewNoText");
+  } catch {
+    previewTextError.value = t("home.previewExtractFailed");
+  } finally {
+    previewTextLoading.value = false;
+  }
 }
 
 function removeToast(id: number) {
@@ -550,28 +677,38 @@ function tryShowBrowserNotification(title: string, body: string) {
 }
 
 async function startTranslation() {
+  if (!selectedUploadFile.value) {
+    closeModal();
+    return;
+  }
   showToast(t("toast.initTranslationEngine"));
   window.setTimeout(async () => {
     showToast(t("toast.uploadingAndAnalyzing"));
     if (isLoggedIn.value) {
       try {
-        await authApi.notifyTranslationCompleted({
-          title: "Annual_Report.pdf",
-          document_count: 1,
-          word_count: 1200,
-        });
+        if (selectedUploadFile.value) {
+          await authApi.uploadMyDocument(selectedUploadFile.value);
+        }
         const pref = await authApi.getNotificationPreferences();
         if (pref.notify_browser) {
           tryShowBrowserNotification(
             t("notification.translationCompletedTitle"),
-            t("notification.translationCompletedBody", { title: "Annual_Report.pdf" }),
+            t("notification.translationCompletedBody", { title: selectedUploadFileName.value }),
           );
         }
       } catch {
         // no-op for mock flow
       }
     }
+    selectedUploadFile.value = null;
+    if (previewObjectUrl.value) {
+      URL.revokeObjectURL(previewObjectUrl.value);
+      previewObjectUrl.value = "";
+    }
+    previewText.value = "";
+    previewTextError.value = "";
     closeModal();
+    page.value = "documents";
   }, 800);
 }
 
@@ -918,5 +1055,6 @@ onBeforeUnmount(() => {
   if (clockTimer) window.clearInterval(clockTimer);
   if (themeSwitchTimer) window.clearTimeout(themeSwitchTimer);
   if (accessRefreshTimer) window.clearTimeout(accessRefreshTimer);
+  if (previewObjectUrl.value) URL.revokeObjectURL(previewObjectUrl.value);
 });
 </script>

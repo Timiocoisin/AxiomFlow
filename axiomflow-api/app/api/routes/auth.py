@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import logging
+import mimetypes
 import re
+import uuid
+from pathlib import Path
 from urllib.parse import quote, urlencode
 from urllib.request import Request as UrlRequest
 from urllib.request import urlopen
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
@@ -53,6 +57,7 @@ from app.schemas.auth import (
     ApiKeyItemResponse,
     ApiKeyCreateResponse,
     DocumentItemResponse,
+    DocumentMetaResponse,
     NotificationPreferencesResponse,
     ResendVerificationRequest,
     ResetPasswordRequest,
@@ -66,6 +71,7 @@ from app.services.mailer import send_security_alert_email, send_translation_comp
 from app.services.math_captcha import issue_math_challenge, validate_and_consume_math
 from app.services.oauth_state import consume_oauth_state, issue_oauth_state
 from app.services.slide_captcha import issue_slide_challenge, validate_and_consume_slide
+from pypdf import PdfReader
 
 
 router = APIRouter()
@@ -73,6 +79,7 @@ logger = logging.getLogger("axiomflow.oauth")
 MAX_AVATAR_URL_LEN = 2_000_000
 
 _UNAME_CLEAN_RE = re.compile(r"[^a-zA-Z0-9_]+")
+_DOC_STORAGE_ROOT = Path(__file__).resolve().parents[3] / "storage" / "documents"
 
 
 def _require_slide(*, captcha_id: str, piece_final_x: int) -> None:
@@ -83,6 +90,38 @@ def _require_slide(*, captcha_id: str, piece_final_x: int) -> None:
 def _require_math(*, captcha_id: str, answer: int) -> None:
     if not validate_and_consume_math(captcha_id=captcha_id, answer=answer):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_math_captcha")
+
+
+def _safe_filename(name: str) -> str:
+    base = Path(name or "").name.strip() or "uploaded-file.pdf"
+    base = re.sub(r"[^\w\-.()\[\] ]+", "_", base)
+    return base[:255]
+
+
+def _document_abs_path_or_404(*, rel_path: str) -> Path:
+    rel = (rel_path or "").strip()
+    if not rel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document_file_not_found")
+    abs_path = (_DOC_STORAGE_ROOT / rel).resolve()
+    root_abs = _DOC_STORAGE_ROOT.resolve()
+    if root_abs not in abs_path.parents and abs_path != root_abs:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_document_path")
+    if not abs_path.exists() or not abs_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document_file_not_found")
+    return abs_path
+
+
+def _document_abs_path_or_none(*, rel_path: str) -> Path | None:
+    rel = (rel_path or "").strip()
+    if not rel:
+        return None
+    abs_path = (_DOC_STORAGE_ROOT / rel).resolve()
+    root_abs = _DOC_STORAGE_ROOT.resolve()
+    if root_abs not in abs_path.parents and abs_path != root_abs:
+        return None
+    if not abs_path.exists() or not abs_path.is_file():
+        return None
+    return abs_path
 
 
 def _oauth_callback_url(provider: str) -> str:
@@ -655,6 +694,7 @@ def notify_translation_completed(
 ) -> OkResponse:
     doc_count = int(payload.document_count or 0)
     word_count = int(payload.word_count or 0)
+    file_size_bytes = int(payload.file_size_bytes or 0)
     title = (payload.title or "文档翻译").strip()[:255] or "文档翻译"
 
     act = TranslationActivity(
@@ -664,6 +704,15 @@ def notify_translation_completed(
         word_count=word_count,
     )
     db.add(act)
+    db.add(
+        UserDocument(
+            user_id=user.id,
+            file_name=title,
+            file_size_bytes=max(0, file_size_bytes),
+            word_count=word_count,
+            status="completed",
+        )
+    )
     user.translated_documents = int(user.translated_documents or 0) + doc_count
     user.translated_words = int(user.translated_words or 0) + word_count
     db.commit()
@@ -853,9 +902,12 @@ def list_documents(request: Request, user: User = Depends(get_current_user), db:
             UserDocument.id,
             UserDocument.file_name,
             UserDocument.created_at,
+            UserDocument.mime_type,
+            UserDocument.original_storage_path,
             UserDocument.file_size_bytes,
             UserDocument.word_count,
             UserDocument.status,
+            UserDocument.translated_storage_path,
         )
         .where(UserDocument.user_id == user.id)
         .order_by(UserDocument.created_at.desc())
@@ -867,13 +919,165 @@ def list_documents(request: Request, user: User = Depends(get_current_user), db:
             id=row_id,
             file_name=(file_name or "Untitled document")[:255],
             created_at=created_at,
+            mime_type=(mime_type or "application/octet-stream"),
             file_size_bytes=int(file_size_bytes or 0),
             document_count=1,
             word_count=int(word_count or 0),
             status=(status_text or "completed"),
+            has_original_file=bool(_document_abs_path_or_none(rel_path=original_storage_path or "")),
+            has_translated_file=bool(translated_storage_path),
         )
-        for row_id, file_name, created_at, file_size_bytes, word_count, status_text in rows
+        for row_id, file_name, created_at, mime_type, original_storage_path, file_size_bytes, word_count, status_text, translated_storage_path in rows
     ]
+
+
+@router.post("/documents/upload", response_model=DocumentItemResponse)
+@limiter.limit("30/minute")
+async def upload_document(
+    request: Request,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentItemResponse:
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="empty_file")
+    if len(raw) > 100 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="file_too_large")
+
+    safe_name = _safe_filename(file.filename or "uploaded-file.pdf")
+    ext = Path(safe_name).suffix or ".bin"
+    rel_path = Path(user.id) / f"{uuid.uuid4().hex}{ext}"
+    abs_path = (_DOC_STORAGE_ROOT / rel_path).resolve()
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    abs_path.write_bytes(raw)
+
+    mime = (file.content_type or "").strip() or mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+    doc = UserDocument(
+        user_id=user.id,
+        file_name=safe_name,
+        mime_type=mime,
+        original_storage_path=str(rel_path).replace("\\", "/"),
+        translated_storage_path=None,
+        file_size_bytes=len(raw),
+        word_count=0,
+        status="completed",
+    )
+    db.add(doc)
+    db.add(
+        TranslationActivity(
+            user_id=user.id,
+            title=safe_name,
+            document_count=1,
+            word_count=0,
+        )
+    )
+    user.translated_documents = int(user.translated_documents or 0) + 1
+    db.commit()
+    db.refresh(doc)
+
+    return DocumentItemResponse(
+        id=doc.id,
+        file_name=doc.file_name,
+        created_at=doc.created_at,
+        mime_type=doc.mime_type,
+        file_size_bytes=int(doc.file_size_bytes or 0),
+        document_count=1,
+        word_count=int(doc.word_count or 0),
+        status=doc.status or "completed",
+        has_translated_file=bool(doc.translated_storage_path),
+    )
+
+
+@router.get("/documents/{document_id}/meta", response_model=DocumentMetaResponse)
+@limiter.limit("120/minute")
+def document_meta(
+    request: Request,
+    document_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentMetaResponse:
+    row = db.scalar(select(UserDocument).where(UserDocument.id == document_id, UserDocument.user_id == user.id))
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document_not_found")
+
+    page_count = 1
+    name = (row.file_name or "").lower()
+    mime = (row.mime_type or "").lower()
+    if name.endswith(".pdf") or "pdf" in mime:
+        try:
+            abs_path = _document_abs_path_or_404(rel_path=row.original_storage_path or "")
+            reader = PdfReader(io.BytesIO(abs_path.read_bytes()))
+            page_count = max(1, len(reader.pages))
+        except HTTPException:
+            raise
+        except Exception:
+            logger.warning("document_meta_page_count_failed id=%s", row.id, exc_info=True)
+            page_count = 1
+
+    return DocumentMetaResponse(id=row.id, page_count=page_count)
+
+
+@router.get("/documents/{document_id}/download")
+@limiter.limit("60/minute")
+def download_document(
+    request: Request,
+    document_id: str,
+    kind: str = Query("original"),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    row = db.scalar(select(UserDocument).where(UserDocument.id == document_id, UserDocument.user_id == user.id))
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document_not_found")
+
+    if kind == "translated":
+        rel = (row.translated_storage_path or "").strip()
+        if not rel:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="translated_file_not_found")
+    else:
+        rel = (row.original_storage_path or "").strip()
+        kind = "original"
+
+    abs_path = _document_abs_path_or_404(rel_path=rel)
+
+    out_name = row.file_name or "document.pdf"
+    if kind == "translated":
+        stem = Path(out_name).stem
+        suffix = Path(out_name).suffix or ".pdf"
+        out_name = f"{stem}.translated{suffix}"
+
+    return FileResponse(
+        path=str(abs_path),
+        media_type=row.mime_type or "application/octet-stream",
+        filename=out_name,
+    )
+
+
+@router.delete("/documents/{document_id}", response_model=OkResponse)
+@limiter.limit("60/minute")
+def delete_document(
+    request: Request,
+    document_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> OkResponse:
+    row = db.scalar(select(UserDocument).where(UserDocument.id == document_id, UserDocument.user_id == user.id))
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document_not_found")
+    for rel in [(row.original_storage_path or "").strip(), (row.translated_storage_path or "").strip()]:
+        if not rel:
+            continue
+        p = (_DOC_STORAGE_ROOT / rel).resolve()
+        root_abs = _DOC_STORAGE_ROOT.resolve()
+        if (root_abs in p.parents or p == root_abs) and p.exists() and p.is_file():
+            try:
+                p.unlink()
+            except Exception:
+                logger.warning("document_file_delete_failed path=%s", p, exc_info=True)
+    db.delete(row)
+    db.commit()
+    return OkResponse(ok=True)
 
 
 @router.post("/avatar", response_model=OkResponse)
