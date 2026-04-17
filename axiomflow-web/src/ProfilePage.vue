@@ -308,11 +308,12 @@ import * as echarts from "echarts";
 import * as authApi from "./api/auth";
 
 const emit = defineEmits<{ (e: "password-changed"): void }>();
+const props = defineProps<{ avatarUrl?: string }>();
 
 type TabId = "basic" | "stats" | "security" | "notifications" | "actions";
 
 const activeTab = ref<TabId>("basic");
-const avatarUrl = "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix";
+const avatarUrl = computed(() => props.avatarUrl || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix");
 const secCurrent = ref("");
 const secNew = ref("");
 const secNew2 = ref("");

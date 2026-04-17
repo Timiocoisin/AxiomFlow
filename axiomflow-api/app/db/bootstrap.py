@@ -71,6 +71,47 @@ def ensure_username_unique_index() -> None:
         )
 
 
+def ensure_users_avatar_column() -> None:
+    """
+    Best-effort migration: ensure users.avatar_url exists and can store long data URIs.
+    """
+    try:
+        insp = inspect(engine)
+        if not insp.has_table("users"):
+            return
+        columns = {c.get("name"): c for c in insp.get_columns("users")}
+        with engine.begin() as conn:
+            if "avatar_url" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url TEXT NULL"))
+                logger.info("Added users.avatar_url column as TEXT")
+                return
+            # Widen existing column for legacy deployments using VARCHAR(1024).
+            col_type = str(columns["avatar_url"].get("type") or "").lower()
+            if "text" not in col_type:
+                conn.execute(text("ALTER TABLE users MODIFY COLUMN avatar_url TEXT NULL"))
+                logger.info("Altered users.avatar_url column to TEXT")
+    except Exception:
+        logger.warning("Could not ensure users.avatar_url column/type", exc_info=True)
+
+
+def ensure_users_oauth_verified_column() -> None:
+    """
+    Best-effort migration: add users.is_oauth_verified if missing.
+    """
+    try:
+        insp = inspect(engine)
+        if not insp.has_table("users"):
+            return
+        cols = {c.get("name") for c in insp.get_columns("users")}
+        if "is_oauth_verified" in cols:
+            return
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN is_oauth_verified TINYINT(1) NOT NULL DEFAULT 0"))
+        logger.info("Added users.is_oauth_verified column")
+    except Exception:
+        logger.warning("Could not ensure users.is_oauth_verified column", exc_info=True)
+
+
 def ensure_database_ready() -> None:
     try:
         ensure_database_exists()
@@ -85,4 +126,6 @@ def ensure_database_ready() -> None:
         raise
 
     ensure_username_unique_index()
+    ensure_users_avatar_column()
+    ensure_users_oauth_verified_column()
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -20,10 +20,16 @@ class User(Base, UuidPrimaryKeyMixin, TimestampMixin):
     username: Mapped[Optional[str]] = mapped_column(
         String(64), nullable=True, unique=True, index=True, comment="用户名（展示名，唯一）"
     )
+    avatar_url: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="头像 URL（支持第三方登录头像）"
+    )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False, comment="密码哈希")
 
     is_email_verified: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, comment="邮箱是否已验证"
+    )
+    is_oauth_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, comment="是否已通过第三方 OAuth 完成身份验证"
     )
     last_login_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="最近登录时间"

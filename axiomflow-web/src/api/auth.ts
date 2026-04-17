@@ -1,4 +1,5 @@
 import { api } from "./client";
+import { API_BASE_URL } from "./baseUrl";
 
 export type TokenResponse = {
   access_token: string;
@@ -26,6 +27,10 @@ export async function issueSlideCaptcha(sceneWidth: number, sceneHeight: number)
     {},
   );
   return data;
+}
+
+export function oauthStartUrl(provider: "google" | "github"): string {
+  return `${API_BASE_URL}/auth/oauth/${provider}/start`;
 }
 
 export async function issueMathCaptcha() {
@@ -93,5 +98,16 @@ export async function resetPassword(params: { token: string; new_password: strin
 
 export async function changePassword(params: { current_password: string; new_password: string }) {
   const { data } = await api.post<{ ok: boolean }>("/auth/change-password", params);
+  return data;
+}
+
+export async function getMe() {
+  const { data } = await api.get<{
+    id: string;
+    email: string;
+    username?: string | null;
+    avatar_url?: string | null;
+    is_email_verified: boolean;
+  }>("/auth/me");
   return data;
 }

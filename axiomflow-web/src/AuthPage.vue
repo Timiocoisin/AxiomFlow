@@ -287,7 +287,7 @@
         </form>
 
         <!-- 分割线 -->
-        <div class="relative my-8">
+        <div v-if="mode === 'login'" class="relative my-8">
           <div class="absolute inset-0 flex items-center">
             <div class="w-full border-t border-slate-800"></div>
           </div>
@@ -297,12 +297,20 @@
         </div>
 
         <!-- 社交登录（占位，不跳转） -->
-        <div class="grid grid-cols-2 gap-4">
-          <button class="flex items-center justify-center gap-2 py-3 border border-slate-800 rounded-xl hover:bg-white/5 transition-all" type="button">
+        <div v-if="mode === 'login'" class="grid grid-cols-2 gap-4">
+          <button
+            class="flex items-center justify-center gap-2 py-3 border border-slate-800 rounded-xl hover:bg-white/5 transition-all"
+            type="button"
+            @click="startOauth('google')"
+          >
             <Icon class="text-lg" icon="logos:google-icon" />
             <span class="text-sm font-semibold">Google</span>
           </button>
-          <button class="flex items-center justify-center gap-2 py-3 border border-slate-800 rounded-xl hover:bg-white/5 transition-all" type="button">
+          <button
+            class="flex items-center justify-center gap-2 py-3 border border-slate-800 rounded-xl hover:bg-white/5 transition-all"
+            type="button"
+            @click="startOauth('github')"
+          >
             <Icon class="text-lg text-slate-900 dark:text-white" icon="ri:github-fill" />
             <span class="text-sm font-semibold">GitHub</span>
           </button>
@@ -918,6 +926,10 @@ function onSliderUp() {
 
   captchaError.value = "验证失败，已为你刷新，请再试一次";
   transitionToNewPuzzle({ asFail: true });
+}
+
+function startOauth(provider: "google" | "github") {
+  window.location.href = authApi.oauthStartUrl(provider);
 }
 
 function handleAuth() {

@@ -93,7 +93,12 @@
           <!-- 用户菜单（登录后显示） -->
           <div v-else class="relative group">
             <button class="flex items-center gap-2 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-              <img alt="Avatar" class="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix">
+              <img
+                alt="Avatar"
+                class="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700"
+                :src="avatarUrl"
+                @error="handleAvatarLoadError"
+              >
               <Icon class="text-xs text-slate-400" icon="ph:caret-down-bold" />
             </button>
             <div class="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border dark:border-slate-800 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-2">
@@ -215,10 +220,11 @@
     @new-translation="page = 'home'"
     @open-preview="page = 'preview'"
   />
-  <ProfilePage v-else-if="page === 'profile'" @password-changed="onPasswordChanged" />
+  <ProfilePage v-else-if="page === 'profile'" :avatar-url="avatarUrl" @password-changed="onPasswordChanged" />
   <SettingsPage
     v-else-if="page === 'settings'"
     :service-time="serviceTime"
+    :avatar-url="avatarUrl"
     @toggle-theme="toggleTheme"
     @password-changed="onPasswordChanged"
   />
@@ -369,9 +375,12 @@ type ToastItem = {
   message: string;
 };
 
+const DEFAULT_AVATAR_URL = "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix";
+
 const isDark = ref(false);
 const isLoggedIn = ref(false);
 const accessToken = ref<string>("");
+const avatarUrl = ref<string>(sessionStorage.getItem("axiomflow:avatarUrl") || DEFAULT_AVATAR_URL);
 const lastRegisterEmail = ref<string>(localStorage.getItem("axiomflow:lastRegisterEmail") || "");
 const page = ref<
   "home" | "auth" | "documents" | "profile" | "settings" | "preview" | "verify-email" | "reset-password"
@@ -389,6 +398,7 @@ let loadingTimerB: number | null = null;
 let clockTimer: number | null = null;
 let themeSwitchTimer: number | null = null;
 let accessRefreshTimer: number | null = null;
+let oauthExchangeInFlight = false;
 
 const currentYear = computed(() => now.value.getFullYear());
 const serviceTime = computed(() => {
@@ -449,6 +459,42 @@ function showToast(message: string) {
   const id = ++toastIdSeed;
   toasts.value.push({ id, message });
   window.setTimeout(() => removeToast(id), 4000);
+}
+
+function oauthErrorMessage(code: string): string {
+  switch (code) {
+    case "invalid_oauth_state":
+      return "第三方登录已过期，请重试";
+    case "missing_access_token":
+      return "第三方登录失败：未获取到授权令牌";
+    case "github_email_unavailable":
+      return "GitHub 未返回可用邮箱，请在 GitHub 公开或绑定邮箱后重试";
+    case "unsupported_oauth_provider":
+      return "暂不支持该第三方登录方式";
+    case "oauth_login_failed":
+      return "第三方登录失败，请稍后重试";
+    case "oauth_exchange_failed":
+      return "第三方登录失败：会话换取令牌失败";
+    default:
+      return `第三方登录失败：${code || "unknown_error"}`;
+  }
+}
+
+async function completeOauthLoginFromCookie() {
+  if (oauthExchangeInFlight) return;
+  oauthExchangeInFlight = true;
+  try {
+    const data = await authApi.refresh();
+    handleAuthed({ accessToken: data.access_token, accessExpiresAt: data.access_expires_at });
+    await syncAvatarFromApi();
+    window.location.hash = "#/";
+  } catch {
+    showToast(oauthErrorMessage("oauth_exchange_failed"));
+    page.value = "auth";
+    window.location.hash = "#/auth";
+  } finally {
+    oauthExchangeInFlight = false;
+  }
 }
 
 function startTranslation() {
@@ -513,6 +559,34 @@ function onPasswordChanged() {
   showToast("密码已更新");
 }
 
+function normalizeAvatarUrl(raw: string | null | undefined): string {
+  const v = (raw || "").trim();
+  if (!v) return DEFAULT_AVATAR_URL;
+  if (/^data:image\//i.test(v)) return v;
+  if (/^https?:\/\//i.test(v)) return v;
+  return DEFAULT_AVATAR_URL;
+}
+
+function handleAvatarLoadError() {
+  avatarUrl.value = DEFAULT_AVATAR_URL;
+  sessionStorage.removeItem("axiomflow:avatarUrl");
+}
+
+async function syncAvatarFromApi() {
+  try {
+    const me = await authApi.getMe();
+    const normalized = normalizeAvatarUrl(me?.avatar_url || "");
+    avatarUrl.value = normalized;
+    if (normalized !== DEFAULT_AVATAR_URL) {
+      sessionStorage.setItem("axiomflow:avatarUrl", normalized);
+    } else {
+      sessionStorage.removeItem("axiomflow:avatarUrl");
+    }
+  } catch {
+    // keep current avatar
+  }
+}
+
 function handleGoVerifyEmail(payload: { email: string }) {
   lastRegisterEmail.value = payload.email;
   page.value = "verify-email";
@@ -530,8 +604,10 @@ function handleLogout() {
     .finally(() => {
       isLoggedIn.value = false;
       accessToken.value = "";
+      avatarUrl.value = DEFAULT_AVATAR_URL;
       sessionStorage.removeItem("axiomflow:accessToken");
       sessionStorage.removeItem("axiomflow:accessExpiresAt");
+      sessionStorage.removeItem("axiomflow:avatarUrl");
       page.value = "home";
       showToast("已退出登录");
     });
@@ -557,6 +633,13 @@ function handleLoad() {
   loadingTimerB = window.setTimeout(() => {
     loadingBarOpacity.value = 0;
   }, 600);
+}
+
+function getHashParams(): URLSearchParams {
+  const hash = window.location.hash || "";
+  const q = hash.indexOf("?");
+  if (q < 0) return new URLSearchParams();
+  return new URLSearchParams(hash.slice(q + 1));
 }
 
 function hashForPage(p: typeof page.value): string {
@@ -591,6 +674,16 @@ function syncPageFromHash() {
     return;
   }
   if (h.startsWith("#/auth")) {
+    const params = getHashParams();
+    const oauthDone = params.get("oauth_done");
+    const oauthErr = params.get("oauth_error");
+    if (oauthDone === "1") {
+      void completeOauthLoginFromCookie();
+      return;
+    }
+    if (oauthErr) {
+      showToast(oauthErrorMessage(oauthErr));
+    }
     page.value = "auth";
     return;
   }
@@ -621,6 +714,14 @@ watch(page, (p) => {
 });
 
 onMounted(() => {
+  // Avoid browser COOP "untrustworthy origin" warnings in local dev.
+  // If opened via IP/127 on Vite dev server, normalize to localhost.
+  if (window.location.protocol === "http:" && window.location.port === "5173" && window.location.hostname !== "localhost") {
+    const next = `http://localhost:5173${window.location.pathname}${window.location.hash}`;
+    window.location.replace(next);
+    return;
+  }
+
   applyThemeClasses(document.documentElement.classList.contains("dark"));
   updateThemeIcons();
   window.addEventListener("load", handleLoad);
@@ -641,6 +742,11 @@ onMounted(() => {
     isLoggedIn.value = true;
     const exp = sessionStorage.getItem("axiomflow:accessExpiresAt");
     if (exp) scheduleAccessTokenRefresh(exp);
+    void syncAvatarFromApi();
+  }
+  const savedAvatar = sessionStorage.getItem("axiomflow:avatarUrl");
+  if (savedAvatar) {
+    avatarUrl.value = normalizeAvatarUrl(savedAvatar);
   }
 });
 

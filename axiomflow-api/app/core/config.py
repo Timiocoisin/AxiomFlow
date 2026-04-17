@@ -65,6 +65,13 @@ class Settings(BaseSettings):
 
     # Public URLs (links in emails)
     PUBLIC_WEB_URL: str = "http://localhost:5173"
+    PUBLIC_API_URL: str = "http://localhost:8000"
+
+    # OAuth (Google/GitHub)
+    OAUTH_GOOGLE_CLIENT_ID: str = ""
+    OAUTH_GOOGLE_CLIENT_SECRET: str = ""
+    OAUTH_GITHUB_CLIENT_ID: str = ""
+    OAUTH_GITHUB_CLIENT_SECRET: str = ""
 
     # SMTP
     SMTP_HOST: str = "smtp.example.com"

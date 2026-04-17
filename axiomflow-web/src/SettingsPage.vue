@@ -311,8 +311,9 @@ import { ref } from "vue";
 import { Icon } from "@iconify/vue";
 import * as authApi from "./api/auth";
 
-defineProps<{
+const props = defineProps<{
   serviceTime: string;
+  avatarUrl?: string;
 }>();
 
 const emit = defineEmits<{
@@ -332,7 +333,7 @@ const tabs: Array<{ id: SettingsTab; label: string; icon: string }> = [
 ];
 
 const activeTab = ref<SettingsTab>("account");
-const avatarUrl = ref("https://api.dicebear.com/7.x/avataaars/svg?seed=Felix");
+const avatarUrl = ref(props.avatarUrl || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix");
 const pwdCurrent = ref("");
 const pwdNew = ref("");
 const pwdNew2 = ref("");
