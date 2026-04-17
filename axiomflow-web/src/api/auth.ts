@@ -147,6 +147,7 @@ export type DocumentItem = {
   id: string;
   file_name: string;
   created_at: string;
+  file_size_bytes: number;
   document_count: number;
   word_count: number;
   status: string;

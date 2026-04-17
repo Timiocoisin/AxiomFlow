@@ -59,9 +59,17 @@
               <td class="px-6 py-6 text-sm text-slate-500" colspan="6">{{ t("documents.loading") }}</td>
             </tr>
             <tr v-else-if="documents.length === 0">
-              <td class="px-6 py-6 text-sm text-slate-500" colspan="6">{{ t("documents.empty") }}</td>
+              <td class="px-6 py-10" colspan="6">
+                <div class="mx-auto max-w-md rounded-2xl border border-dashed border-slate-300/90 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 px-6 py-10 text-center">
+                  <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
+                    <Icon class="text-2xl" icon="ph:folder-open-bold" />
+                  </div>
+                  <p class="text-base font-semibold text-slate-800 dark:text-slate-100">{{ t("documents.empty") }}</p>
+                  <p class="mt-1 text-sm text-slate-500">{{ t("documents.emptyHint") }}</p>
+                </div>
+              </td>
             </tr>
-            <tr v-for="row in documents" v-else :key="row.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+            <tr v-for="row in pagedDocuments" v-else :key="row.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
               <td class="px-6 py-4">
                 <div class="flex items-center gap-3">
                   <div class="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center text-indigo-600">
@@ -74,12 +82,12 @@
                 </div>
               </td>
               <td class="px-6 py-4 text-sm text-slate-500">{{ row.uploadTime }}</td>
-              <td class="px-6 py-4 text-sm text-slate-500">{{ t("documents.table.words", { count: row.wordCount }) }}</td>
+              <td class="px-6 py-4 text-sm text-slate-500">{{ row.sizeText }}</td>
               <td class="px-6 py-4 text-sm text-slate-500">-</td>
               <td class="px-6 py-4">
                 <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
                   <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                  {{ t("documents.status.completed") }}
+                  {{ row.statusText }}
                 </span>
               </td>
               <td class="px-6 py-4 text-right">
@@ -104,15 +112,32 @@
       </div>
 
       <div class="px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t dark:border-slate-800 flex items-center justify-between">
-        <span class="text-sm text-slate-500">{{ t("documents.pagination.summary", { from: documents.length > 0 ? 1 : 0, to: documents.length, total: documents.length }) }}</span>
-        <div class="flex gap-2">
-          <button class="px-3 py-1.5 rounded-lg border dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled type="button">
+        <span class="text-sm text-slate-500">{{ t("documents.pagination.summary", { from: pageFrom, to: pageTo, total: documents.length }) }}</span>
+        <div v-if="documents.length > pageSize" class="flex gap-2">
+          <button
+            class="px-3 py-1.5 rounded-lg border dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="currentPage <= 1"
+            type="button"
+            @click="goPrevPage"
+          >
             <Icon icon="ph:caret-left-bold" />
           </button>
-          <button class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-medium" type="button">1</button>
-          <button class="px-3 py-1.5 rounded-lg border dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800 transition-colors" type="button">2</button>
-          <button class="px-3 py-1.5 rounded-lg border dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800 transition-colors" type="button">3</button>
-          <button class="px-3 py-1.5 rounded-lg border dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800 transition-colors" type="button">
+          <button
+            v-for="pageNum in visiblePageNumbers"
+            :key="pageNum"
+            class="px-3 py-1.5 rounded-lg border dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+            :class="pageNum === currentPage ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-600 dark:hover:bg-indigo-600' : ''"
+            type="button"
+            @click="goPage(pageNum)"
+          >
+            {{ pageNum }}
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-lg border dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="currentPage >= totalPages"
+            type="button"
+            @click="goNextPage"
+          >
             <Icon icon="ph:caret-right-bold" />
           </button>
         </div>
@@ -140,7 +165,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Icon } from "@iconify/vue";
 import { getMyDocuments } from "./api/auth";
@@ -158,13 +183,41 @@ const showDetails = ref(false);
 const { t } = useI18n();
 const modalTitle = ref(t("documents.modal.title"));
 const docsLoading = ref(false);
-const documents = ref<Array<{ id: string; fileName: string; uploadTime: string; wordCount: number }>>([]);
+const documents = ref<Array<{ id: string; fileName: string; uploadTime: string; sizeText: string; statusText: string }>>([]);
+const currentPage = ref(1);
+const pageSize = 8;
+const totalPages = computed(() => Math.max(1, Math.ceil(documents.value.length / pageSize)));
+const pagedDocuments = computed(() => {
+  const start = (currentPage.value - 1) * pageSize;
+  return documents.value.slice(start, start + pageSize);
+});
+const pageFrom = computed(() => (documents.value.length === 0 ? 0 : (currentPage.value - 1) * pageSize + 1));
+const pageTo = computed(() => (documents.value.length === 0 ? 0 : Math.min(currentPage.value * pageSize, documents.value.length)));
+const visiblePageNumbers = computed(() => {
+  const pages: number[] = [];
+  for (let i = 1; i <= totalPages.value; i += 1) pages.push(i);
+  return pages;
+});
 
 function formatTimeText(v: string): string {
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return "-";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatSizeText(bytes: number): string {
+  const n = Math.max(0, Number(bytes || 0));
+  if (n <= 0) return "-";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function mapStatusText(status: string): string {
+  if (status === "failed") return t("documents.status.failed");
+  if (status === "processing") return t("documents.filters.statusProcessing");
+  return t("documents.status.completed");
 }
 
 async function loadDocuments() {
@@ -175,13 +228,26 @@ async function loadDocuments() {
       id: String(x?.id || "-"),
       fileName: String(x?.file_name || t("profile.untitledDocument")),
       uploadTime: formatTimeText(String(x?.created_at || "")),
-      wordCount: Math.max(0, Number(x?.word_count ?? 0)),
+      sizeText: formatSizeText(Number(x?.file_size_bytes ?? 0)),
+      statusText: mapStatusText(String(x?.status || "completed")),
     }));
   } catch {
     documents.value = [];
   } finally {
     docsLoading.value = false;
   }
+}
+
+function goPage(pageNum: number) {
+  currentPage.value = Math.min(totalPages.value, Math.max(1, pageNum));
+}
+
+function goPrevPage() {
+  goPage(currentPage.value - 1);
+}
+
+function goNextPage() {
+  goPage(currentPage.value + 1);
 }
 
 function openDetails(name: string) {
@@ -196,4 +262,11 @@ function closeDetails() {
 onMounted(() => {
   void loadDocuments();
 });
+
+watch(
+  () => documents.value.length,
+  () => {
+    if (currentPage.value > totalPages.value) currentPage.value = totalPages.value;
+  },
+);
 </script>

@@ -3,6 +3,7 @@ from app.models.email_token import EmailVerificationToken
 from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_token import RefreshToken
 from app.models.translation_activity import TranslationActivity
+from app.models.user_document import UserDocument
 from app.models.user import User
 
 __all__ = [
@@ -12,6 +13,7 @@ __all__ = [
     "EmailVerificationToken",
     "PasswordResetToken",
     "TranslationActivity",
+    "UserDocument",
 ]
 
 

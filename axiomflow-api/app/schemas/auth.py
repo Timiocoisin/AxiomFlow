@@ -197,6 +197,7 @@ class DocumentItemResponse(BaseModel):
     id: str
     file_name: str
     created_at: datetime
+    file_size_bytes: int
     document_count: int
     word_count: int
     status: str

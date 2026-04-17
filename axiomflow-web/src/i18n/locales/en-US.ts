@@ -389,6 +389,7 @@ const enUS = {
     searchPlaceholder: "Search file name...",
     loading: "Loading...",
     empty: "No documents yet",
+    emptyHint: "There are no uploaded documents yet. Click \"New translation\" in the top-right to start your first translation.",
     filters: {
       statusAll: "All statuses",
       statusPending: "Pending",

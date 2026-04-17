@@ -389,6 +389,7 @@ const zhCN = {
     searchPlaceholder: "搜索文件名...",
     loading: "加载中...",
     empty: "暂无文档",
+    emptyHint: "当前还没有上传记录，请点击右上角“新建翻译”开始您的第一次翻译。",
     filters: {
       statusAll: "全部状态",
       statusPending: "待翻译",

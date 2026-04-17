@@ -32,6 +32,7 @@ from app.models.api_key import ApiKey
 from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_token import RefreshToken
 from app.models.translation_activity import TranslationActivity
+from app.models.user_document import UserDocument
 from app.models.user import User
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -849,27 +850,29 @@ def profile_stats(request: Request, user: User = Depends(get_current_user), db: 
 def list_documents(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[DocumentItemResponse]:
     rows = db.execute(
         select(
-            TranslationActivity.id,
-            TranslationActivity.title,
-            TranslationActivity.created_at,
-            TranslationActivity.document_count,
-            TranslationActivity.word_count,
+            UserDocument.id,
+            UserDocument.file_name,
+            UserDocument.created_at,
+            UserDocument.file_size_bytes,
+            UserDocument.word_count,
+            UserDocument.status,
         )
-        .where(TranslationActivity.user_id == user.id)
-        .order_by(TranslationActivity.created_at.desc())
+        .where(UserDocument.user_id == user.id)
+        .order_by(UserDocument.created_at.desc())
         .limit(200)
     ).all()
 
     return [
         DocumentItemResponse(
             id=row_id,
-            file_name=(title or "Untitled document")[:255],
+            file_name=(file_name or "Untitled document")[:255],
             created_at=created_at,
-            document_count=int(document_count or 0),
+            file_size_bytes=int(file_size_bytes or 0),
+            document_count=1,
             word_count=int(word_count or 0),
-            status="completed",
+            status=(status_text or "completed"),
         )
-        for row_id, title, created_at, document_count, word_count in rows
+        for row_id, file_name, created_at, file_size_bytes, word_count, status_text in rows
     ]
 
 
