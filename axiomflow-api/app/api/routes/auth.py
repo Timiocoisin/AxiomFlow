@@ -7,11 +7,11 @@ import re
 from urllib.parse import quote, urlencode
 from urllib.request import Request as UrlRequest
 from urllib.request import urlopen
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -30,6 +30,7 @@ from app.db.session import get_db
 from app.models.email_token import EmailVerificationToken
 from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_token import RefreshToken
+from app.models.translation_activity import TranslationActivity
 from app.models.user import User
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -38,13 +39,19 @@ from app.schemas.auth import (
     OkResponse,
     RegisterRequest,
     RequestPasswordResetRequest,
+    UpdateNotificationPreferencesRequest,
+    TranslationCompletedNotifyRequest,
+    DeleteAccountRequest,
+    NotificationPreferencesResponse,
     ResendVerificationRequest,
     ResetPasswordRequest,
     SlideCaptchaIssueResponse,
     TokenResponse,
+    UpdateAvatarRequest,
     VerifyEmailRequest,
 )
 from app.services.mailer import send_password_reset_email, send_verification_email
+from app.services.mailer import send_security_alert_email, send_translation_completed_email
 from app.services.math_captcha import issue_math_challenge, validate_and_consume_math
 from app.services.oauth_state import consume_oauth_state, issue_oauth_state
 from app.services.slide_captcha import issue_slide_challenge, validate_and_consume_slide
@@ -52,7 +59,7 @@ from app.services.slide_captcha import issue_slide_challenge, validate_and_consu
 
 router = APIRouter()
 logger = logging.getLogger("axiomflow.oauth")
-MAX_AVATAR_URL_LEN = 8192
+MAX_AVATAR_URL_LEN = 2_000_000
 
 _UNAME_CLEAN_RE = re.compile(r"[^a-zA-Z0-9_]+")
 
@@ -163,6 +170,34 @@ def _derive_unique_username(db: Session, email: str) -> str:
         if len(candidate) > 64:
             candidate = candidate[:64]
     return candidate
+
+
+def _ua_to_device_label(ua: str | None) -> str:
+    text = (ua or "").lower()
+    if not text:
+        return "Unknown device"
+    browser = "Browser"
+    if "edg/" in text:
+        browser = "Edge"
+    elif "chrome/" in text and "edg/" not in text:
+        browser = "Chrome"
+    elif "firefox/" in text:
+        browser = "Firefox"
+    elif "safari/" in text and "chrome/" not in text:
+        browser = "Safari"
+
+    os_name = "Unknown OS"
+    if "windows" in text:
+        os_name = "Windows"
+    elif "mac os x" in text or "macintosh" in text:
+        os_name = "macOS"
+    elif "android" in text:
+        os_name = "Android"
+    elif "iphone" in text or "ipad" in text or "ios" in text:
+        os_name = "iOS"
+    elif "linux" in text:
+        os_name = "Linux"
+    return f"{browser} on {os_name}"
 
 
 def _issue_login_response_for_user(*, request: Request, db: Session, user: User) -> tuple[TokenResponse, str]:
@@ -383,6 +418,250 @@ def me(request: Request, user: User = Depends(get_current_user)) -> dict:
         "is_email_verified": user.is_email_verified,
         "is_oauth_verified": user.is_oauth_verified,
     }
+
+
+@router.get("/notification-preferences", response_model=NotificationPreferencesResponse)
+@limiter.limit("120/minute")
+def get_notification_preferences(request: Request, user: User = Depends(get_current_user)) -> NotificationPreferencesResponse:
+    return NotificationPreferencesResponse(
+        notify_email=bool(user.notify_email),
+        notify_browser=bool(user.notify_browser),
+        notify_marketing=bool(user.notify_marketing),
+        updated_at=user.updated_at,
+    )
+
+
+@router.put("/notification-preferences", response_model=NotificationPreferencesResponse)
+@limiter.limit("60/minute")
+def update_notification_preferences(
+    request: Request,
+    payload: UpdateNotificationPreferencesRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> NotificationPreferencesResponse:
+    user.notify_email = bool(payload.notify_email)
+    user.notify_browser = bool(payload.notify_browser)
+    user.notify_marketing = bool(payload.notify_marketing)
+    db.commit()
+    db.refresh(user)
+    return NotificationPreferencesResponse(
+        notify_email=bool(user.notify_email),
+        notify_browser=bool(user.notify_browser),
+        notify_marketing=bool(user.notify_marketing),
+        updated_at=user.updated_at,
+    )
+
+
+@router.post("/notify/translation-completed", response_model=OkResponse)
+@limiter.limit("30/minute")
+def notify_translation_completed(
+    request: Request,
+    payload: TranslationCompletedNotifyRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> OkResponse:
+    doc_count = int(payload.document_count or 0)
+    word_count = int(payload.word_count or 0)
+    title = (payload.title or "文档翻译").strip()[:255] or "文档翻译"
+
+    act = TranslationActivity(
+        user_id=user.id,
+        title=title,
+        document_count=doc_count,
+        word_count=word_count,
+    )
+    db.add(act)
+    user.translated_documents = int(user.translated_documents or 0) + doc_count
+    user.translated_words = int(user.translated_words or 0) + word_count
+    db.commit()
+
+    if user.notify_email:
+        try:
+            send_translation_completed_email(
+                to_email=user.email,
+                title=title,
+                document_count=doc_count,
+                word_count=word_count,
+            )
+        except Exception:
+            logger.warning("send_translation_completed_email_failed user=%s", user.id, exc_info=True)
+    return OkResponse(ok=True)
+
+
+@router.get("/profile/stats")
+@limiter.limit("120/minute")
+def profile_stats(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    now = now_utc()
+    last_7_days = [(now - timedelta(days=d)).date() for d in range(6, -1, -1)]
+    cutoff = datetime.combine(last_7_days[0], datetime.min.time(), tzinfo=now.tzinfo)
+
+    activity_rows = db.execute(
+        select(
+            TranslationActivity.created_at,
+            TranslationActivity.document_count,
+            TranslationActivity.word_count,
+            TranslationActivity.title,
+        )
+        .where(TranslationActivity.user_id == user.id, TranslationActivity.created_at >= cutoff)
+        .order_by(TranslationActivity.created_at.desc())
+    ).all()
+    daily_count: dict = {d: 0 for d in last_7_days}
+    for created_at, document_count, _, _ in activity_rows:
+        day = created_at.date()
+        if day in daily_count:
+            daily_count[day] += int(document_count or 0)
+
+    chart = [{"date": d.strftime("%m-%d"), "count": int(daily_count[d])} for d in last_7_days]
+
+    recent: list[dict] = []
+    for created_at, document_count, word_count, title in activity_rows[:6]:
+        recent.append(
+            {
+                "title": f"{(title or '翻译文档')[:80]}（{int(document_count or 0)} 份）",
+                "time": created_at.isoformat(),
+                "status": "translated",
+                "ip": f"{int(word_count or 0)} 字",
+            }
+        )
+    reset_rows = db.execute(
+        select(PasswordResetToken.created_at)
+        .where(PasswordResetToken.user_id == user.id)
+        .order_by(PasswordResetToken.created_at.desc())
+        .limit(4)
+    ).all()
+    for (created_at,) in reset_rows:
+        recent.append(
+            {
+                "title": "发起了密码重置请求",
+                "time": created_at.isoformat(),
+                "status": "password_reset",
+                "ip": "-",
+            }
+        )
+
+    verify_rows = db.execute(
+        select(EmailVerificationToken.used_at)
+        .where(EmailVerificationToken.user_id == user.id, EmailVerificationToken.used_at.is_not(None))
+        .order_by(EmailVerificationToken.used_at.desc())
+        .limit(2)
+    ).all()
+    for (used_at,) in verify_rows:
+        if used_at is None:
+            continue
+        recent.append(
+            {
+                "title": "完成了邮箱验证",
+                "time": used_at.isoformat(),
+                "status": "email_verified",
+                "ip": "-",
+            }
+        )
+
+    if user.last_login_at:
+        recent.append(
+            {
+                "title": "登录了账户",
+                "time": user.last_login_at.isoformat(),
+                "status": "login",
+                "ip": "-",
+            }
+        )
+    recent = sorted(recent, key=lambda x: x["time"], reverse=True)[:10]
+
+    login_history_rows = db.execute(
+        select(RefreshToken.created_at, RefreshToken.user_agent, RefreshToken.ip, RefreshToken.revoked_at)
+        .where(RefreshToken.user_id == user.id)
+        .order_by(RefreshToken.created_at.desc())
+        .limit(50)
+    ).all()
+    login_history: list[dict] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    online_marked = False
+    for created_at, ua, ip, revoked_at in login_history_rows:
+        device = _ua_to_device_label(ua)
+        ip_text = ip or "-"
+        minute_bucket = created_at.strftime("%Y-%m-%d %H:%M")
+        status = "online" if revoked_at is None else "expired"
+        dedupe_key = (device, ip_text, minute_bucket, status)
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+
+        if status == "online" and not online_marked:
+            status = "online_current"
+            online_marked = True
+
+        login_history.append(
+            {
+                "device": device,
+                "ip": ip_text,
+                "time": created_at.isoformat(),
+                "status": status,
+            }
+        )
+        if len(login_history) >= 8:
+            break
+
+    last_month_start = (now - timedelta(days=60)).date()
+    month_boundary = (now - timedelta(days=30)).date()
+    counts = db.execute(
+        select(func.date(TranslationActivity.created_at).label("d"), func.sum(TranslationActivity.document_count))
+        .where(
+            TranslationActivity.user_id == user.id,
+            TranslationActivity.created_at >= datetime.combine(last_month_start, datetime.min.time(), tzinfo=now.tzinfo),
+        )
+        .group_by(func.date(TranslationActivity.created_at))
+    ).all()
+    prev_count = sum(int(c) for d, c in counts if d < month_boundary)
+    cur_count = sum(int(c) for d, c in counts if d >= month_boundary)
+    month_delta_pct = 0
+    if prev_count > 0:
+        month_delta_pct = int(round(((cur_count - prev_count) / prev_count) * 100))
+    elif cur_count > 0:
+        month_delta_pct = 100
+
+    total_docs = int(
+        db.scalar(select(func.coalesce(func.sum(TranslationActivity.document_count), 0)).where(TranslationActivity.user_id == user.id))
+        or 0
+    )
+    total_words = int(
+        db.scalar(select(func.coalesce(func.sum(TranslationActivity.word_count), 0)).where(TranslationActivity.user_id == user.id))
+        or 0
+    )
+    hours_saved = int(round((total_words / 600.0)))
+
+    return {
+        "metrics": {
+            "translated_documents": total_docs,
+            "translated_words": total_words,
+            "credits_balance": int(user.credits_balance or 0),
+            "month_delta_pct": month_delta_pct,
+            "hours_saved": hours_saved,
+        },
+        "activity_chart": chart,
+        "recent_activities": recent,
+        "login_history": login_history,
+    }
+
+
+@router.post("/avatar", response_model=OkResponse)
+@limiter.limit("30/minute")
+def update_avatar(
+    request: Request,
+    payload: UpdateAvatarRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> OkResponse:
+    value = (payload.avatar_url or "").strip()
+    if not value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_avatar_url")
+    if len(value) > MAX_AVATAR_URL_LEN:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="avatar_too_large")
+    if not (value.startswith("data:image/") or value.startswith("http://") or value.startswith("https://")):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_avatar_url")
+    user.avatar_url = value
+    db.commit()
+    return OkResponse(ok=True)
 
 
 @router.post("/captcha/slide-issue", response_model=SlideCaptchaIssueResponse)
@@ -696,6 +975,11 @@ def reset_password(request: Request, payload: ResetPasswordRequest, db: Session 
         .values(revoked_at=now_utc())
     )
     db.commit()
+    if user.notify_email:
+        try:
+            send_security_alert_email(to_email=user.email, event="密码已重置")
+        except Exception:
+            logger.warning("send_security_alert_email_failed user=%s event=reset_password", user.id, exc_info=True)
     return OkResponse(ok=True)
 
 
@@ -717,4 +1001,98 @@ def change_password(
         .values(revoked_at=now_utc())
     )
     db.commit()
+    if user.notify_email:
+        try:
+            send_security_alert_email(to_email=user.email, event="密码已修改")
+        except Exception:
+            logger.warning("send_security_alert_email_failed user=%s event=change_password", user.id, exc_info=True)
+    return OkResponse(ok=True)
+
+
+@router.get("/export-data")
+@limiter.limit("10/minute")
+def export_data(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    activities = db.execute(
+        select(
+            TranslationActivity.title,
+            TranslationActivity.document_count,
+            TranslationActivity.word_count,
+            TranslationActivity.created_at,
+        )
+        .where(TranslationActivity.user_id == user.id)
+        .order_by(TranslationActivity.created_at.desc())
+        .limit(200)
+    ).all()
+    login_rows = db.execute(
+        select(RefreshToken.created_at, RefreshToken.user_agent, RefreshToken.ip, RefreshToken.revoked_at)
+        .where(RefreshToken.user_id == user.id)
+        .order_by(RefreshToken.created_at.desc())
+        .limit(100)
+    ).all()
+    return {
+        "profile": {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "avatar_url": user.avatar_url,
+            "is_email_verified": bool(user.is_email_verified),
+            "is_oauth_verified": bool(user.is_oauth_verified),
+            "created_at": user.created_at.isoformat(),
+            "updated_at": user.updated_at.isoformat(),
+        },
+        "notification_preferences": {
+            "notify_email": bool(user.notify_email),
+            "notify_browser": bool(user.notify_browser),
+            "notify_marketing": bool(user.notify_marketing),
+        },
+        "stats": {
+            "translated_documents": int(user.translated_documents or 0),
+            "translated_words": int(user.translated_words or 0),
+            "credits_balance": int(user.credits_balance or 0),
+        },
+        "recent_translation_activities": [
+            {
+                "title": title,
+                "document_count": int(document_count or 0),
+                "word_count": int(word_count or 0),
+                "time": created_at.isoformat(),
+            }
+            for title, document_count, word_count, created_at in activities
+        ],
+        "login_history": [
+            {
+                "time": created_at.isoformat(),
+                "device": _ua_to_device_label(ua),
+                "ip": ip or "-",
+                "status": "online" if revoked_at is None else "expired",
+            }
+            for created_at, ua, ip, revoked_at in login_rows
+        ],
+        "exported_at": now_utc().isoformat(),
+    }
+
+
+@router.delete("/account", response_model=OkResponse)
+@limiter.limit("5/minute")
+def delete_account(
+    request: Request,
+    payload: DeleteAccountRequest,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> OkResponse:
+    if (payload.confirm_text or "").strip().upper() != "DELETE":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_confirm_text")
+    if not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_current_password")
+
+    db.execute(delete(RefreshToken).where(RefreshToken.user_id == user.id))
+    db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id))
+    db.execute(delete(EmailVerificationToken).where(EmailVerificationToken.user_id == user.id))
+    db.execute(delete(TranslationActivity).where(TranslationActivity.user_id == user.id))
+    db.execute(delete(User).where(User.id == user.id))
+    db.commit()
+
+    settings = get_settings()
+    response.delete_cookie(key=settings.REFRESH_COOKIE_NAME, path=settings.REFRESH_COOKIE_PATH)
     return OkResponse(ok=True)

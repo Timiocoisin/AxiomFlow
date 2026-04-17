@@ -101,6 +101,11 @@ export async function changePassword(params: { current_password: string; new_pas
   return data;
 }
 
+export async function updateAvatar(params: { avatar_url: string }) {
+  const { data } = await api.post<{ ok: boolean; message?: string }>("/auth/avatar", params);
+  return data;
+}
+
 export async function getMe() {
   const { data } = await api.get<{
     id: string;
@@ -109,5 +114,63 @@ export async function getMe() {
     avatar_url?: string | null;
     is_email_verified: boolean;
   }>("/auth/me");
+  return data;
+}
+
+export type ProfileStatsResponse = {
+  metrics: {
+    translated_documents: number;
+    translated_words: number;
+    credits_balance: number;
+    month_delta_pct: number;
+    hours_saved: number;
+  };
+  activity_chart: Array<{ date: string; count: number }>;
+  recent_activities: Array<{ title: string; time: string; status: string; ip: string }>;
+  login_history: Array<{ device: string; ip: string; time: string; status: string }>;
+};
+
+export async function getProfileStats() {
+  const { data } = await api.get<ProfileStatsResponse>("/auth/profile/stats");
+  return data;
+}
+
+export type NotificationPreferencesResponse = {
+  notify_email: boolean;
+  notify_browser: boolean;
+  notify_marketing: boolean;
+  updated_at: string;
+};
+
+export async function getNotificationPreferences() {
+  const { data } = await api.get<NotificationPreferencesResponse>("/auth/notification-preferences");
+  return data;
+}
+
+export async function updateNotificationPreferences(params: {
+  notify_email: boolean;
+  notify_browser: boolean;
+  notify_marketing: boolean;
+}) {
+  const { data } = await api.put<NotificationPreferencesResponse>("/auth/notification-preferences", params);
+  return data;
+}
+
+export async function notifyTranslationCompleted(params: {
+  title: string;
+  document_count: number;
+  word_count: number;
+}) {
+  const { data } = await api.post<{ ok: boolean; message?: string }>("/auth/notify/translation-completed", params);
+  return data;
+}
+
+export async function exportMyData() {
+  const { data } = await api.get("/auth/export-data");
+  return data;
+}
+
+export async function deleteMyAccount(params: { current_password: string; confirm_text: string }) {
+  const { data } = await api.delete<{ ok: boolean; message?: string }>("/auth/account", { data: params });
   return data;
 }

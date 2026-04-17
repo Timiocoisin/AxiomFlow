@@ -112,3 +112,31 @@ class ChangePasswordRequest(BaseModel):
     def validate_new_password(cls, v: str) -> str:
         return _validate_password_rule(v)
 
+
+class UpdateAvatarRequest(BaseModel):
+    avatar_url: str = Field(min_length=1, max_length=2000000)
+
+
+class NotificationPreferencesResponse(BaseModel):
+    notify_email: bool
+    notify_browser: bool
+    notify_marketing: bool
+    updated_at: datetime
+
+
+class UpdateNotificationPreferencesRequest(BaseModel):
+    notify_email: bool
+    notify_browser: bool
+    notify_marketing: bool
+
+
+class TranslationCompletedNotifyRequest(BaseModel):
+    title: str = Field(default="文档翻译", min_length=1, max_length=255)
+    document_count: int = Field(default=1, ge=1, le=100)
+    word_count: int = Field(default=0, ge=0, le=2000000)
+
+
+class DeleteAccountRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    confirm_text: str = Field(min_length=6, max_length=32)
+

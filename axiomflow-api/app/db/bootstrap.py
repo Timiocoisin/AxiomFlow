@@ -82,14 +82,14 @@ def ensure_users_avatar_column() -> None:
         columns = {c.get("name"): c for c in insp.get_columns("users")}
         with engine.begin() as conn:
             if "avatar_url" not in columns:
-                conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url TEXT NULL"))
-                logger.info("Added users.avatar_url column as TEXT")
+                conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url MEDIUMTEXT NULL"))
+                logger.info("Added users.avatar_url column as MEDIUMTEXT")
                 return
-            # Widen existing column for legacy deployments using VARCHAR(1024).
+            # Widen existing column for legacy deployments using VARCHAR/TEXT.
             col_type = str(columns["avatar_url"].get("type") or "").lower()
-            if "text" not in col_type:
-                conn.execute(text("ALTER TABLE users MODIFY COLUMN avatar_url TEXT NULL"))
-                logger.info("Altered users.avatar_url column to TEXT")
+            if "mediumtext" not in col_type:
+                conn.execute(text("ALTER TABLE users MODIFY COLUMN avatar_url MEDIUMTEXT NULL"))
+                logger.info("Altered users.avatar_url column to MEDIUMTEXT")
     except Exception:
         logger.warning("Could not ensure users.avatar_url column/type", exc_info=True)
 
@@ -112,6 +112,52 @@ def ensure_users_oauth_verified_column() -> None:
         logger.warning("Could not ensure users.is_oauth_verified column", exc_info=True)
 
 
+def ensure_users_usage_columns() -> None:
+    """
+    Best-effort migration: add usage/stat columns on users if missing.
+    """
+    try:
+        insp = inspect(engine)
+        if not insp.has_table("users"):
+            return
+        cols = {c.get("name") for c in insp.get_columns("users")}
+        with engine.begin() as conn:
+            if "translated_documents" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN translated_documents INT NOT NULL DEFAULT 0"))
+                logger.info("Added users.translated_documents column")
+            if "translated_words" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN translated_words INT NOT NULL DEFAULT 0"))
+                logger.info("Added users.translated_words column")
+            if "credits_balance" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN credits_balance INT NOT NULL DEFAULT 0"))
+                logger.info("Added users.credits_balance column")
+    except Exception:
+        logger.warning("Could not ensure users usage columns", exc_info=True)
+
+
+def ensure_users_notification_columns() -> None:
+    """
+    Best-effort migration: add notification preference columns on users if missing.
+    """
+    try:
+        insp = inspect(engine)
+        if not insp.has_table("users"):
+            return
+        cols = {c.get("name") for c in insp.get_columns("users")}
+        with engine.begin() as conn:
+            if "notify_email" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN notify_email TINYINT(1) NOT NULL DEFAULT 1"))
+                logger.info("Added users.notify_email column")
+            if "notify_browser" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN notify_browser TINYINT(1) NOT NULL DEFAULT 0"))
+                logger.info("Added users.notify_browser column")
+            if "notify_marketing" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN notify_marketing TINYINT(1) NOT NULL DEFAULT 0"))
+                logger.info("Added users.notify_marketing column")
+    except Exception:
+        logger.warning("Could not ensure users notification columns", exc_info=True)
+
+
 def ensure_database_ready() -> None:
     try:
         ensure_database_exists()
@@ -128,4 +174,6 @@ def ensure_database_ready() -> None:
     ensure_username_unique_index()
     ensure_users_avatar_column()
     ensure_users_oauth_verified_column()
+    ensure_users_usage_columns()
+    ensure_users_notification_columns()
 

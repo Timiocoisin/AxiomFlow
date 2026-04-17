@@ -186,3 +186,82 @@ def send_password_reset_email(*, to_email: str, token: str) -> None:
 """.strip()
     send_email(to_email=to_email, subject=subject, text=text, html=html)
 
+
+def send_security_alert_email(*, to_email: str, event: str) -> None:
+    subject = "Axiomflow 安全提醒"
+    text = (
+        "Axiomflow 安全提醒\n\n"
+        f"检测到你的账户发生安全相关操作：{event}\n"
+        "如果这不是你本人操作，请尽快修改密码并检查账户安全。"
+    )
+    html = f"""\
+<!doctype html>
+<html lang="zh-CN">
+  <body style="margin:0;padding:0;background:#f3f6fb;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f3f6fb;padding:28px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="640" style="width:640px;max-width:640px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e9eef7;">
+            <tr>
+              <td style="padding:24px 32px;background:linear-gradient(120deg,#b91c1c,#ef4444);color:#fff;">
+                <div style="font-size:12px;letter-spacing:.08em;font-weight:700;">AXIOMFLOW</div>
+                <div style="margin-top:8px;font-size:22px;font-weight:700;">安全提醒</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 32px;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;color:#0f172a;">
+                <p style="margin:0 0 12px;font-size:15px;line-height:1.8;">检测到你的账户发生安全相关操作：</p>
+                <p style="margin:0 0 14px;font-size:16px;line-height:1.8;font-weight:700;color:#b91c1c;">{event}</p>
+                <p style="margin:0;font-size:13px;color:#64748b;line-height:1.8;">如果这不是你本人操作，请尽快修改密码并检查账户安全设置。</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+""".strip()
+    send_email(to_email=to_email, subject=subject, text=text, html=html)
+
+
+def send_translation_completed_email(*, to_email: str, title: str, document_count: int, word_count: int) -> None:
+    subject = "Axiomflow 翻译完成通知"
+    text = (
+        "Axiomflow 翻译完成通知\n\n"
+        f"任务：{title}\n"
+        f"文档数：{document_count}\n"
+        f"字数：{word_count}\n\n"
+        "你可以登录 Axiomflow 查看翻译结果。"
+    )
+    html = f"""\
+<!doctype html>
+<html lang="zh-CN">
+  <body style="margin:0;padding:0;background:#f3f6fb;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f3f6fb;padding:28px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="640" style="width:640px;max-width:640px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e9eef7;">
+            <tr>
+              <td style="padding:24px 32px;background:linear-gradient(120deg,#4f46e5,#7c3aed);color:#fff;">
+                <div style="font-size:12px;letter-spacing:.08em;font-weight:700;">AXIOMFLOW</div>
+                <div style="margin-top:8px;font-size:22px;font-weight:700;">翻译任务已完成</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 32px;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;color:#0f172a;">
+                <p style="margin:0 0 8px;font-size:15px;line-height:1.8;">任务：{title}</p>
+                <p style="margin:0 0 8px;font-size:15px;line-height:1.8;">文档数：{document_count}</p>
+                <p style="margin:0 0 12px;font-size:15px;line-height:1.8;">字数：{word_count}</p>
+                <p style="margin:0;font-size:13px;color:#64748b;line-height:1.8;">你可以登录 Axiomflow 查看翻译结果。</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+""".strip()
+    send_email(to_email=to_email, subject=subject, text=text, html=html)
+

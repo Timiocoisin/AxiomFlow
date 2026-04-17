@@ -142,7 +142,13 @@
         <!-- 上传入口 -->
           <div class="relative group">
           <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
-          <div class="upload-breath upload-surface relative border-2 border-dashed p-10 lg:p-16 rounded-3xl text-center cursor-pointer hover:border-indigo-500 transition-all" id="drop-zone" @click="openModal">
+          <div
+            class="upload-breath upload-surface relative border-2 border-dashed p-10 lg:p-16 rounded-3xl text-center cursor-pointer hover:border-indigo-500 transition-all"
+            id="drop-zone"
+            @click="openModal"
+            @dragover.prevent
+            @drop.prevent="handleUploadDrop"
+          >
             <div class="mb-6 inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 transition-transform group-hover:scale-110">
               <Icon class="text-4xl" icon="ph:cloud-arrow-up-bold" />
             </div>
@@ -220,7 +226,13 @@
     @new-translation="page = 'home'"
     @open-preview="page = 'preview'"
   />
-  <ProfilePage v-else-if="page === 'profile'" :avatar-url="avatarUrl" @password-changed="onPasswordChanged" />
+  <ProfilePage
+    v-else-if="page === 'profile'"
+    :avatar-url="avatarUrl"
+    @password-changed="onPasswordChanged"
+    @avatar-updated="onAvatarUpdated"
+    @account-deleted="onAccountDeleted"
+  />
   <SettingsPage
     v-else-if="page === 'settings'"
     :service-time="serviceTime"
@@ -444,7 +456,21 @@ function toggleTheme() {
 }
 
 function openModal() {
+  if (!isLoggedIn.value) {
+    page.value = "auth";
+    showToast("请先登录后再上传文件");
+    return;
+  }
   showPreview.value = true;
+}
+
+function handleUploadDrop(_e: DragEvent) {
+  if (!isLoggedIn.value) {
+    page.value = "auth";
+    showToast("请先登录后再上传文件");
+    return;
+  }
+  openModal();
 }
 
 function closeModal() {
@@ -497,10 +523,37 @@ async function completeOauthLoginFromCookie() {
   }
 }
 
-function startTranslation() {
+function tryShowBrowserNotification(title: string, body: string) {
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  try {
+    // Browser-level notification for users who enabled push preference.
+    // eslint-disable-next-line no-new
+    new Notification(title, { body, icon: "/icons/favicon.svg" });
+  } catch {
+    // ignore
+  }
+}
+
+async function startTranslation() {
   showToast("正在初始化翻译引擎...");
-  window.setTimeout(() => {
+  window.setTimeout(async () => {
     showToast("正在上传并分析文档...");
+    if (isLoggedIn.value) {
+      try {
+        await authApi.notifyTranslationCompleted({
+          title: "企业年度报告.pdf",
+          document_count: 1,
+          word_count: 1200,
+        });
+        const pref = await authApi.getNotificationPreferences();
+        if (pref.notify_browser) {
+          tryShowBrowserNotification("翻译完成", "企业年度报告.pdf 已完成翻译");
+        }
+      } catch {
+        // no-op for mock flow
+      }
+    }
     closeModal();
   }, 800);
 }
@@ -538,6 +591,7 @@ function handleAuthed(payload: { accessToken: string; accessExpiresAt?: string }
     sessionStorage.setItem("axiomflow:accessExpiresAt", payload.accessExpiresAt);
     scheduleAccessTokenRefresh(payload.accessExpiresAt);
   }
+  void syncAvatarFromApi();
   page.value = "home";
   showToast("登录成功");
 }
@@ -550,6 +604,7 @@ function handleVerified(payload: { accessToken: string; accessExpiresAt?: string
     sessionStorage.setItem("axiomflow:accessExpiresAt", payload.accessExpiresAt);
     scheduleAccessTokenRefresh(payload.accessExpiresAt);
   }
+  void syncAvatarFromApi();
   page.value = "home";
   showToast("邮箱验证成功");
   window.location.hash = "#/";
@@ -557,6 +612,32 @@ function handleVerified(payload: { accessToken: string; accessExpiresAt?: string
 
 function onPasswordChanged() {
   showToast("密码已更新");
+}
+
+function onAvatarUpdated(nextAvatar: string) {
+  const normalized = normalizeAvatarUrl(nextAvatar);
+  avatarUrl.value = normalized;
+  if (normalized !== DEFAULT_AVATAR_URL) {
+    sessionStorage.setItem("axiomflow:avatarUrl", normalized);
+  } else {
+    sessionStorage.removeItem("axiomflow:avatarUrl");
+  }
+  showToast("头像已更新");
+}
+
+function onAccountDeleted() {
+  if (accessRefreshTimer) {
+    window.clearTimeout(accessRefreshTimer);
+    accessRefreshTimer = null;
+  }
+  isLoggedIn.value = false;
+  accessToken.value = "";
+  avatarUrl.value = DEFAULT_AVATAR_URL;
+  sessionStorage.removeItem("axiomflow:accessToken");
+  sessionStorage.removeItem("axiomflow:accessExpiresAt");
+  sessionStorage.removeItem("axiomflow:avatarUrl");
+  page.value = "auth";
+  showToast("账户已注销");
 }
 
 function normalizeAvatarUrl(raw: string | null | undefined): string {

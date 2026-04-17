@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import Boolean, DateTime, String, Text
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -30,6 +30,24 @@ class User(Base, UuidPrimaryKeyMixin, TimestampMixin):
     )
     is_oauth_verified: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, comment="是否已通过第三方 OAuth 完成身份验证"
+    )
+    translated_documents: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0", comment="累计翻译文档数"
+    )
+    translated_words: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0", comment="累计翻译字数"
+    )
+    credits_balance: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0", comment="积分余额"
+    )
+    notify_email: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="1", comment="是否接收邮件通知"
+    )
+    notify_browser: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0", comment="是否接收浏览器推送"
+    )
+    notify_marketing: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0", comment="是否接收营销通知"
     )
     last_login_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="最近登录时间"
