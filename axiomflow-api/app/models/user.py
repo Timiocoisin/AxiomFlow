@@ -18,7 +18,7 @@ class User(Base, UuidPrimaryKeyMixin, TimestampMixin):
         String(255), nullable=False, unique=True, index=True, comment="用户邮箱（登录账号）"
     )
     username: Mapped[Optional[str]] = mapped_column(
-        String(64), nullable=True, index=True, comment="用户名（展示名）"
+        String(64), nullable=True, unique=True, index=True, comment="用户名（展示名，唯一）"
     )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False, comment="密码哈希")
 

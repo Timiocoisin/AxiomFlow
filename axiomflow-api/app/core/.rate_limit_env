@@ -1,0 +1,1 @@
+# UTF-8 placeholder so slowapi does not read the project .env with a legacy encoding on Windows.

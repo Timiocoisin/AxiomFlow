@@ -173,26 +173,43 @@
 
               <div
                 v-if="captchaOpen"
-                class="captcha-popover absolute left-0 right-0 bottom-full mb-3 rounded-2xl border overflow-hidden"
+                class="captcha-popover absolute left-0 right-0 bottom-full mb-3 rounded-2xl border overflow-hidden min-w-[320px] max-w-[min(100vw-2rem,28rem)]"
               >
                 <div class="captcha-popover-arrow"></div>
                 <div class="p-4 space-y-3">
                   <div class="flex items-center justify-between">
                     <div class="text-sm font-semibold text-slate-100 dark:text-slate-100">滑动拼图验证</div>
-                    <button class="text-xs text-indigo-300 hover:text-indigo-200" type="button" @click="transitionToNewPuzzle()">
+                    <button
+                      class="text-xs text-indigo-300 hover:text-indigo-200 disabled:opacity-50"
+                      type="button"
+                      :disabled="captchaLoading"
+                      @click="transitionToNewPuzzle()"
+                    >
                       刷新
                     </button>
                   </div>
 
                   <div
+                    v-if="captchaLoading"
+                    class="rounded-xl border bg-slate-900/60 border-slate-700/60 animate-pulse"
+                    :style="{ width: `${sceneWidth}px`, height: `${sceneHeight}px`, maxWidth: '100%' }"
+                  >
+                    <div class="h-full w-full flex items-center justify-center text-xs text-slate-300">验证码加载中...</div>
+                  </div>
+
+                  <div
+                    v-else
                     ref="puzzleAreaRef"
-                    class="captcha-scene relative h-40 rounded-xl border overflow-hidden select-none"
+                    class="captcha-scene relative rounded-xl border overflow-hidden select-none"
                     :class="{
                       'captcha-scene--out': captchaScenePhase === 'out',
                       'captcha-scene--in': captchaScenePhase === 'in',
                       'captcha-scene--fail': captchaFailAnimating,
                     }"
                     :style="{
+                      width: `${sceneWidth}px`,
+                      height: `${sceneHeight}px`,
+                      maxWidth: '100%',
                       backgroundImage: `url(${captchaImage})`,
                       backgroundSize: `${bgRenderWidth}px ${bgRenderHeight}px`,
                       backgroundPosition: `${bgOffsetX}px ${bgOffsetY}px`,
@@ -220,9 +237,9 @@
                         top: `${targetY}px`,
                         width: `${pieceSize}px`,
                         height: `${pieceSize}px`,
-                        backgroundImage: `url(${captchaImage})`,
-                        backgroundSize: `${bgRenderWidth}px ${bgRenderHeight}px`,
-                        backgroundPosition: `${bgOffsetX - targetX}px ${bgOffsetY - targetY}px`,
+                        backgroundImage: `url(${captchaPieceImage})`,
+                        backgroundSize: `${pieceSize}px ${pieceSize}px`,
+                        backgroundPosition: 'center',
                         backgroundRepeat: 'no-repeat',
                         clipPath: shapeClipPath,
                         opacity: pieceVisible ? 1 : 0,
@@ -334,7 +351,7 @@
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">图形验证码</label>
+            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">算术验证码（服务端校验）</label>
             <div class="flex gap-4">
               <div class="relative flex-grow">
                 <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
@@ -342,8 +359,8 @@
                 </span>
                 <input v-model.trim="forgotCaptchaInput" class="w-full rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all border border-slate-200 bg-white/90 text-slate-900 placeholder:text-slate-400 dark:border-slate-800 dark:bg-slate-900/50 dark:text-white dark:placeholder:text-slate-500" placeholder="结果" type="text" />
               </div>
-              <button class="w-36 h-12 rounded-xl px-2 flex items-center justify-between font-mono text-[1.05rem] leading-none select-none transition-all border border-indigo-200/90 bg-white text-indigo-700 hover:border-indigo-400/90 hover:shadow-sm hover:shadow-indigo-500/12 dark:border-slate-700 dark:bg-slate-900 dark:text-indigo-300 dark:hover:border-indigo-500/50 overflow-hidden" type="button" @click="refreshForgotCaptcha">
-                <span class="flex-1 min-w-0 text-center whitespace-nowrap tracking-[0.06em]">{{ forgotCaptchaText }}</span>
+              <button class="w-36 h-12 rounded-xl px-2 flex items-center justify-between font-mono text-[1.05rem] leading-none select-none transition-all border border-indigo-200/90 bg-white text-indigo-700 hover:border-indigo-400/90 hover:shadow-sm hover:shadow-indigo-500/12 dark:border-slate-700 dark:bg-slate-900 dark:text-indigo-300 dark:hover:border-indigo-500/50 overflow-hidden" type="button" @click="loadForgotMathCaptcha">
+                <span class="flex-1 min-w-0 text-center whitespace-nowrap tracking-[0.06em]">{{ forgotMathCaptchaId ? forgotCaptchaText : "加载中…" }}</span>
                 <span class="ml-1 shrink-0 w-7 h-7 rounded-lg inline-flex items-center justify-center border border-indigo-200/80 bg-indigo-50 text-indigo-600 dark:border-slate-600 dark:bg-slate-800 dark:text-indigo-300">
                   <Icon class="text-sm" icon="ph:arrows-clockwise-bold" />
                 </span>
@@ -378,10 +395,11 @@
           <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2" type="button" @click="toForgotStep3">
             <span>验证并继续</span>
           </button>
-          <div class="text-center">
+          <div class="text-center space-y-1">
             <button class="text-xs text-slate-500 hover:text-indigo-400 transition-colors disabled:opacity-50" :disabled="forgotResendLeft > 0" type="button" @click="restartForgotResend">
               {{ forgotResendLeft > 0 ? `重新发送验证码 (${forgotResendLeft}s)` : "重新发送验证码" }}
             </button>
+            <p class="text-[11px] text-slate-400">重新发送将返回上一步，需重新完成算术验证</p>
           </div>
           <p v-if="forgotError" class="text-xs text-rose-400">{{ forgotError }}</p>
         </div>
@@ -446,12 +464,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
-import axios from "axios";
 import * as authApi from "./api/auth";
 
 const emit = defineEmits<{
   (e: "back"): void;
-  (e: "authed", payload: { accessToken: string }): void;
+  (e: "authed", payload: { accessToken: string; accessExpiresAt?: string }): void;
   (e: "verify-email", payload: { email: string }): void;
   (e: "toggle-theme"): void;
 }>();
@@ -472,8 +489,9 @@ const forgotOpen = ref(false);
 const forgotStep = ref<1 | 2 | 3>(1);
 const forgotEmail = ref("");
 const forgotCaptchaInput = ref("");
-const forgotCaptchaA = ref(7);
-const forgotCaptchaB = ref(5);
+const forgotMathLeft = ref(0);
+const forgotMathRight = ref(0);
+const forgotMathCaptchaId = ref("");
 const forgotOtpDigits = ref(["", "", "", "", "", ""]);
 const forgotResetToken = ref("");
 const forgotResendLeft = ref(59);
@@ -484,8 +502,12 @@ const showForgotConfirmPassword = ref(false);
 const forgotError = ref("");
 let forgotTimer: number | null = null;
 
+const serverCaptchaId = ref("");
+const committedPieceFinalX = ref(0);
+
 const captchaWrapRef = ref<HTMLElement | null>(null);
 const captchaOpen = ref(false);
+const captchaLoading = ref(false);
 const captchaScenePhase = ref<"idle" | "out" | "in">("idle");
 const captchaFailAnimating = ref(false);
 let captchaTransitionTimer: number | null = null;
@@ -508,60 +530,15 @@ const isDragging = ref(false);
 const dragStartX = ref(0);
 const dragStartSliderX = ref(0);
 const captchaImage = ref("");
-const CAPTCHA_WALLPAPER_API = "https://v2.xxapi.cn/api/wallpaper?return=302";
+const captchaPieceImage = ref("");
 const imageNaturalWidth = ref(900);
 const imageNaturalHeight = ref(450);
-const captchaPreloadStarted = ref(false);
-const captchaPreloadPromise = ref<Promise<void> | null>(null);
 
 const pieceX = computed(() => pieceStartX + sliderX.value);
 const pieceVisible = ref(true);
 
-const SHAPE_POOL = [
-  "circle(50% at 50% 50%)",
-  "polygon(50% 0%, 0% 100%, 100% 100%)",
-  "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
-];
+const SHAPE_POOL = ["circle(50% at 50% 50%)"];
 const shapeClipPath = ref(SHAPE_POOL[0]);
-const lastShapeIndex = ref(0);
-
-function pickRandomShapeIndex(): number {
-  if (SHAPE_POOL.length <= 1) return 0;
-  let idx = Math.floor(Math.random() * SHAPE_POOL.length);
-  if (idx === lastShapeIndex.value) {
-    idx = (idx + 1 + Math.floor(Math.random() * (SHAPE_POOL.length - 1))) % SHAPE_POOL.length;
-  }
-  return idx;
-}
-
-async function fetchCaptchaImageFromApi(): Promise<string | null> {
-  try {
-    await axios.get(CAPTCHA_WALLPAPER_API, {
-      timeout: 8000,
-      validateStatus: (status) => status >= 200 && status < 400,
-    });
-    return `${CAPTCHA_WALLPAPER_API}&_t=${Date.now()}`;
-  } catch {
-    return null;
-  }
-}
-
-async function refreshCaptchaImageFromApi() {
-  const apiImage = await fetchCaptchaImageFromApi();
-  if (apiImage) {
-    captchaImage.value = apiImage;
-    void syncBackgroundMetrics();
-    return;
-  }
-  // 接口失败时保留当前图
-}
-
-function ensureCaptchaPreloaded() {
-  if (captchaPreloadStarted.value) return captchaPreloadPromise.value;
-  captchaPreloadStarted.value = true;
-  captchaPreloadPromise.value = refreshCaptchaImageFromApi().then(() => {});
-  return captchaPreloadPromise.value;
-}
 
 async function loadImageNaturalSize(url: string): Promise<{ width: number; height: number } | null> {
   return new Promise((resolve) => {
@@ -603,13 +580,120 @@ async function syncBackgroundMetrics() {
   applyContainMetrics();
 }
 
-function toggleCaptchaPopover() {
-  captchaOpen.value = !captchaOpen.value;
+function detectHoleTopLeftFromPngDataUrl(dataUrl: string, sw: number, sh: number): Promise<{ x: number; y: number } | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = sw;
+        c.height = sh;
+        const ctx = c.getContext("2d");
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, sw, sh);
+        const data = ctx.getImageData(0, 0, sw, sh).data;
+        let minX = sw;
+        let minY = sh;
+        let maxX = 0;
+        let maxY = 0;
+        let found = false;
+        const alphaThresh = 48;
+        for (let y = 0; y < sh; y++) {
+          for (let x = 0; x < sw; x++) {
+            const a = data[(y * sw + x) * 4 + 3];
+            if (a < alphaThresh) {
+              found = true;
+              minX = Math.min(minX, x);
+              minY = Math.min(minY, y);
+              maxX = Math.max(maxX, x);
+              maxY = Math.max(maxY, y);
+            }
+          }
+        }
+        if (!found || maxX < minX) {
+          resolve(null);
+          return;
+        }
+        resolve({ x: minX, y: minY });
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+async function loadSlideChallengeAndReset(opts?: { keepError?: boolean }) {
+  captchaLoading.value = true;
+  await nextTick();
+  const sceneRect = puzzleAreaRef.value?.getBoundingClientRect();
+  const reqW = Math.round(sceneRect?.width || puzzleAreaRef.value?.clientWidth || sceneWidth.value || 320);
+  const reqH = Math.round(sceneRect?.height || puzzleAreaRef.value?.clientHeight || sceneHeight.value || 160);
+
+  let ch: Awaited<ReturnType<typeof authApi.issueSlideCaptcha>>;
+  try {
+    ch = await authApi.issueSlideCaptcha(reqW, reqH);
+  } catch {
+    captchaError.value = "验证码加载失败，请稍后重试";
+    captchaLoading.value = false;
+    return;
+  }
+
+  const w = ch.scene_width;
+  const h = ch.scene_height;
+  sceneWidth.value = w;
+  sceneHeight.value = h;
+  captchaImage.value = `data:image/png;base64,${ch.image_base64}`;
+  captchaPieceImage.value = `data:image/png;base64,${ch.piece_image_base64}`;
+
+  await syncBackgroundMetrics();
+  applyContainMetrics();
+  maxSlide.value = Math.max(120, w - pieceSize - pieceStartX - 8);
+
+  const hole = await detectHoleTopLeftFromPngDataUrl(captchaImage.value, w, h);
+  if (!hole) {
+    captchaError.value = "无法解析验证码图片，请点击刷新重试";
+    captchaLoading.value = false;
+    return;
+  }
+
+  serverCaptchaId.value = ch.captcha_id;
+  // 服务端 PNG 为圆形缺口，遮罩与滑块必须与圆形一致（不能与随机多边形混用）
+  shapeClipPath.value = SHAPE_POOL[0];
+  targetX.value = hole.x;
+  targetY.value = hole.y;
+  sliderX.value = 0;
+  puzzleVerified.value = false;
+  committedPieceFinalX.value = 0;
+  if (!opts?.keepError) captchaError.value = "";
+
+  pieceVisible.value = true;
+  captchaLoading.value = false;
+}
+
+function invalidateClientCaptcha() {
+  puzzleVerified.value = false;
+  committedPieceFinalX.value = 0;
+  serverCaptchaId.value = "";
+  captchaImage.value = "";
+  captchaPieceImage.value = "";
+  captchaLoading.value = false;
+}
+
+async function toggleCaptchaPopover() {
   if (captchaOpen.value) {
-    // 等弹层真实渲染后再取尺寸，避免拿到默认宽度导致右侧留白
-    void nextTick(() => {
-      resetPuzzle({ keepImage: true });
-    });
+    captchaOpen.value = false;
+    return;
+  }
+  captchaOpen.value = true;
+  // Prefer preloaded challenge/image to avoid waiting on click.
+  if (!serverCaptchaId.value || !captchaImage.value) {
+    await nextTick();
+    await loadSlideChallengeAndReset();
   }
 }
 
@@ -629,13 +713,14 @@ function transitionToNewPuzzle(opts?: { message?: string; asFail?: boolean }) {
 
   // 等淡出结束后再真正换“图+形状”，避免瞬间跳变
   captchaTransitionTimer = window.setTimeout(() => {
-    resetPuzzle({ keepError: true });
-    captchaScenePhase.value = "in";
-    captchaTransitionTimer = window.setTimeout(() => {
-      captchaScenePhase.value = "idle";
-      captchaFailAnimating.value = false;
-      captchaTransitionTimer = null;
-    }, 200);
+    void loadSlideChallengeAndReset({ keepError: true }).then(() => {
+      captchaScenePhase.value = "in";
+      captchaTransitionTimer = window.setTimeout(() => {
+        captchaScenePhase.value = "idle";
+        captchaFailAnimating.value = false;
+        captchaTransitionTimer = null;
+      }, 200);
+    });
   }, 220);
 }
 
@@ -648,12 +733,19 @@ function onClickOutside(e: MouseEvent) {
   }
 }
 
-const forgotCaptchaText = computed(() => `${forgotCaptchaA.value} + ${forgotCaptchaB.value} = ?`);
+const forgotCaptchaText = computed(() => `${forgotMathLeft.value} + ${forgotMathRight.value} = ?`);
 
-function refreshForgotCaptcha() {
-  forgotCaptchaA.value = Math.floor(2 + Math.random() * 8);
-  forgotCaptchaB.value = Math.floor(2 + Math.random() * 8);
-  forgotCaptchaInput.value = "";
+async function loadForgotMathCaptcha() {
+  forgotError.value = "";
+  try {
+    const m = await authApi.issueMathCaptcha();
+    forgotMathCaptchaId.value = m.captcha_id;
+    forgotMathLeft.value = m.left;
+    forgotMathRight.value = m.right;
+    forgotCaptchaInput.value = "";
+  } catch {
+    forgotError.value = "算术验证码加载失败，请稍后重试";
+  }
 }
 
 function resetForgotFlow() {
@@ -670,7 +762,7 @@ function resetForgotFlow() {
     window.clearInterval(forgotTimer);
     forgotTimer = null;
   }
-  refreshForgotCaptcha();
+  void loadForgotMathCaptcha();
 }
 
 function openForgotModal() {
@@ -684,9 +776,10 @@ function closeForgotModal() {
 
 function restartForgotResend() {
   forgotResendLeft.value = 59;
-  if (forgotEmail.value) {
-    authApi.requestPasswordReset({ email: forgotEmail.value }).catch(() => {});
-  }
+  forgotStep.value = 1;
+  forgotCaptchaInput.value = "";
+  forgotError.value = "";
+  void loadForgotMathCaptcha();
 }
 
 function runForgotResendTimer() {
@@ -708,19 +801,33 @@ function toForgotStep2() {
     return;
   }
   const answer = Number(forgotCaptchaInput.value);
-  if (!Number.isFinite(answer) || answer !== forgotCaptchaA.value + forgotCaptchaB.value) {
-    forgotError.value = "图形验证码错误";
+  if (!Number.isFinite(answer)) {
+    forgotError.value = "请输入算术结果";
     return;
   }
-  // 真实后端：发送重置邮件（返回 ok 不代表邮箱一定存在）
+  if (!forgotMathCaptchaId.value) {
+    forgotError.value = "验证码已过期，请刷新";
+    void loadForgotMathCaptcha();
+    return;
+  }
   authApi
-    .requestPasswordReset({ email: forgotEmail.value })
+    .requestPasswordReset({
+      email: forgotEmail.value,
+      captcha_id: forgotMathCaptchaId.value,
+      captcha_answer: Math.trunc(answer),
+    })
     .then(() => {
       forgotStep.value = 2;
       forgotResendLeft.value = 59;
       runForgotResendTimer();
     })
-    .catch(() => {
+    .catch((err) => {
+      const detail = err?.response?.data?.detail;
+      if (detail === "invalid_math_captcha") {
+        forgotError.value = "算术验证错误，请重新计算";
+        void loadForgotMathCaptcha();
+        return;
+      }
       forgotError.value = "发送失败，请稍后重试";
     });
 }
@@ -759,7 +866,7 @@ function finishReset() {
     });
 }
 
-function resetPuzzle(opts?: { keepError?: boolean; keepImage?: boolean }) {
+function resetPuzzle(opts?: { keepError?: boolean }) {
   const sceneRect = puzzleAreaRef.value?.getBoundingClientRect();
   const width = Math.round(sceneRect?.width || puzzleAreaRef.value?.clientWidth || sceneWidth.value || 300);
   const height = Math.round(sceneRect?.height || puzzleAreaRef.value?.clientHeight || sceneHeight.value || 160);
@@ -767,22 +874,10 @@ function resetPuzzle(opts?: { keepError?: boolean; keepImage?: boolean }) {
   sceneHeight.value = height;
   applyContainMetrics();
   maxSlide.value = Math.max(120, width - pieceSize - pieceStartX - 8);
-  const min = 96;
-  const max = Math.max(min + 24, width - pieceSize - 20);
-  targetX.value = Math.round(min + Math.random() * (max - min));
-  targetY.value = Math.round(16 + Math.random() * Math.max(16, height - pieceSize - 26));
   sliderX.value = 0;
   puzzleVerified.value = false;
   if (!opts?.keepError) captchaError.value = "";
-  if (!opts?.keepImage) {
-    void refreshCaptchaImageFromApi();
-  } else if (!captchaImage.value) {
-    // 兜底：如果还没预加载到图片，打开时仍需要拉取一次
-    void refreshCaptchaImageFromApi();
-  }
-  const shapeIdx = pickRandomShapeIndex();
-  lastShapeIndex.value = shapeIdx;
-  shapeClipPath.value = SHAPE_POOL[shapeIdx];
+  shapeClipPath.value = SHAPE_POOL[0];
   pieceVisible.value = true;
 }
 
@@ -809,8 +904,9 @@ function onSliderUp() {
   window.removeEventListener("pointermove", onSliderMove);
   window.removeEventListener("pointerup", onSliderUp);
 
-  if (Math.abs(pieceX.value - targetX.value) <= 6) {
+  if (Math.abs(pieceX.value - targetX.value) <= 14) {
     sliderX.value = targetX.value - pieceStartX;
+    committedPieceFinalX.value = targetX.value;
     puzzleVerified.value = true;
     captchaError.value = "";
     window.setTimeout(() => {
@@ -841,7 +937,13 @@ function handleAuth() {
       return;
     }
     authApi
-      .register({ email: email.value, username, password: password.value })
+      .register({
+        email: email.value,
+        username,
+        password: password.value,
+        captcha_id: serverCaptchaId.value,
+        piece_final_x: committedPieceFinalX.value,
+      })
       .then((res) => {
         if (res?.message === "verification_email_send_failed") {
           authError.value = "账号已创建，但验证邮件发送失败，请检查 SMTP 或稍后重试";
@@ -851,12 +953,22 @@ function handleAuth() {
         emit("verify-email", { email: email.value });
       })
       .catch((err) => {
+        invalidateClientCaptcha();
+        const detail = err?.response?.data?.detail;
         if (err?.response?.status === 422) {
           authError.value = "密码至少 8 位，且必须包含至少 1 个英文和 1 个数字";
           return;
         }
+        if (err?.response?.status === 400 && detail === "invalid_slide_captcha") {
+          authError.value = "滑动验证已失效，请重新完成验证";
+          return;
+        }
+        if (err?.response?.status === 409 && detail === "username_taken") {
+          authError.value = "该用户名已被占用，请换一个";
+          return;
+        }
         if (err?.response?.status === 409) {
-          authError.value = "账号已存在，请直接登录或找回密码";
+          authError.value = "该邮箱已注册，请直接登录或找回密码";
           return;
         }
         authError.value = "注册失败，请稍后重试";
@@ -868,11 +980,27 @@ function handleAuth() {
   }
 
   authApi
-    .login({ email: email.value, password: password.value })
+    .login({
+      email: email.value,
+      password: password.value,
+      captcha_id: serverCaptchaId.value,
+      piece_final_x: committedPieceFinalX.value,
+    })
     .then((res) => {
-      emit("authed", { accessToken: res.access_token });
+      emit("authed", { accessToken: res.access_token, accessExpiresAt: res.access_expires_at });
     })
     .catch((err) => {
+      invalidateClientCaptcha();
+      const detail = err?.response?.data?.detail;
+      if (err?.response?.status === 403 && detail === "email_not_verified") {
+        authError.value = "请先完成邮箱验证后再登录";
+        emit("verify-email", { email: email.value });
+        return;
+      }
+      if (err?.response?.status === 400 && detail === "invalid_slide_captcha") {
+        authError.value = "滑动验证已失效，请重新完成验证";
+        return;
+      }
       if (err?.response?.status === 401) {
         authError.value = "账号或密码错误";
         return;
@@ -885,11 +1013,17 @@ function handleAuth() {
 }
 
 onMounted(() => {
-  // 预加载验证码图片：避免用户第一次打开弹层时才触发网络请求
-  ensureCaptchaPreloaded();
-  resetPuzzle({ keepImage: true });
+  resetPuzzle();
+  // Preload slide captcha as soon as auth page is mounted.
+  void loadSlideChallengeAndReset({ keepError: true });
 
-  window.addEventListener("resize", () => resetPuzzle({ keepImage: true }));
+  window.addEventListener("resize", () => {
+    if (captchaOpen.value) {
+      void loadSlideChallengeAndReset();
+    } else {
+      resetPuzzle();
+    }
+  });
   document.addEventListener("mousedown", onClickOutside);
 });
 
@@ -903,7 +1037,10 @@ onBeforeUnmount(() => {
 });
 
 watch(mode, () => {
+  invalidateClientCaptcha();
   resetPuzzle();
+  // Preload a fresh challenge when switching login/register tab.
+  void loadSlideChallengeAndReset({ keepError: true });
 });
 </script>
 

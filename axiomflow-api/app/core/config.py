@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import List
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -52,9 +52,16 @@ class Settings(BaseSettings):
     REFRESH_COOKIE_SAMESITE: str = "lax"  # lax|strict|none
     REFRESH_COOKIE_SECURE: bool = False
 
+    @model_validator(mode="after")
+    def _secure_cookie_in_prod(self) -> "Settings":
+        if (self.APP_ENV or "").lower() in ("prod", "production") and not self.REFRESH_COOKIE_SECURE:
+            object.__setattr__(self, "REFRESH_COOKIE_SECURE", True)
+        return self
+
     # Tokens
     EMAIL_VERIFY_TTL_SECONDS: int = 60 * 60
     PASSWORD_RESET_TTL_SECONDS: int = 30 * 60
+    CAPTCHA_IMAGE_URL: str = "https://v2.xxapi.cn/api/wallpaper?return=302"
 
     # Public URLs (links in emails)
     PUBLIC_WEB_URL: str = "http://localhost:5173"

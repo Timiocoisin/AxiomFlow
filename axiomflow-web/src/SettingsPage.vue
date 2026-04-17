@@ -53,12 +53,39 @@
               <div class="pt-6 border-t dark:border-slate-800 space-y-4">
                 <h3 class="font-bold">修改密码</h3>
                 <div class="grid grid-cols-1 gap-4">
-                  <input class="w-full px-4 py-2.5 rounded-xl border dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 outline-none" placeholder="当前密码" type="password" />
+                  <input
+                    v-model="pwdCurrent"
+                    class="w-full px-4 py-2.5 rounded-xl border dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 outline-none"
+                    placeholder="当前密码"
+                    type="password"
+                    autocomplete="current-password"
+                  />
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input class="w-full px-4 py-2.5 rounded-xl border dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 outline-none" placeholder="新密码" type="password" />
-                    <input class="w-full px-4 py-2.5 rounded-xl border dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 outline-none" placeholder="确认新密码" type="password" />
+                    <input
+                      v-model="pwdNew"
+                      class="w-full px-4 py-2.5 rounded-xl border dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 outline-none"
+                      placeholder="新密码"
+                      type="password"
+                      autocomplete="new-password"
+                    />
+                    <input
+                      v-model="pwdNew2"
+                      class="w-full px-4 py-2.5 rounded-xl border dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 outline-none"
+                      placeholder="确认新密码"
+                      type="password"
+                      autocomplete="new-password"
+                    />
                   </div>
                 </div>
+                <p v-if="pwdMsg" class="text-sm text-rose-500">{{ pwdMsg }}</p>
+                <button
+                  class="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-60"
+                  type="button"
+                  :disabled="pwdSubmitting"
+                  @click="submitPasswordChange"
+                >
+                  {{ pwdSubmitting ? "提交中…" : "更新密码" }}
+                </button>
               </div>
               <div class="flex justify-end pt-4">
                 <button
@@ -282,13 +309,15 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { Icon } from "@iconify/vue";
+import * as authApi from "./api/auth";
 
 defineProps<{
   serviceTime: string;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (e: "toggle-theme"): void;
+  (e: "password-changed"): void;
 }>();
 
 type SettingsTab = "account" | "preferences" | "appearance" | "notifications" | "upload" | "privacy";
@@ -304,6 +333,11 @@ const tabs: Array<{ id: SettingsTab; label: string; icon: string }> = [
 
 const activeTab = ref<SettingsTab>("account");
 const avatarUrl = ref("https://api.dicebear.com/7.x/avataaars/svg?seed=Felix");
+const pwdCurrent = ref("");
+const pwdNew = ref("");
+const pwdNew2 = ref("");
+const pwdMsg = ref("");
+const pwdSubmitting = ref(false);
 const saveState = ref<"idle" | "saving" | "done">("idle");
 const autoSaveHistory = ref(true);
 const mailNotice = ref(true);
@@ -329,5 +363,35 @@ function saveSettings() {
       saveState.value = "idle";
     }, 1200);
   }, 700);
+}
+
+async function submitPasswordChange() {
+  pwdMsg.value = "";
+  if (!sessionStorage.getItem("axiomflow:accessToken")) {
+    pwdMsg.value = "请先登录后再修改密码";
+    return;
+  }
+  if (pwdNew.value.length < 8 || !/[A-Za-z]/.test(pwdNew.value) || !/\d/.test(pwdNew.value)) {
+    pwdMsg.value = "新密码至少 8 位，且包含英文和数字";
+    return;
+  }
+  if (pwdNew.value !== pwdNew2.value) {
+    pwdMsg.value = "两次输入的新密码不一致";
+    return;
+  }
+  pwdSubmitting.value = true;
+  try {
+    await authApi.changePassword({ current_password: pwdCurrent.value, new_password: pwdNew.value });
+    pwdCurrent.value = "";
+    pwdNew.value = "";
+    pwdNew2.value = "";
+    emit("password-changed");
+  } catch (err: unknown) {
+    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    if (detail === "invalid_current_password") pwdMsg.value = "当前密码不正确";
+    else pwdMsg.value = "修改失败，请稍后重试";
+  } finally {
+    pwdSubmitting.value = false;
+  }
 }
 </script>

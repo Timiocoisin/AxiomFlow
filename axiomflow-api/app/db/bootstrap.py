@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import pymysql
+from sqlalchemy import inspect, text
 from sqlalchemy.engine import make_url
 
 from app.core.config import get_settings
@@ -47,6 +48,29 @@ def ensure_database_exists() -> None:
         conn.close()
 
 
+def ensure_username_unique_index() -> None:
+    """
+    Best-effort migration: add unique index on users.username if missing.
+    Fails gracefully when duplicates exist or permissions are insufficient.
+    """
+    try:
+        insp = inspect(engine)
+        if not insp.has_table("users"):
+            return
+        for idx in insp.get_indexes("users"):
+            if idx.get("unique") and tuple(idx.get("column_names") or ()) == ("username",):
+                return
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE users ADD UNIQUE INDEX uq_users_username (username)"))
+        logger.info("Added unique index uq_users_username on users.username")
+    except Exception:
+        logger.warning(
+            "Could not ensure unique index on users.username "
+            "(remove duplicate usernames manually or run ALTER TABLE).",
+            exc_info=True,
+        )
+
+
 def ensure_database_ready() -> None:
     try:
         ensure_database_exists()
@@ -59,4 +83,6 @@ def ensure_database_ready() -> None:
     except Exception:
         logger.exception("create_tables_failed")
         raise
+
+    ensure_username_unique_index()
 

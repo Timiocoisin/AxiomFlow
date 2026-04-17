@@ -1,6 +1,12 @@
 <template>
+  <ResetPasswordPage
+    v-if="page === 'reset-password'"
+    :is-dark="isDark"
+    @toggle-theme="toggleTheme"
+    @done="page = 'auth'"
+  />
   <AuthPage
-    v-if="page === 'auth'"
+    v-else-if="page === 'auth'"
     :is-dark="isDark"
     @toggle-theme="toggleTheme"
     @back="page = 'home'"
@@ -209,8 +215,13 @@
     @new-translation="page = 'home'"
     @open-preview="page = 'preview'"
   />
-  <ProfilePage v-else-if="page === 'profile'" />
-  <SettingsPage v-else :service-time="serviceTime" @toggle-theme="toggleTheme" />
+  <ProfilePage v-else-if="page === 'profile'" @password-changed="onPasswordChanged" />
+  <SettingsPage
+    v-else-if="page === 'settings'"
+    :service-time="serviceTime"
+    @toggle-theme="toggleTheme"
+    @password-changed="onPasswordChanged"
+  />
   <!-- 预览弹窗 (Mock) -->
   <div
     v-if="page === 'home'"
@@ -336,18 +347,21 @@
     </div>
   </footer>
   </div>
-</template>
+  </template>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
+import axios from "axios";
 import AuthPage from "./AuthPage.vue";
 import DocumentsPage from "./DocumentsPage.vue";
 import ProfilePage from "./ProfilePage.vue";
 import SettingsPage from "./SettingsPage.vue";
 import PreviewPage from "./PreviewPage.vue";
+import ResetPasswordPage from "./ResetPasswordPage.vue";
 import VerifyEmailPage from "./VerifyEmailPage.vue";
+import { API_BASE_URL } from "./api/baseUrl";
 import * as authApi from "./api/auth";
 
 type ToastItem = {
@@ -359,7 +373,9 @@ const isDark = ref(false);
 const isLoggedIn = ref(false);
 const accessToken = ref<string>("");
 const lastRegisterEmail = ref<string>(localStorage.getItem("axiomflow:lastRegisterEmail") || "");
-const page = ref<"home" | "auth" | "documents" | "profile" | "settings" | "preview" | "verify-email">("home");
+const page = ref<
+  "home" | "auth" | "documents" | "profile" | "settings" | "preview" | "verify-email" | "reset-password"
+>("home");
 const isOnline = ref(navigator.onLine);
 const showPreview = ref(false);
 const loadingBarWidth = ref(0);
@@ -372,6 +388,7 @@ let loadingTimerA: number | null = null;
 let loadingTimerB: number | null = null;
 let clockTimer: number | null = null;
 let themeSwitchTimer: number | null = null;
+let accessRefreshTimer: number | null = null;
 
 const currentYear = computed(() => now.value.getFullYear());
 const serviceTime = computed(() => {
@@ -442,22 +459,58 @@ function startTranslation() {
   }, 800);
 }
 
-function handleAuthed(payload: { accessToken: string }) {
+function scheduleAccessTokenRefresh(expiresAt: string) {
+  if (accessRefreshTimer) window.clearTimeout(accessRefreshTimer);
+  const expMs = new Date(expiresAt).getTime();
+  const delay = Math.max(5_000, expMs - Date.now() - 60_000);
+  accessRefreshTimer = window.setTimeout(async () => {
+    accessRefreshTimer = null;
+    if (!sessionStorage.getItem("axiomflow:accessToken")) return;
+    try {
+      const { data } = await axios.post<{ access_token: string; access_expires_at?: string }>(
+        `${API_BASE_URL}/auth/refresh`,
+        {},
+        { withCredentials: true, timeout: 15000 },
+      );
+      sessionStorage.setItem("axiomflow:accessToken", data.access_token);
+      accessToken.value = data.access_token;
+      if (data.access_expires_at) {
+        sessionStorage.setItem("axiomflow:accessExpiresAt", data.access_expires_at);
+        scheduleAccessTokenRefresh(data.access_expires_at);
+      }
+    } catch {
+      /* session may be gone */
+    }
+  }, delay);
+}
+
+function handleAuthed(payload: { accessToken: string; accessExpiresAt?: string }) {
   isLoggedIn.value = true;
   accessToken.value = payload.accessToken;
   sessionStorage.setItem("axiomflow:accessToken", payload.accessToken);
+  if (payload.accessExpiresAt) {
+    sessionStorage.setItem("axiomflow:accessExpiresAt", payload.accessExpiresAt);
+    scheduleAccessTokenRefresh(payload.accessExpiresAt);
+  }
   page.value = "home";
   showToast("登录成功");
 }
 
-function handleVerified(payload: { accessToken: string }) {
+function handleVerified(payload: { accessToken: string; accessExpiresAt?: string }) {
   isLoggedIn.value = true;
   accessToken.value = payload.accessToken;
   sessionStorage.setItem("axiomflow:accessToken", payload.accessToken);
+  if (payload.accessExpiresAt) {
+    sessionStorage.setItem("axiomflow:accessExpiresAt", payload.accessExpiresAt);
+    scheduleAccessTokenRefresh(payload.accessExpiresAt);
+  }
   page.value = "home";
   showToast("邮箱验证成功");
-  // 清理 URL 的 token，避免带着验证参数回到首页
   window.location.hash = "#/";
+}
+
+function onPasswordChanged() {
+  showToast("密码已更新");
 }
 
 function handleGoVerifyEmail(payload: { email: string }) {
@@ -467,6 +520,10 @@ function handleGoVerifyEmail(payload: { email: string }) {
 }
 
 function handleLogout() {
+  if (accessRefreshTimer) {
+    window.clearTimeout(accessRefreshTimer);
+    accessRefreshTimer = null;
+  }
   authApi
     .logout()
     .catch(() => {})
@@ -474,6 +531,7 @@ function handleLogout() {
       isLoggedIn.value = false;
       accessToken.value = "";
       sessionStorage.removeItem("axiomflow:accessToken");
+      sessionStorage.removeItem("axiomflow:accessExpiresAt");
       page.value = "home";
       showToast("已退出登录");
     });
@@ -501,8 +559,33 @@ function handleLoad() {
   }, 600);
 }
 
+function hashForPage(p: typeof page.value): string {
+  switch (p) {
+    case "auth":
+      return "#/auth";
+    case "verify-email":
+      return "#/verify-email";
+    case "reset-password":
+      return "#/reset-password";
+    case "documents":
+      return "#/documents";
+    case "profile":
+      return "#/profile";
+    case "settings":
+      return "#/settings";
+    case "preview":
+      return "#/preview";
+    default:
+      return "#/";
+  }
+}
+
 function syncPageFromHash() {
   const h = window.location.hash || "";
+  if (h.startsWith("#/reset-password")) {
+    page.value = "reset-password";
+    return;
+  }
   if (h.startsWith("#/verify-email")) {
     page.value = "verify-email";
     return;
@@ -511,9 +594,31 @@ function syncPageFromHash() {
     page.value = "auth";
     return;
   }
-  // 默认落回首页，避免 hash 被清理/切换后残留页面状态
+  if (h.startsWith("#/documents")) {
+    page.value = "documents";
+    return;
+  }
+  if (h.startsWith("#/profile")) {
+    page.value = "profile";
+    return;
+  }
+  if (h.startsWith("#/settings")) {
+    page.value = "settings";
+    return;
+  }
+  if (h.startsWith("#/preview")) {
+    page.value = "preview";
+    return;
+  }
   page.value = "home";
 }
+
+watch(page, (p) => {
+  const nextHash = hashForPage(p);
+  if ((window.location.hash || "") !== nextHash) {
+    window.location.hash = nextHash;
+  }
+});
 
 onMounted(() => {
   applyThemeClasses(document.documentElement.classList.contains("dark"));
@@ -534,6 +639,8 @@ onMounted(() => {
   if (saved) {
     accessToken.value = saved;
     isLoggedIn.value = true;
+    const exp = sessionStorage.getItem("axiomflow:accessExpiresAt");
+    if (exp) scheduleAccessTokenRefresh(exp);
   }
 });
 
@@ -547,5 +654,6 @@ onBeforeUnmount(() => {
   if (loadingTimerB) window.clearTimeout(loadingTimerB);
   if (clockTimer) window.clearInterval(clockTimer);
   if (themeSwitchTimer) window.clearTimeout(themeSwitchTimer);
+  if (accessRefreshTimer) window.clearTimeout(accessRefreshTimer);
 });
 </script>

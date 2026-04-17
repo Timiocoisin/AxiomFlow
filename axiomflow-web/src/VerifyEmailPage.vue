@@ -55,7 +55,7 @@
         <button
           class="inline-block w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold py-4 rounded-xl transition-all"
           type="button"
-          @click="emit('verified', { accessToken })"
+          @click="emitVerifiedOnce"
         >
           进入工作台
         </button>
@@ -74,7 +74,7 @@ const props = defineProps<{ isDark: boolean; email?: string }>();
 const emit = defineEmits<{
   (e: "toggle-theme"): void;
   (e: "back"): void;
-  (e: "verified", payload: { accessToken: string }): void;
+  (e: "verified", payload: { accessToken: string; accessExpiresAt?: string }): void;
 }>();
 
 const verified = ref(false);
@@ -83,6 +83,8 @@ const countingDown = ref(false);
 let timer: number | null = null;
 const statusText = ref("");
 const accessToken = ref("");
+const accessExpiresAt = ref("");
+let verifyEmitted = false;
 
 const maskedEmail = computed(() => {
   const v = props.email || localStorage.getItem("axiomflow:lastRegisterEmail") || "您的邮箱";
@@ -136,6 +138,15 @@ function resend() {
     });
 }
 
+function emitVerifiedOnce() {
+  if (verifyEmitted || !accessToken.value) return;
+  verifyEmitted = true;
+  emit("verified", {
+    accessToken: accessToken.value,
+    accessExpiresAt: accessExpiresAt.value || undefined,
+  });
+}
+
 async function tryVerifyFromToken() {
   const token = getTokenFromHash();
   if (!token) return;
@@ -144,8 +155,9 @@ async function tryVerifyFromToken() {
     const res = await authApi.verifyEmail({ token });
     verified.value = true;
     accessToken.value = res.access_token;
+    accessExpiresAt.value = res.access_expires_at || "";
     statusText.value = "";
-    emit("verified", { accessToken: res.access_token });
+    emitVerifiedOnce();
   } catch {
     statusText.value = "验证失败或已过期，请重新发送验证邮件。";
   }

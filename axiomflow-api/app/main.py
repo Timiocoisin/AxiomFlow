@@ -4,8 +4,11 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.core.config import get_settings
+from app.core.limiter import limiter
 from app.api.router import api_router
 from app.db.bootstrap import ensure_database_ready
 
@@ -19,6 +22,8 @@ def create_app() -> FastAPI:
     )
 
     app = FastAPI(title=settings.APP_NAME)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     @app.on_event("startup")
     def _startup() -> None:

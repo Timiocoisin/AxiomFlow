@@ -124,21 +124,44 @@
         <div v-else-if="activeTab === 'security'" class="space-y-8">
           <div class="glass rounded-3xl p-8">
             <h2 class="text-2xl font-bold mb-8">修改密码</h2>
-            <form class="space-y-6 max-w-md" @submit.prevent>
+            <form class="space-y-6 max-w-md" @submit.prevent="submitPasswordChange">
               <div class="space-y-2">
                 <label class="text-sm font-semibold text-slate-500 ml-1">当前密码</label>
-                <input class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all" placeholder="••••••••" type="password" />
+                <input
+                  v-model="secCurrent"
+                  class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                  placeholder="••••••••"
+                  type="password"
+                  autocomplete="current-password"
+                />
               </div>
               <div class="space-y-2">
                 <label class="text-sm font-semibold text-slate-500 ml-1">新密码</label>
-                <input class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all" placeholder="至少 8 位，包含数字和字母" type="password" />
+                <input
+                  v-model="secNew"
+                  class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                  placeholder="至少 8 位，包含数字和字母"
+                  type="password"
+                  autocomplete="new-password"
+                />
               </div>
               <div class="space-y-2">
                 <label class="text-sm font-semibold text-slate-500 ml-1">确认新密码</label>
-                <input class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all" placeholder="再次输入新密码" type="password" />
+                <input
+                  v-model="secNew2"
+                  class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                  placeholder="再次输入新密码"
+                  type="password"
+                  autocomplete="new-password"
+                />
               </div>
-              <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-indigo-600/20 active:scale-95" type="submit">
-                更新密码
+              <p v-if="secMsg" class="text-sm text-rose-500">{{ secMsg }}</p>
+              <button
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-indigo-600/20 active:scale-95 disabled:opacity-60"
+                type="submit"
+                :disabled="secSubmitting"
+              >
+                {{ secSubmitting ? "提交中…" : "更新密码" }}
               </button>
             </form>
           </div>
@@ -282,11 +305,19 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import * as echarts from "echarts";
+import * as authApi from "./api/auth";
+
+const emit = defineEmits<{ (e: "password-changed"): void }>();
 
 type TabId = "basic" | "stats" | "security" | "notifications" | "actions";
 
 const activeTab = ref<TabId>("basic");
 const avatarUrl = "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix";
+const secCurrent = ref("");
+const secNew = ref("");
+const secNew2 = ref("");
+const secMsg = ref("");
+const secSubmitting = ref(false);
 const twoFactorEnabled = ref(false);
 const notifyEmail = ref(true);
 const notifyBrowser = ref(false);
@@ -307,6 +338,36 @@ const registerDate = computed(() => {
   const pad = (v: number) => String(v).padStart(2, "0");
   return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日`;
 });
+
+async function submitPasswordChange() {
+  secMsg.value = "";
+  if (!sessionStorage.getItem("axiomflow:accessToken")) {
+    secMsg.value = "请先登录后再修改密码";
+    return;
+  }
+  if (secNew.value.length < 8 || !/[A-Za-z]/.test(secNew.value) || !/\d/.test(secNew.value)) {
+    secMsg.value = "新密码至少 8 位，且包含英文和数字";
+    return;
+  }
+  if (secNew.value !== secNew2.value) {
+    secMsg.value = "两次输入的新密码不一致";
+    return;
+  }
+  secSubmitting.value = true;
+  try {
+    await authApi.changePassword({ current_password: secCurrent.value, new_password: secNew.value });
+    secCurrent.value = "";
+    secNew.value = "";
+    secNew2.value = "";
+    emit("password-changed");
+  } catch (err: unknown) {
+    const detail = (err as { response?: { data?: { detail?: string }; status?: number } })?.response?.data?.detail;
+    if (detail === "invalid_current_password") secMsg.value = "当前密码不正确";
+    else secMsg.value = "修改失败，请稍后重试";
+  } finally {
+    secSubmitting.value = false;
+  }
+}
 
 function renderActivityChart() {
   if (!activityChartRef.value) return;

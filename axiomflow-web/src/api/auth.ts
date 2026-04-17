@@ -6,12 +6,50 @@ export type TokenResponse = {
   token_type: "Bearer";
 };
 
-export async function register(params: { email: string; username: string; password: string }) {
+export type SlideCaptchaIssue = {
+  captcha_id: string;
+  image_base64: string;
+  piece_image_base64: string;
+  scene_width: number;
+  scene_height: number;
+};
+
+export type MathCaptchaIssue = {
+  captcha_id: string;
+  left: number;
+  right: number;
+};
+
+export async function issueSlideCaptcha(sceneWidth: number, sceneHeight: number) {
+  const { data } = await api.post<SlideCaptchaIssue>(
+    `/auth/captcha/slide-issue?scene_width=${encodeURIComponent(String(sceneWidth))}&scene_height=${encodeURIComponent(String(sceneHeight))}`,
+    {},
+  );
+  return data;
+}
+
+export async function issueMathCaptcha() {
+  const { data } = await api.post<MathCaptchaIssue>("/auth/captcha/math-issue", {});
+  return data;
+}
+
+export async function register(params: {
+  email: string;
+  username: string;
+  password: string;
+  captcha_id: string;
+  piece_final_x: number;
+}) {
   const { data } = await api.post<{ ok: boolean; message?: string }>("/auth/register", params);
   return data;
 }
 
-export async function login(params: { email: string; password: string }) {
+export async function login(params: {
+  email: string;
+  password: string;
+  captcha_id: string;
+  piece_final_x: number;
+}) {
   const { data } = await api.post<TokenResponse>("/auth/login", params);
   return data;
 }
@@ -36,7 +74,11 @@ export async function resendVerification(params: { email: string }) {
   return data;
 }
 
-export async function requestPasswordReset(params: { email: string }) {
+export async function requestPasswordReset(params: {
+  email: string;
+  captcha_id: string;
+  captcha_answer: number;
+}) {
   const { data } = await api.post<{ ok: boolean; message?: string }>(
     "/auth/request-password-reset",
     params,
@@ -49,3 +91,7 @@ export async function resetPassword(params: { token: string; new_password: strin
   return data;
 }
 
+export async function changePassword(params: { current_password: string; new_password: string }) {
+  const { data } = await api.post<{ ok: boolean }>("/auth/change-password", params);
+  return data;
+}
